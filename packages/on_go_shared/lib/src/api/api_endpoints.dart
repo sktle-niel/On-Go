@@ -82,6 +82,18 @@ class ApiEndpoints {
   /// GET (`PointsPolicyApi.fetch`) and PUT (`PointsPolicyApi.update`).
   static const String pointsPolicy = '/platform/points-policy';
 
+  // -------------------------------------------------------------- location ---
+
+  /// POST — `LocationApi.reportLocation`.
+  static const String locations = '$_root/locations';
+
+  /// GET — `LocationApi.fetchLastKnown`.
+  static String userLocation(String userId) => '$_root/users/$userId/location';
+
+  /// GET — `LocationApi.findNearbyJobIds`. Takes `radiusKm` as a query
+  /// parameter; the mechanic's position comes from their stored location.
+  static String nearbyJobs(String mechanicId) => '$_root/mechanics/$mechanicId/nearby-jobs';
+
   // --------------------------------------------------------------- streams ---
 
   /// The live channel behind every `watch*` method. One socket carrying

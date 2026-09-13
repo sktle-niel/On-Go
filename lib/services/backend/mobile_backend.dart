@@ -1,6 +1,7 @@
 import 'package:on_go_shared/on_go_shared.dart';
 
 import 'local_appearance_service.dart';
+import 'local_location_service.dart';
 import 'local_points_policy_service.dart';
 import 'local_auth_service.dart';
 import 'local_revenue_service.dart';
@@ -30,6 +31,7 @@ class MobileBackend {
     required this.revenue,
     required this.appearance,
     required this.pointsPolicy,
+    required this.location,
   });
 
   static MobileBackend _instance = MobileBackend._(
@@ -38,6 +40,7 @@ class MobileBackend {
     revenue: LocalRevenueService(),
     appearance: LocalAppearanceService(),
     pointsPolicy: LocalPointsPolicyService(),
+    location: LocalLocationService(),
   );
 
   static MobileBackend get instance => _instance;
@@ -57,6 +60,11 @@ class MobileBackend {
   /// The points rules the console configures and this app awards by.
   final PointsPolicyApi pointsPolicy;
 
+  /// Where the signed-in user's live location is reported, and — once the
+  /// backend exists — where a mechanic's last known location is kept for
+  /// nearby-job matching. Reading GPS is not this: that is `LocationService`.
+  final LocationApi location;
+
   /// Replaces some or all of the implementations. Call it once, before
   /// `runApp`, when the API client arrives; each argument left null keeps the
   /// local implementation it already had.
@@ -66,6 +74,7 @@ class MobileBackend {
     PlatformRevenueApi? revenue,
     PlatformAppearanceApi? appearance,
     PointsPolicyApi? pointsPolicy,
+    LocationApi? location,
   }) {
     _instance = MobileBackend._(
       auth: auth ?? _instance.auth,
@@ -73,6 +82,7 @@ class MobileBackend {
       revenue: revenue ?? _instance.revenue,
       appearance: appearance ?? _instance.appearance,
       pointsPolicy: pointsPolicy ?? _instance.pointsPolicy,
+      location: location ?? _instance.location,
     );
   }
 }

@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Location, while the app is in use only. There is deliberately no
+         ACCESS_BACKGROUND_LOCATION: position is read for the screen in front
+         of the user, never behind it. Declaring COARSE as well as FINE is what
+         lets Android 12+ offer "Approximate" as a real choice. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- Turning a GPS fix into a readable place needs the network. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="on_go"
         android:name="${applicationName}"

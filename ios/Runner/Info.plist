@@ -6,6 +6,8 @@
 	<string>Camera access is required for face verification.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access is needed during face verification.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>On Go uses your location to fill in where you need help and to tell how far a mechanic is from a job. You can always type your location instead.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

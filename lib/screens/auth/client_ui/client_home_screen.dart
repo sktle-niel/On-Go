@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/app_session.dart';
 import '../../../data/quote_store.dart';
 import '../../../data/review_store.dart';
+import '../../../services/location/location_service.dart';
 import '../../../theme/app_theme.dart';
 import 'home/need_help_screen.dart';
 import 'notifications/client_notifications_screen.dart';
@@ -24,6 +25,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   void initState() {
     super.initState();
     AppSession.instance.setRole(AppRole.client, viewerName: ReviewStore.currentClientName);
+    // The one-time location prompt — the operating system's own dialog, shown
+    // after the first frame so it lands over the app rather than a blank
+    // screen, and never again once the user has decided either way.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) LocationService.instance.promptOnFirstUse();
+    });
   }
 
   void _goToTab(int index) => setState(() => _currentIndex = index);

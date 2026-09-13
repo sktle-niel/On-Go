@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import '../../../data/app_session.dart';
 import '../../../data/mechanic_notification_store.dart';
 import '../../../data/quote_store.dart';
+import '../../../data/mechanic_account_store.dart';
+import 'package:on_go_shared/on_go_shared.dart';
+
+import '../../../services/location/location_reporter.dart';
+import '../../../services/location/location_service.dart';
 import '../../../theme/app_theme.dart';
 import 'jobs/jobs_screen.dart';
 import 'notifications/mechanic_notifications_screen.dart';
@@ -29,14 +34,38 @@ class _MechanicHomeScreenState extends State<MechanicHomeScreen> {
   /// How a notification asks the Jobs tab to open one particular job.
   final _jobFocus = ValueNotifier<JobFocusRequest?>(null);
 
+  /// The mechanic's live location, reported onward so a backend can keep their
+  /// last known position for nearby-job matching.
+  late final LocationReporter _locationReporter = LocationReporter(
+    role: LocationRole.mechanic,
+    availability: () {
+      final me = QuoteNotificationStore.currentMechanicName;
+      if (!MechanicAccountStore.instance.canPerformJobActions) return MechanicAvailability.offline;
+      return QuoteNotificationStore.instance.matchedJobsFor(me).isEmpty
+          ? MechanicAvailability.available
+          : MechanicAvailability.onJob;
+    },
+  );
+
   @override
   void initState() {
     super.initState();
     AppSession.instance.setRole(AppRole.mechanic, viewerName: QuoteNotificationStore.currentMechanicName);
+    _locationReporter.start();
+    // The one-time prompt, then live location while the app is open — live
+    // updates pause by themselves whenever the app leaves the screen. Tracking
+    // never prompts; if the mechanic declines, it simply stays off.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await LocationService.instance.promptOnFirstUse();
+      if (mounted) LocationService.instance.startTracking();
+    });
   }
 
   @override
   void dispose() {
+    LocationService.instance.stopTracking();
+    _locationReporter.stop();
     _jobFocus.dispose();
     super.dispose();
   }

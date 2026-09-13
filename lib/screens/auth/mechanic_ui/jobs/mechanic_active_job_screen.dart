@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:on_go_shared/on_go_shared.dart';
+
+import '../../../../services/location/location_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/chat_icon_button.dart';
@@ -20,7 +22,14 @@ class MechanicActiveJobScreen extends StatefulWidget {
 
 class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
   final _store = QuoteNotificationStore.instance;
-  StreamSubscription<Position>? _positionSub;
+
+  // Arrival detection reads the shared LocationService rather than GPS
+  // directly: one set of permission, services and error handling for the
+  // whole app, and live updates that pause when the app is in the background.
+  final _location = LocationService.instance;
+  bool _tracking = false;
+  DateTime? _trackingSince;
+  LocationUpdate? _lastHandled;
   double? _initialDistance;
   String? _trackingError;
 
@@ -31,6 +40,7 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
   void initState() {
     super.initState();
     _store.addListener(_onChange);
+    _location.addListener(_onLocation);
     final request = _store.requestFor(widget.requestId);
     if (request != null && request.navigating) {
       _startTracking(request);
@@ -40,7 +50,8 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
   @override
   void dispose() {
     _store.removeListener(_onChange);
-    _positionSub?.cancel();
+    _location.removeListener(_onLocation);
+    _stopTracking();
     super.dispose();
   }
 
@@ -52,36 +63,60 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
   }
 
   Future<void> _startTracking(HelpRequest request) async {
-    if (_positionSub != null) return;
+    if (_tracking) return;
     if (request.arrived) return;
     if (!request.hasClientCoordinates) return;
 
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        setState(() => _trackingError = 'Location services are off.');
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        setState(() => _trackingError = 'Location permission denied — arrival must be confirmed manually.');
-        return;
-      }
-
-      _positionSub = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
-      ).listen((pos) => _handlePosition(request, pos));
-    } catch (e) {
-      setState(() => _trackingError = 'Could not start location tracking — arrival must be confirmed manually.');
+    // Heading to a job is a moment the mechanic plainly needs location, so a
+    // prompt here is warranted — the service only shows one if asking can
+    // still change anything.
+    final access = await _location.requestAccess();
+    if (!mounted) return;
+    if (access != LocationAccess.granted) {
+      setState(() => _trackingError = access == LocationAccess.servicesDisabled
+          ? 'Location services are off — arrival must be confirmed manually.'
+          : 'Location permission denied — arrival must be confirmed manually.');
+      return;
     }
+
+    _tracking = true;
+    _trackingSince = DateTime.now();
+    final live = await _location.startTracking();
+    if (!mounted) return;
+    setState(() => _trackingError =
+        live ? null : 'Could not start location tracking — arrival must be confirmed manually.');
+    _onLocation();
   }
 
-  void _handlePosition(HelpRequest request, Position pos) {
-    final distance = Geolocator.distanceBetween(pos.latitude, pos.longitude, request.clientLat!, request.clientLng!);
+  void _stopTracking() {
+    if (!_tracking) return;
+    _tracking = false;
+    _location.stopTracking();
+  }
+
+  void _onLocation() {
+    if (!_tracking || !mounted) return;
+
+    // Tracking stopped underneath us — services switched off, GPS lost.
+    if (!_location.isTracking && _location.failure != null) {
+      setState(() => _trackingError = '${_location.failure!.message} Arrival must be confirmed manually.');
+      return;
+    }
+
+    final request = _store.requestFor(widget.requestId);
+    final update = _location.current;
+    if (request == null || update == null || identical(update, _lastHandled)) return;
+    if (!request.hasClientCoordinates) return;
+    // A fix from before this job's tracking began says nothing about the trip.
+    final since = _trackingSince;
+    if (since != null && update.recordedAt.isBefore(since.subtract(const Duration(seconds: 5)))) return;
+
+    _lastHandled = update;
+    _handlePosition(request, update.point);
+  }
+
+  void _handlePosition(HelpRequest request, GeoPoint position) {
+    final distance = position.distanceTo(GeoPoint(request.clientLat!, request.clientLng!));
     _initialDistance ??= distance;
 
     if (!request.enRoute && distance < _initialDistance! - _movementThresholdMeters) {
@@ -89,7 +124,7 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
     }
     if (!request.arrived && distance <= _arrivalRadiusMeters) {
       _store.mechanicMarkArrived(request.id);
-      _positionSub?.cancel();
+      _stopTracking();
     }
   }
 

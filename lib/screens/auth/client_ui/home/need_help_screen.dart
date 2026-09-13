@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import '../../../../../services/location/place_sources.dart';
+import '../../../../../widgets/location_selector.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../theme/app_theme.dart';
 import '../../../../../widgets/common_widgets.dart';
@@ -34,7 +35,6 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
   String? _selectedIssue;
 
   final List<XFile> _photos = [];
-  bool _fetchingLocation = false;
   bool _uploading = false;
 
   // Only set when "Use Current Location" succeeds — cleared the moment the
@@ -126,41 +126,21 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
   // Location
   // ---------------------------------------------------------------------
 
-  Future<void> _useCurrentLocation() async {
-    setState(() => _fetchingLocation = true);
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        _showSnack('Please enable location services to continue.');
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          _showSnack('Location permission denied.');
-          return;
-        }
-      }
-      if (permission == LocationPermission.deniedForever) {
-        _showSnack('Location permission permanently denied. Enable it in Settings.');
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-
-      _locationCtrl.text =
-          '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
-      _capturedLat = position.latitude;
-      _capturedLng = position.longitude;
-    } catch (e) {
-      _showSnack('Could not get your location: $e');
-    } finally {
-      if (mounted) setState(() => _fetchingLocation = false);
-    }
+  /// Everything about finding the location — GPS, permission, suggestions —
+  /// lives in [LocationSelector] and the shared LocationService. This screen
+  /// only keeps what it submits.
+  ///
+  /// Coordinates are kept only when they came from the device. A place picked
+  /// from suggestions is a named area, not a position precise enough to detect
+  /// a mechanic arriving, so it carries none — and the mechanic side falls back
+  /// to confirming arrival by hand rather than trusting a guess.
+  void _onLocationChanged(SelectedLocation? selection) {
+    final point = selection?.gps?.point;
+    if (point?.latitude == _capturedLat && point?.longitude == _capturedLng) return;
+    setState(() {
+      _capturedLat = point?.latitude;
+      _capturedLng = point?.longitude;
+    });
   }
 
   void _showSnack(String msg) {
@@ -369,50 +349,32 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
           const Text('Your Location',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          TextFormField(
+          // One field for typing, searching, browsing and the device's own
+          // location. Typing over a GPS location drops its coordinates, as the
+          // plain field did.
+          LocationSelector(
             controller: _locationCtrl,
-            onChanged: (_) {
-              // A real keystroke means the client is typing their own
-              // address — the GPS fix we may have captured no longer
-              // matches what's in the field, so drop it.
-              if (_capturedLat != null || _capturedLng != null) {
-                setState(() {
-                  _capturedLat = null;
-                  _capturedLng = null;
-                });
-              }
-            },
-            decoration: const InputDecoration(hintText: 'Enter your location or use current location'),
-          ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _fetchingLocation ? null : _useCurrentLocation,
-              icon: _fetchingLocation
-                  ? SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.primary),
-                    )
-                  : Icon(Icons.my_location, size: 16, color: AppColors.primary),
-              label: Text(
-                _fetchingLocation ? 'Getting location…' : 'Use Current Location',
-                style: TextStyle(
-                    color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
-            ),
+            onChanged: _onLocationChanged,
+            directory: PlaceSources.directory,
+            geocoder: PlaceSources.geocoder,
+            hintText: 'Enter your location or use current location',
           ),
           if (_capturedLat != null) ...[
             const SizedBox(height: 4),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.gps_fixed, size: 12, color: AppColors.success),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(Icons.gps_fixed, size: 12, color: AppColors.success),
+                ),
                 const SizedBox(width: 4),
-                Text('Precise location captured — mechanic arrival will be detected automatically',
-                    style: TextStyle(fontSize: 11, color: AppColors.success)),
+                // Wraps rather than running off the screen: on one line this
+                // is far wider than any phone.
+                Expanded(
+                  child: Text('Precise location captured — mechanic arrival will be detected automatically',
+                      style: TextStyle(fontSize: 11, color: AppColors.success)),
+                ),
               ],
             ),
           ],

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'data/mechanic_settings_store.dart';
 import 'data/points_policy_store.dart';
 import 'data/registration_draft.dart';
+import 'services/location/location_service.dart';
+import 'services/location/place_sources.dart';
+import 'services/location/platform_reverse_geocoder.dart';
+import 'services/location/psgc_place_directory.dart';
 import 'screens/auth/mechanic_registration/mechanic_step4_documents.dart';
 import 'screens/auth/mechanic_registration/mechanic_step5_verification.dart';
 import 'screens/auth/sign_in_screen.dart';
@@ -25,6 +29,19 @@ void main() async {
   // The registration draft, so a launch that is really Android restarting us
   // mid-photo-pick can put the user back on the form rather than Sign In.
   await RegistrationDraft.instance.load();
+  // Location: whether the user has already been asked, the last fix this
+  // device took, and the permission as it stands now. Never prompts — the
+  // one-time prompt waits until a Client or Mechanic has signed in.
+  await LocationService.instance.load();
+  // Place names: the PSA's official list bundled with the app, and the
+  // phone's own geocoder for turning a GPS fix into an address. Both load
+  // lazily, and both report themselves unavailable rather than failing — the
+  // directory until its asset has been built and added, the geocoder when
+  // the device is offline or has none.
+  PlaceSources.configure(
+    directory: PsgcPlaceDirectory(),
+    geocoder: PlatformReverseGeocoder(),
+  );
   runApp(MyApp(resumeRegistrationStep: RegistrationDraft.instance.pendingPickerStep));
 }
 

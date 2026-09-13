@@ -3,6 +3,7 @@ import '../../../../data/mechanic_account_store.dart';
 import '../../../../data/mechanic_settings_store.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/change_password_dialog.dart';
+import '../../../../widgets/location_widgets.dart';
 import '../../../../widgets/password_strength.dart';
 import '../../../shared/theme_screen.dart';
 
@@ -89,6 +90,12 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 16),
+          Text('LOCATION', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const LocationAccessTile(),
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 16),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../data/client_account_store.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/change_password_dialog.dart';
+import '../../../../widgets/location_widgets.dart';
 import '../../../../widgets/password_strength.dart';
 import '../../../shared/theme_screen.dart';
 
@@ -60,6 +61,12 @@ class _ClientSettingsScreenState extends State<ClientSettingsScreen> {
         children: [
           Text('APPEARANCE', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600)),
           const ThemesSettingsTile(),
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 16),
+          Text('LOCATION', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          const LocationAccessTile(),
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 16),
