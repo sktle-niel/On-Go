@@ -1,11 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../services/backend/mobile_backend.dart';
 import '../theme/app_theme.dart';
 import 'password_strength.dart';
 
+/// Changes the signed-in account's password on the On Go API, for a
+/// [ChangePasswordAttempt]: the error to show, or null once it changed.
+Future<String?> changePasswordOnServer(String current, String next) async {
+  try {
+    final changed = await MobileBackend.instance.auth.changePassword(
+      currentPassword: current,
+      newPassword: next,
+    );
+    return changed ? null : 'Current password is incorrect.';
+  } on ApiException catch (error) {
+    return error.fieldErrors['newPassword'] ?? error.message;
+  }
+}
+
 /// Runs one caller's own rules. Return an error to show inside the dialog, or
-/// null once the password has actually been changed.
-typedef ChangePasswordAttempt = String? Function(
+/// null once the password has actually been changed. May be asynchronous —
+/// a change the server makes is — and the dialog waits for it.
+typedef ChangePasswordAttempt = FutureOr<String?> Function(
   String current,
   String next,
   String confirm,
@@ -46,6 +64,9 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
   final newController = TextEditingController();
   final confirmController = TextEditingController();
   String? errorText;
+
+  /// While an attempt is out, so Save cannot send it twice.
+  bool saving = false;
 
   @override
   void dispose() {
@@ -109,19 +130,26 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: () {
-              final error = widget.onSubmit(
-                currentController.text,
-                newController.text,
-                confirmController.text,
-              );
-              if (error != null) {
-                setDialogState(() => errorText = error);
-                return;
-              }
-              Navigator.pop(ctx, true);
-            },
-            child: const Text('Save'),
+            onPressed: saving
+                ? null
+                : () async {
+                    setDialogState(() => saving = true);
+                    final error = await widget.onSubmit(
+                      currentController.text,
+                      newController.text,
+                      confirmController.text,
+                    );
+                    if (!mounted) return;
+                    if (error != null) {
+                      setDialogState(() {
+                        errorText = error;
+                        saving = false;
+                      });
+                      return;
+                    }
+                    Navigator.pop(context, true);
+                  },
+            child: Text(saving ? 'Saving…' : 'Save'),
           ),
         ],
       );

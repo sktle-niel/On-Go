@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/mechanic_account_store.dart';
+import '../../../../services/backend/mobile_backend.dart';
 import '../../../../data/mechanic_settings_store.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/change_password_dialog.dart';
@@ -23,7 +24,7 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
   Future<void> _changePassword() async {
     final changed = await showChangePasswordDialog(
       context: context,
-      onSubmit: (current, next, confirm) {
+      onSubmit: (current, next, confirm) async {
         if (current.isEmpty || next.isEmpty || confirm.isEmpty) {
           return 'Please fill in all fields.';
         }
@@ -31,6 +32,7 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
           return 'Please choose a stronger password.';
         }
         if (next != confirm) return 'New passwords do not match.';
+        if (MobileBackend.instance.usesApi) return changePasswordOnServer(current, next);
         final ok = _store.changePassword(currentPassword: current, newPassword: next);
         if (!ok) return 'Current password is incorrect.';
         return null;
@@ -46,7 +48,8 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasLocalPassword = !_store.verifyPassword('');
+    // An On Go API account always has a password, held by the server.
+    final hasLocalPassword = MobileBackend.instance.usesApi || !_store.verifyPassword('');
 
     return Scaffold(
       backgroundColor: AppColors.background,

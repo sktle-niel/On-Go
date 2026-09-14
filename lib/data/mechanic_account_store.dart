@@ -89,6 +89,11 @@ class MechanicAccountStore extends ChangeNotifier {
   /// [MobileBackend.verification], or null when there is none.
   AccountVerificationRequest? get accountRequest => _request;
 
+  /// Why this account's verification request could not be filed, when it
+  /// could not. Null when it was filed, or when there was nothing to file.
+  ApiException? get verificationError => _verificationError;
+  ApiException? _verificationError;
+
   ApprovalStatus? get status => _request?.status;
 
   bool get canPerformJobActions {
@@ -149,16 +154,27 @@ class MechanicAccountStore extends ChangeNotifier {
     );
 
     _stopWatching();
+    _verificationError = null;
     notifyListeners();
 
-    final filed = await MobileBackend.instance.verification.submit(
-      SubmitVerificationRequest(
-        name: '$firstName $lastName'.trim(),
-        email: email,
-        role: AccountRole.mechanic,
-        documentNames: documents,
-      ),
-    );
+    final AccountVerificationRequest filed;
+    try {
+      filed = await MobileBackend.instance.verification.submit(
+        SubmitVerificationRequest(
+          name: '$firstName $lastName'.trim(),
+          email: email,
+          role: AccountRole.mechanic,
+          documentNames: documents,
+        ),
+      );
+    } on ApiException catch (error) {
+      // The account exists; its request could not be filed — the API does not
+      // serve verification yet (501), or could not be reached. Recorded rather
+      // than thrown, and never replaced by a made-up Pending request.
+      _verificationError = error;
+      notifyListeners();
+      return;
+    }
 
     // Start from this request's own status, so the moderator's eventual
     // decision reads as a transition rather than inheriting a previous
@@ -168,6 +184,32 @@ class MechanicAccountStore extends ChangeNotifier {
     _requestWatch = MobileBackend.instance.verification
         .watchRequest(filed.id)
         .listen(_onRequestChanged);
+    notifyListeners();
+  }
+
+  /// Takes on an account the On Go API signed in.
+  ///
+  /// Details this device already holds for the same email — from registering
+  /// here this session, verification request included — are kept. Otherwise
+  /// the server's display name stands in for the profile, and there is no
+  /// verification request to watch: filing and reading those is not served by
+  /// the API yet, so [status] stays null rather than guessing.
+  void adoptServerAccount({required String email, required String displayName}) {
+    final sameAccount = isRegistered && this.email.trim().toLowerCase() == email.trim().toLowerCase();
+    mode = MechanicAccountMode.registered;
+    if (!sameAccount) {
+      firstName = displayName;
+      lastName = '';
+      this.email = email;
+      phone = '';
+      address = '';
+      photoPath = null;
+      photoIsNetwork = false;
+      photoLastChangedAt = null;
+      _verificationError = null;
+      _stopWatching();
+    }
+    _password = '';
     notifyListeners();
   }
 

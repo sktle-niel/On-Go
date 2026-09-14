@@ -1,12 +1,14 @@
-/// The agreed REST shape of the future backend, in one place.
+/// The REST shape of the On Go API, in one place.
 ///
-/// This is a specification, not an implementation: no client, no transport, no
-/// server. It exists so the mobile app and the console cannot drift apart on
-/// what a route is called before either of them can call it, and so the
-/// eventual server has one list to implement against.
+/// Paths only — no client, no transport. The routes match the deployed API's
+/// OpenAPI document (`/docs/json`); `package:on_go_api` is what calls them. It
+/// exists so the mobile app and the console cannot drift apart on what a route
+/// is called.
 ///
 /// Every path below has a counterpart method on one of the interfaces in this
-/// directory; the doc on each constant names it.
+/// directory; the doc on each constant names it. The location routes at the
+/// bottom are the exception: they are this app's proposal and are not in the
+/// API contract yet.
 class ApiEndpoints {
   ApiEndpoints._();
 
@@ -15,19 +17,40 @@ class ApiEndpoints {
 
   static const String _root = '/api/$version';
 
+  // -------------------------------------------------------------- health ---
+
+  /// GET — the process is up. Not rate-limited.
+  static const String healthLive = '/health/live';
+
+  /// GET — the database is reachable; 503 when it is not.
+  static const String healthReady = '/health/ready';
+
   // ---------------------------------------------------------------- auth ---
 
   /// POST — `AuthApi.signIn`.
   static const String signIn = '$_root/auth/sign-in';
 
+  /// POST — `AuthApi.register`.
+  static const String register = '$_root/auth/register';
+
+  /// POST — rotates the refresh token. Called by the session layer, never by
+  /// a screen.
+  static const String refresh = '$_root/auth/refresh';
+
   /// POST — `AuthApi.signOut`.
   static const String signOut = '$_root/auth/sign-out';
+
+  /// GET — `AuthApi.fetchCurrentAccount`.
+  static const String me = '$_root/auth/me';
 
   /// POST — `AuthApi.changePassword`.
   static const String changePassword = '$_root/auth/password';
 
-  /// POST — `AuthApi.resetPassword`.
+  /// POST — `AuthApi.requestPasswordReset`.
   static const String resetPassword = '$_root/auth/password/reset';
+
+  /// POST — `AuthApi.confirmPasswordReset`.
+  static const String resetPasswordConfirm = '$_root/auth/password/reset/confirm';
 
   // ------------------------------------------------- account verification ---
 
@@ -80,9 +103,10 @@ class ApiEndpoints {
   // ---------------------------------------------------------------- points ---
 
   /// GET (`PointsPolicyApi.fetch`) and PUT (`PointsPolicyApi.update`).
-  static const String pointsPolicy = '/platform/points-policy';
+  static const String pointsPolicy = '$_root/platform/points-policy';
 
   // -------------------------------------------------------------- location ---
+  // Not in the API contract yet — proposed by this app, see `LocationApi`.
 
   /// POST — `LocationApi.reportLocation`.
   static const String locations = '$_root/locations';
@@ -96,8 +120,8 @@ class ApiEndpoints {
 
   // --------------------------------------------------------------- streams ---
 
-  /// The live channel behind every `watch*` method. One socket carrying
-  /// change events for whatever the caller is subscribed to, rather than a
-  /// socket per screen.
+  /// The live channel behind every `watch*` method (WebSocket). One socket
+  /// carrying change events for whatever the caller may see, rather than a
+  /// socket per screen. The access token goes in the first frame, never here.
   static const String events = '$_root/events';
 }

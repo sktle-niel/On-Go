@@ -207,26 +207,51 @@ Each application has exactly one place where a call leaves it:
 - Mobile: `lib/services/backend/mobile_backend.dart`
 - Console: `on_go_console/lib/src/backend/console_backend.dart`
 
-Both are a small holder of contract implementations plus a `configure()`:
+Both are a small holder of contract implementations plus a `configure()`. The
+HTTP implementations live in `packages/on_go_api`, which both apps share. Each
+app installs them at startup: `MobileApi` on mobile, `ConsoleApi` on the console.
 
 ```dart
-// lib/main.dart, when the backend exists:
+// lib/services/api/mobile_api.dart (called from main)
+final api = OnGoApi(
+  environment: ApiEnvironment.fromDefines(),   // staging unless ONGO_API_BASE_URL
+  surface: AppSurface.mobile,
+  refreshTokens: SecureRefreshTokenStore(),     // Keychain / Keystore
+);
 MobileBackend.configure(
-  verification: HttpVerificationClient(baseUrl),
-  revenue:      HttpRevenueClient(baseUrl),
-  appearance:   HttpAppearanceClient(baseUrl),
-  auth:         HttpAuthClient(baseUrl),
+  usesApi: true,
+  auth: api.auth,
+  pointsPolicy: api.pointsPolicy,
+  appearance: api.appearance,
+  revenue: api.revenue,
 );
 ```
 
 That is the whole integration. **No screen changes**, because every call site
-already awaits a `Future` or listens to a `Stream` — the interfaces were
-written asynchronous from the start precisely so that latency and failure were
-never retrofitted.
+already awaits a `Future` or listens to a `Stream`. The interfaces were
+asynchronous from the start precisely so that latency and failure were never
+retrofitted. The only screens that changed are the ones for things the server
+now owns: passwords, registration, resets and sessions. They branch on
+`MobileBackend.instance.usesApi`.
 
 ### What backs them today
 
-Local, in-memory implementations under `backend/local/` on each side. They are
+| Contract | Mobile | Console |
+|---|---|---|
+| `AuthApi` | API | API (cookie session) |
+| `PointsPolicyApi` | API (read + live) | API (read, update, live) |
+| `PlatformRevenueApi` | API (`POST /payments`) | API (`GET /revenue/summary`) |
+| `PlatformAppearanceApi` | API (read) | API; publish/remove answer 501 until Step 7 |
+| `AccountVerificationApi` | local until Step 5 | local until Step 5 |
+| `ModeratorDirectoryApi` | — | local until Step 6 |
+| `LocationApi` | local (not in the API contract) | — |
+
+The API-backed rows switch to local with `--dart-define=ONGO_BACKEND=local`.
+The local rows switch to the API with `ONGO_API_VERIFICATION` /
+`ONGO_API_MODERATORS` once their step is live. Their HTTP implementations are
+already written against the contract.
+
+The local implementations live under `backend/local/` on each side. They are
 **not a fake backend**: each one does only the half of its interface that its
 own surface is entitled to, and refuses the rest.
 
@@ -240,19 +265,24 @@ own surface is entitled to, and refuses the rest.
 
 ### Honest consequences
 
-Because there is no backend, the two applications genuinely cannot see each
-other yet, and neither pretends otherwise:
+The two apps now share accounts, the points rules and the revenue ledger. They
+do not yet share what the API still answers `501` for, and neither pretends
+otherwise:
 
-- A registration filed on a phone stays **Pending** — no moderator can reach
-  it. The `demo-mechanic` shortcut is what unlocks the mechanic flows for local
-  testing, exactly as before.
-- The console's queue, accounts list and revenue ledger start **empty**, and
-  each says why in its own empty state.
-- A background photo published in the console is held **in that browser**. The
-  screen says so.
-
-These disappear the day `configure()` is called with real clients. Nothing else
-does.
+- **Verification (Step 5).** A mechanic's verification request is still filed
+  on the phone that registered, so no moderator can reach it. A mechanic who
+  signs in on a later launch has no request on the device, and the Jobs banner
+  says the status isn't available rather than calling it Pending. The
+  `demo-mechanic` shortcut (local build) still unlocks the mechanic flows for
+  testing.
+- **Moderators and the audit log (Step 6).** These stay in the console's browser.
+- **The Sign In background (Step 7).** Publishing it from the console fails
+  with the server's "not implemented" message. The mobile app paints whatever
+  `GET /platform/appearance` returns.
+- **Password reset codes (Step 8).** The reset screens call the real routes,
+  but staging doesn't deliver the code yet.
+- **The jobs domain (Step 10).** Requests, quotes, ETA, chat and reviews aren't
+  in the contract, and stay in each phone's stores.
 
 ---
 
@@ -272,12 +302,17 @@ Keep the two apps from drifting by going in this order:
 
 ---
 
-## Building the backend later
+## The backend
 
-`/server` holds an unfinished TypeScript scaffold (config, db pool, logging,
-crypto, migrations) with no routes. Whatever it becomes, `ApiEndpoints` is the
-list of routes to implement, and the DTOs in `on_go_shared` are the shapes to
-implement them against.
+The On Go API is deployed on staging (Google Cloud Run and Neon PostgreSQL, in
+Singapore). Its contract is the OpenAPI document at `/docs/json` together with
+the integration guide. `ApiEndpoints` mirrors those routes; add nothing to it
+that the contract lacks. The location routes are the one marked exception: they
+are this app's proposal. `/server` in this repository is only a partial
+TypeScript scaffold and is not the deployed service.
+
+To see what a server answers without credentials, run
+`dart run tool/api/smoke.dart` (read-only).
 
 Two rules the server owns that the clients cannot be trusted with:
 

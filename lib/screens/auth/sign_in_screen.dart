@@ -4,19 +4,22 @@ import '../../services/backend/mobile_backend.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_widgets.dart';
 import '../welcome_screen.dart';
+import 'auth_routing.dart';
 import 'forgot_password_screen.dart';
-import 'client_ui/client_home_screen.dart';
-import 'mechanic_ui/mechanic_home_screen.dart';
 
 /// Sign In for the mobile app, which serves Clients and Mechanics.
 ///
 /// Admin and Moderator are not roles here. They sign in to the On Go admin
-/// console, a separate web application; typing one of their usernames gets a
-/// pointer to it rather than a shell they should not be in on a phone.
-/// [MobileBackend.auth] is what decides all of that — this screen only routes
+/// console, a separate web application, and the server refuses them on this
+/// surface (`wrong_surface`) with a message this screen shows as-is.
+/// [MobileBackend.auth] decides all of that — this screen only routes
 /// whatever role comes back.
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key});
+  /// Shown once when the screen opens: why the user is here when it was not
+  /// their doing — a session that ended, a server that could not be reached.
+  final String? notice;
+
+  const SignInScreen({super.key, this.notice});
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();
@@ -29,18 +32,19 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _signingIn = false;
 
   @override
+  void initState() {
+    super.initState();
+    final notice = widget.notice;
+    if (notice != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _showMessage(notice));
+    }
+  }
+
+  @override
   void dispose() {
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
-  }
-
-  void _navigateToHome(Widget screen) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-      (route) => false,
-    );
   }
 
   void _showMessage(String message) {
@@ -52,8 +56,16 @@ class _SignInScreenState extends State<SignInScreen> {
 
   Future<void> _handleSignIn() async {
     if (_signingIn) return;
-    setState(() => _signingIn = true);
 
+    // The server needs both, and every refused attempt counts against the
+    // sign-in rate limit — so an empty form never leaves the phone.
+    if (MobileBackend.instance.usesApi &&
+        (_usernameCtrl.text.trim().isEmpty || _passwordCtrl.text.isEmpty)) {
+      _showMessage('Enter your email and password.');
+      return;
+    }
+
+    setState(() => _signingIn = true);
     try {
       final result = await MobileBackend.instance.auth.signIn(
         SignInRequest(
@@ -66,10 +78,15 @@ class _SignInScreenState extends State<SignInScreen> {
 
       final user = result.user;
       if (user != null) {
-        _routeTo(user);
+        // The console roles never get this far — the server turns them away
+        // first — but one that did must not be left holding a session.
+        if (!enterAppAs(context, user)) {
+          await MobileBackend.instance.auth.signOut();
+          _showMessage(_consoleMessage);
+        }
         return;
       }
-      _showMessage(_messageFor(result.failure));
+      _showMessage(result.message ?? _messageFor(result.failure));
     } on ApiException catch (error) {
       _showMessage(error.message);
     } finally {
@@ -77,30 +94,19 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  /// Opens the shell for whichever role signed in. The console roles never
-  /// reach here — [MobileBackend.auth] turns them away first — but they are
-  /// answered explicitly so adding a role can't silently fall through.
-  void _routeTo(AuthenticatedUser user) {
-    switch (user.role) {
-      case UserRole.client:
-        _navigateToHome(const ClientHomeScreen());
-      case UserRole.mechanic:
-        _navigateToHome(const MechanicHomeScreen());
-      case UserRole.admin:
-      case UserRole.moderator:
-        _showMessage(_consoleMessage);
-    }
-  }
-
   static const String _consoleMessage =
       'Admin and Moderator sign in on the On Go admin console website, not in the app.';
 
+  /// Wording for the local implementation, which reports a failure without a
+  /// message. The API always sends its own.
   String _messageFor(SignInFailure? failure) {
     switch (failure) {
       case SignInFailure.wrongSurface:
         return _consoleMessage;
       case SignInFailure.accountInactive:
         return 'That account has been deactivated.';
+      case SignInFailure.accountLocked:
+        return 'Too many failed attempts. Try again later.';
       case SignInFailure.wrongPassword:
       case SignInFailure.unknownAccount:
       case null:
@@ -111,6 +117,8 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final usesApi = MobileBackend.instance.usesApi;
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: AuthBackground(
@@ -118,8 +126,11 @@ class _SignInScreenState extends State<SignInScreen> {
           child: AuthBottomCard(
             children: [
               AuthTextField(
-                hint: 'Username',
+                // The API signs in by email; the local build also takes the
+                // demo usernames.
+                hint: usesApi ? 'Email' : 'Username',
                 controller: _usernameCtrl,
+                keyboardType: usesApi ? TextInputType.emailAddress : TextInputType.text,
               ),
               const SizedBox(height: 16),
               AuthTextField(

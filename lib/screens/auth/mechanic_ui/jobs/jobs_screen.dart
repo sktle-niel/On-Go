@@ -562,7 +562,11 @@ class _ApprovalBanner extends StatelessWidget {
             child: Text(
               rejected
                   ? 'Your mechanic account was rejected. You can browse jobs, but job actions remain locked.'
-                  : 'Your mechanic account is awaiting approval. You can browse jobs, but job actions are locked until approval.',
+                  // No request on this device: signed in from the API, which
+                  // does not serve verification yet. Unknown is not pending.
+                  : status == null
+                      ? "Your account's verification status isn't available in the app yet. You can browse jobs, but job actions are locked until your account is approved."
+                      : 'Your mechanic account is awaiting approval. You can browse jobs, but job actions are locked until approval.',
               style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
             ),
           ),

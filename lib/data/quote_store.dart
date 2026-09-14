@@ -1598,16 +1598,19 @@ class QuoteNotificationStore extends ChangeNotifier {
     //
     // Not awaited, and deliberately: the client has paid, the job is complete,
     // and none of that is contingent on the console hearing about it. The
-    // report is idempotent on the request id, so the retry this will grow when
-    // it becomes a network call can safely re-send it.
-    unawaited(MobileBackend.instance.revenue.reportCompletedPayment(
-      CompletedPaymentReport(
-        requestId: req.id,
-        platformFee: fee,
-        paidAt: req.paymentCompletedAt!,
-        urgency: RevenueUrgency.fromJobUrgency(req.urgency),
-      ),
-    ));
+    // report is idempotent on the request id, so the API client re-sends it
+    // after a network failure; one that still fails has been logged with the
+    // server's requestId and must not surface as a crash here.
+    unawaited(MobileBackend.instance.revenue
+        .reportCompletedPayment(
+          CompletedPaymentReport(
+            requestId: req.id,
+            platformFee: fee,
+            paidAt: req.paymentCompletedAt!,
+            urgency: RevenueUrgency.fromJobUrgency(req.urgency),
+          ),
+        )
+        .catchError((Object _) {}));
 
     if (quote != null) {
       MechanicNotificationStore.instance.add(

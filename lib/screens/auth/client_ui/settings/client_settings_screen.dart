@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/client_account_store.dart';
+import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/change_password_dialog.dart';
 import '../../../../widgets/location_widgets.dart';
@@ -22,7 +23,7 @@ class _ClientSettingsScreenState extends State<ClientSettingsScreen> {
   Future<void> _changePassword() async {
     final changed = await showChangePasswordDialog(
       context: context,
-      onSubmit: (current, next, confirm) {
+      onSubmit: (current, next, confirm) async {
         if (current.isEmpty || next.isEmpty || confirm.isEmpty) {
           return 'Please fill in all fields.';
         }
@@ -30,6 +31,7 @@ class _ClientSettingsScreenState extends State<ClientSettingsScreen> {
           return 'Please choose a stronger password.';
         }
         if (next != confirm) return 'New passwords do not match.';
+        if (MobileBackend.instance.usesApi) return changePasswordOnServer(current, next);
         final ok = _store.changePassword(currentPassword: current, newPassword: next);
         if (!ok) return 'Current password is incorrect.';
         return null;
@@ -45,9 +47,10 @@ class _ClientSettingsScreenState extends State<ClientSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // A Google sign-up leaves the local password empty — that's the signal
-    // we use to detect it, since this app has no real auth backend yet.
-    final hasLocalPassword = !_store.verifyPassword('');
+    // A local Google sign-up leaves the password empty — that's the signal
+    // we use to detect it. An On Go API account always has a password, held
+    // by the server.
+    final hasLocalPassword = MobileBackend.instance.usesApi || !_store.verifyPassword('');
 
     return Scaffold(
       backgroundColor: AppColors.background,

@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'data/mechanic_settings_store.dart';
 import 'data/points_policy_store.dart';
 import 'data/registration_draft.dart';
+import 'services/api/mobile_api.dart';
 import 'services/location/location_service.dart';
 import 'services/location/place_sources.dart';
 import 'services/location/platform_reverse_geocoder.dart';
 import 'services/location/psgc_place_directory.dart';
 import 'screens/auth/mechanic_registration/mechanic_step4_documents.dart';
 import 'screens/auth/mechanic_registration/mechanic_step5_verification.dart';
+import 'screens/auth/session_restore_screen.dart';
 import 'screens/auth/sign_in_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -16,10 +20,16 @@ void main() async {
   // Restore the saved theme before the first frame so the app never flashes
   // the Default palette on startup.
   await ThemeController.instance.load();
+  // The backend: the On Go API (staging unless ONGO_API_BASE_URL says
+  // otherwise), or everything on the device with ONGO_BACKEND=local. Installed
+  // before anything below reads from it. Only checks whether a session is
+  // stored — restoring it needs the network, and waits for the first screen.
+  final hasStoredSession = await MobileApi.installFromDefines();
   // Same for the background photo published from the admin console, so the
   // Sign In screen paints it on the first frame instead of flashing the
-  // background color first.
+  // background color first. Then keep it in step with the console.
   await AuthBackgroundController.instance.load();
+  MobileApi.startAppearanceSync();
   // And the mechanic's own preferences, so the Emergency pulse toggle is
   // whatever they last set it to.
   await MechanicSettingsStore.instance.load();
@@ -42,7 +52,10 @@ void main() async {
     directory: PsgcPlaceDirectory(),
     geocoder: PlatformReverseGeocoder(),
   );
-  runApp(MyApp(resumeRegistrationStep: RegistrationDraft.instance.pendingPickerStep));
+  runApp(MyApp(
+    resumeRegistrationStep: RegistrationDraft.instance.pendingPickerStep,
+    restoreSession: hasStoredSession,
+  ));
 }
 
 class MyApp extends StatefulWidget {
@@ -54,7 +67,11 @@ class MyApp extends StatefulWidget {
   /// the user is mid-registration, not starting the app.
   final int resumeRegistrationStep;
 
-  const MyApp({super.key, this.resumeRegistrationStep = 0});
+  /// Whether this device holds a session from an earlier launch, so the app
+  /// opens by restoring it rather than at Sign In.
+  final bool restoreSession;
+
+  const MyApp({super.key, this.resumeRegistrationStep = 0, this.restoreSession = false});
 
   // This widget is the root of your application.
   @override
@@ -68,14 +85,27 @@ class _MyAppState extends State<MyApp> {
   /// theme switch from a Warm Filter drag.
   String _lastThemeId = ThemeController.instance.selectedId;
   final _navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription<SessionChange>? _sessionWatch;
 
   @override
   void initState() {
     super.initState();
     _themeController.addListener(_onThemeChanged);
+    _sessionWatch = MobileApi.sessionChanges.listen(_onSessionChange);
     if (widget.resumeRegistrationStep > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _resumeRegistration());
     }
+  }
+
+  /// A session the server ended — expired, revoked, the account deactivated —
+  /// sends the user back to Sign In from wherever they are, and says why.
+  /// Signing out on purpose already goes there on its own.
+  void _onSessionChange(SessionChange change) {
+    if (change.kind != SessionChangeKind.ended || change.reason == SessionEndReason.signedOut) return;
+    _navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => SignInScreen(notice: sessionEndedMessage(change))),
+      (route) => false,
+    );
   }
 
   /// Puts the interrupted registration back on screen. Step 4 goes underneath
@@ -92,6 +122,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     _themeController.removeListener(_onThemeChanged);
+    _sessionWatch?.cancel();
     super.dispose();
   }
 
@@ -162,7 +193,11 @@ class _MyAppState extends State<MyApp> {
           child: sized,
         );
       },
-      home: SignInScreen(),
+      // A launch that is really a resumed registration is not a sign-in, even
+      // if an older session is stored.
+      home: widget.restoreSession && widget.resumeRegistrationStep == 0
+          ? const SessionRestoreScreen()
+          : const SignInScreen(),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../data/mechanic_account_store.dart';
@@ -120,6 +121,9 @@ class _MechanicMenuDrawerState extends State<MechanicMenuDrawer> {
                   label: 'Sign Out',
                   destructive: true,
                   onTap: () {
+                    // Clears this device's session at once; telling the
+                    // server is not something the user waits for.
+                    unawaited(MobileBackend.instance.auth.signOut());
                     // Deliberately NOT calling _store.clear() — signing out
                     // preserves the registered account so the mechanic can
                     // sign back in later without re-registering.

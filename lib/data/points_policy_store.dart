@@ -27,22 +27,21 @@ class PointsPolicyStore extends ChangeNotifier {
   /// arrives — never null, so a payment can always be settled.
   PointsPolicy get current => _current;
 
-  /// Starts following the rules. Safe to call before `runApp`; a failure
-  /// leaves the defaults in place rather than blocking startup.
+  /// Starts following the rules. Safe to call before `runApp`, and never
+  /// waits on the network: the watch fetches the current rules itself and
+  /// applies them when they arrive (at once for the local implementation),
+  /// then every change the console publishes. A failure leaves the rules in
+  /// place rather than blocking startup; the API re-fetches when its event
+  /// socket reconnects.
   Future<void> load() async {
-    try {
-      _apply(await MobileBackend.instance.pointsPolicy.fetch());
-      _watch?.cancel();
-      _watch = MobileBackend.instance.pointsPolicy.watch().listen(
-            _apply,
-            onError: (_) {
-              // Keep the rules we already have; a dropped stream is not a
-              // reason to start awarding different numbers.
-            },
-          );
-    } catch (_) {
-      // Defaults stand.
-    }
+    await _watch?.cancel();
+    _watch = MobileBackend.instance.pointsPolicy.watch().listen(
+          _apply,
+          onError: (Object _) {
+            // Keep the rules we already have; a failed fetch is not a reason
+            // to start awarding different numbers.
+          },
+        );
   }
 
   void _apply(PointsPolicy policy) {

@@ -257,44 +257,71 @@ class AuthBottomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(child: Center(child: topContent ?? const SizedBox.shrink())),
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            border: Border.all(color: AppColors.primary, width: 4),
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(32),
-              topRight: Radius.circular(32),
-            ),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            context.layout.isTablet ? 32 : 24,
-            36,
-            context.layout.isTablet ? 32 : 24,
-            32,
-          ),
-          // The card itself still runs edge to edge — that full-bleed panel
-          // anchored to the bottom is the design. What stops at a sensible
-          // width is what is INSIDE it: on a tablet, a sign-in field and a
-          // "Register as Client" button stretched across ten inches look
-          // broken, and the buttons become a long way from the thumb that has
-          // to reach them. Centred inside the card, they keep a phone's
-          // proportions on any screen.
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: context.layout.contentMaxWidth),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children,
-              ),
+    // Scrolls when it has to, and only then.
+    //
+    // With the keyboard up, the Scaffold hands this far less height than the
+    // card needs — over half the screen with some keyboards — and a Column
+    // that cannot scroll can only overflow, painting the warning stripe over
+    // "Don't have account? Sign Up". Inside a scroll view the card has
+    // somewhere to go: the field being typed into is brought above the
+    // keyboard, and the rest of the card is a swipe away.
+    //
+    // When everything fits, nothing changes. The minimum height is the full
+    // height available, so the space above the card still expands and the
+    // card still sits on the bottom edge exactly as before, and clamping
+    // physics stop it bouncing when there is nothing to scroll.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          // What lets the Expanded below work inside a scroll view: it gives
+          // the column a definite height — the taller of the screen and the
+          // card — for the space above the card to fill.
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
+                Expanded(child: Center(child: topContent ?? const SizedBox.shrink())),
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    border: Border.all(color: AppColors.primary, width: 4),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(32),
+                      topRight: Radius.circular(32),
+                    ),
+                  ),
+                  padding: EdgeInsets.fromLTRB(
+                    context.layout.isTablet ? 32 : 24,
+                    36,
+                    context.layout.isTablet ? 32 : 24,
+                    32,
+                  ),
+                  // The card itself still runs edge to edge — that full-bleed
+                  // panel anchored to the bottom is the design. What stops at
+                  // a sensible width is what is INSIDE it: on a tablet, a
+                  // sign-in field and a "Register as Client" button stretched
+                  // across ten inches look broken, and the buttons become a
+                  // long way from the thumb that has to reach them. Centred
+                  // inside the card, they keep a phone's proportions on any
+                  // screen.
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: context.layout.contentMaxWidth),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: children,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

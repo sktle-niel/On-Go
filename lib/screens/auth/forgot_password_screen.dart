@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
 
 import '../../data/password_reset_store.dart';
+import '../../services/backend/mobile_backend.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_widgets.dart';
 import '../../widgets/password_strength.dart';
 
 /// Forgot Password, in three stages on one screen: name the account, enter the
 /// one-time code, then set the new password. One screen keeps the reset
-/// request — which lives in [PasswordResetStore] — tied to a single route, so
-/// leaving at any point abandons it cleanly.
+/// request tied to a single route, so leaving at any point abandons it cleanly.
+///
+/// Two backings, one set of stages:
+///
+/// * **On Go API.** The server issues and delivers the code, and checks it
+///   when the new password is saved — there is no separate "verify code" call,
+///   so the code stage only checks that it is six digits, and a wrong code
+///   comes back with the password and returns the user to the code stage.
+///   The server answers the first step the same whether or not the email has
+///   an account, and this screen shows that answer as-is.
+/// * **Local.** [PasswordResetStore] does all three, and — with no mail service
+///   — shows the code on screen.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -31,6 +42,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
+  /// While a request to the API is out.
+  bool _busy = false;
+
+  /// The email the API was asked to send a code to, and what it said back.
+  String? _sentTo;
+  String? _serverNotice;
+
+  bool get _usesApi => MobileBackend.instance.usesApi;
+
   @override
   void dispose() {
     // Abandoning the screen abandons the reset — a code must not outlive the
@@ -43,7 +63,110 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _submitEmail() {
+  // ---------------------------------------------------------------- stages ---
+
+  void _submitEmail() => _usesApi ? _requestCodeFromServer() : _submitEmailLocally();
+
+  void _submitCode() => _usesApi ? _acceptCodeForServer() : _submitCodeLocally();
+
+  void _submitNewPassword() => _usesApi ? _saveNewPasswordOnServer() : _submitNewPasswordLocally();
+
+  // ------------------------------------------------------------------- API ---
+
+  Future<void> _requestCodeFromServer() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Enter the email address on your account.');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final reply = await MobileBackend.instance.auth.requestPasswordReset(email);
+      if (!mounted) return;
+      setState(() {
+        _sentTo = email;
+        _serverNotice = reply.message;
+        _codeCtrl.clear();
+        _stage = _Stage.code;
+      });
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.fieldErrors['email'] ?? error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _acceptCodeForServer() {
+    if (!RegExp(r'^\d{6}$').hasMatch(_codeCtrl.text.trim())) {
+      setState(() => _error = 'Enter the 6-digit code from your email.');
+      return;
+    }
+    setState(() {
+      _error = null;
+      _stage = _Stage.newPassword;
+    });
+  }
+
+  Future<void> _saveNewPasswordOnServer() async {
+    final password = _passwordCtrl.text;
+    final problem = password.length < PasswordResetStore.minPasswordLength
+        ? 'Password must be at least ${PasswordResetStore.minPasswordLength} characters'
+        : evaluatePasswordStrength(password) == PasswordStrength.weak
+            ? 'Please choose a stronger password.'
+            : password != _confirmCtrl.text
+                ? 'Passwords do not match.'
+                : null;
+    if (problem != null) {
+      setState(() => _error = problem);
+      return;
+    }
+
+    final email = _sentTo;
+    if (email == null) {
+      setState(() {
+        _error = 'This reset is no longer valid. Start again.';
+        _backToEmail();
+      });
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await MobileBackend.instance.auth.confirmPasswordReset(
+        email: email,
+        code: _codeCtrl.text.trim(),
+        newPassword: password,
+      );
+      if (!mounted) return;
+      _finish();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        if (error.code == ApiErrorCodes.invalidResetCode) {
+          // Wrong, expired or over-tried: the server does not say which.
+          _error = error.message;
+          _stage = _Stage.code;
+          _passwordCtrl.clear();
+          _confirmCtrl.clear();
+        } else {
+          _error = error.fieldErrors['newPassword'] ?? error.message;
+        }
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  // ----------------------------------------------------------------- local ---
+
+  void _submitEmailLocally() {
     final result = _reset.requestReset(_emailCtrl.text);
     setState(() {
       switch (result) {
@@ -58,7 +181,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
   }
 
-  void _submitCode() {
+  void _submitCodeLocally() {
     final result = _reset.verifyCode(_codeCtrl.text);
     setState(() {
       switch (result) {
@@ -81,19 +204,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
   }
 
-  void _submitNewPassword() {
+  void _submitNewPasswordLocally() {
     final result = _reset.completeReset(
       password: _passwordCtrl.text,
       confirmPassword: _confirmCtrl.text,
     );
     if (result == ResetCompleteResult.success) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password updated. Sign in with your new password.'),
-          duration: AppDurations.snackBar,
-        ),
-      );
+      _finish();
       return;
     }
     setState(() {
@@ -117,6 +234,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
   }
 
+  // ---------------------------------------------------------------- shared ---
+
+  void _finish() {
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Password updated. Sign in with your new password.'),
+        duration: AppDurations.snackBar,
+      ),
+    );
+  }
+
   void _backToEmail() {
     _stage = _Stage.email;
     _codeCtrl.clear();
@@ -126,6 +255,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sentTo = _usesApi ? _sentTo : _reset.email;
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: AuthBackground(
@@ -150,7 +281,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   switch (_stage) {
                     _Stage.email => 'We\'ll send a one-time code to the email on your account.',
                     _Stage.code =>
-                      'Enter the 6-digit code sent to ${_reset.email ?? 'your email'}. It expires in ${PasswordResetStore.codeLifetime.inMinutes} minutes.',
+                      'Enter the 6-digit code sent to ${sentTo ?? 'your email'}. It expires in ${PasswordResetStore.codeLifetime.inMinutes} minutes.',
                     _Stage.newPassword => 'Choose a password you haven\'t used before.',
                   },
                   style: TextStyle(fontSize: 13, color: AppColors.textdark.withValues(alpha: 0.55)),
@@ -172,16 +303,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ],
               const SizedBox(height: 20),
               AuthWhiteButton(
-                label: switch (_stage) {
-                  _Stage.email => 'Send Code',
-                  _Stage.code => 'Verify Code',
-                  _Stage.newPassword => 'Save New Password',
-                },
-                onPressed: switch (_stage) {
-                  _Stage.email => _submitEmail,
-                  _Stage.code => _submitCode,
-                  _Stage.newPassword => _submitNewPassword,
-                },
+                label: _busy
+                    ? 'Please wait…'
+                    : switch (_stage) {
+                        _Stage.email => 'Send Code',
+                        _Stage.code => 'Verify Code',
+                        _Stage.newPassword => 'Save New Password',
+                      },
+                onPressed: _busy
+                    ? null
+                    : switch (_stage) {
+                        _Stage.email => _submitEmail,
+                        _Stage.code => _submitCode,
+                        _Stage.newPassword => _submitNewPassword,
+                      },
               ),
               const SizedBox(height: 12),
               Center(
@@ -211,36 +346,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ];
 
       case _Stage.code:
+        final notice = _usesApi
+            ? _serverNotice
+            // Stands in for the email the local build cannot send.
+            : 'No email service is connected yet, so your code is: ${_reset.visibleCode ?? '—'}';
         return [
           AuthTextField(
             hint: '6-digit code',
             controller: _codeCtrl,
             keyboardType: TextInputType.number,
           ),
-          const SizedBox(height: 12),
-          // Stands in for the email this app cannot send yet. Delete this
-          // block the day a mail service is wired up — nothing else in the
-          // flow reads the code.
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, size: 16, color: AppColors.info),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'No email service is connected yet, so your code is: '
-                    '${_reset.visibleCode ?? '—'}',
-                    style: TextStyle(fontSize: 12, color: AppColors.info),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          if (notice != null) ...[
+            const SizedBox(height: 12),
+            _InfoNote(notice),
+          ],
         ];
 
       case _Stage.newPassword:
@@ -281,5 +400,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
         ];
     }
+  }
+}
+
+class _InfoNote extends StatelessWidget {
+  const _InfoNote(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 16, color: AppColors.info),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 12, color: AppColors.info)),
+          ),
+        ],
+      ),
+    );
   }
 }

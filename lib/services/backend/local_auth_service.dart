@@ -4,16 +4,22 @@ import '../../data/client_account_store.dart';
 import '../../data/mechanic_account_store.dart';
 
 /// Sign-in for the mobile app, against the accounts this device knows about.
+/// Installed only when the app is built with `ONGO_BACKEND=local`; the default
+/// build signs in through the On Go API instead (see `MobileApi`).
 ///
 /// Two things it will not do, both of them deliberate:
 ///
 /// * It never signs anyone in as Admin or Moderator. Those roles belong to the
 ///   console website, so an attempt reports [SignInFailure.wrongSurface] and
-///   the Sign In screen says where to go instead. This is the app-level half
-///   of the rule the backend will enforce for real.
+///   the Sign In screen says where to go instead — the local half of the rule
+///   the server enforces.
 /// * It never invents an account. The demo shortcuts below are the same ones
 ///   the app has always had for local testing, and each still opens the real
 ///   store rather than a parallel fake identity.
+///
+/// Registration, password changes and resets are not offered here: in local
+/// mode the account stores and `PasswordResetStore` own them, and the screens
+/// call those directly.
 class LocalAuthService implements AuthApi {
   /// Usernames that open a throwaway session for local testing, mapped to the
   /// role they open it as.
@@ -41,16 +47,18 @@ class LocalAuthService implements AuthApi {
     }
 
     final demoRole = _demoUsernames[identifier];
-    if (demoRole != null) return SignInResult.success(_enterDemo(demoRole));
+    if (demoRole != null) return SignInResult.success(AuthenticatedAccount(user: _enterDemo(demoRole)));
 
     final client = ClientAccountStore.instance;
     if (client.hasAccount &&
         client.email.trim().toLowerCase() == identifier &&
         client.verifyPassword(request.password)) {
-      return SignInResult.success(AuthenticatedUser(
-        displayName: client.name,
-        email: client.email,
-        role: UserRole.client,
+      return SignInResult.success(AuthenticatedAccount(
+        user: AuthenticatedUser(
+          displayName: client.name,
+          email: client.email,
+          role: UserRole.client,
+        ),
       ));
     }
 
@@ -58,10 +66,12 @@ class LocalAuthService implements AuthApi {
     if (mechanic.hasAccount &&
         mechanic.email.trim().toLowerCase() == identifier &&
         mechanic.verifyPassword(request.password)) {
-      return SignInResult.success(AuthenticatedUser(
-        displayName: mechanic.name,
-        email: mechanic.email,
-        role: UserRole.mechanic,
+      return SignInResult.success(AuthenticatedAccount(
+        user: AuthenticatedUser(
+          displayName: mechanic.name,
+          email: mechanic.email,
+          role: UserRole.mechanic,
+        ),
       ));
     }
 
@@ -94,27 +104,45 @@ class LocalAuthService implements AuthApi {
   }
 
   @override
+  Future<AuthenticatedAccount> register(RegisterRequest request) {
+    throw const ApiException.unsupported(
+      'Local accounts are registered through the account store that owns them.',
+    );
+  }
+
+  /// Local sessions do not outlive the app.
+  @override
+  Future<AuthenticatedAccount?> restoreSession() async => null;
+
+  @override
+  Future<AuthenticatedAccount> fetchCurrentAccount() {
+    throw const ApiException.unsupported('Local sessions have no server account to read.');
+  }
+
+  @override
   Future<bool> changePassword({
-    required String accountId,
     required String currentPassword,
     required String newPassword,
-  }) async {
-    // The mobile stores own their own passwords and each Settings screen calls
-    // its own store directly, which is where the per-screen rules live. This
-    // exists for the day both surfaces go through one auth service.
+  }) {
+    // The local stores own their own passwords and each Settings screen calls
+    // its own store directly, which is where the per-screen rules live.
     throw const ApiException.unsupported(
-      'Mobile password changes go through the account store that owns them.',
+      'Local password changes go through the account store that owns them.',
     );
   }
 
   @override
-  Future<bool> resetPassword({
-    required String accountId,
+  Future<PasswordResetRequested> requestPasswordReset(String email) {
+    throw const ApiException.unsupported('Local password resets go through PasswordResetStore.');
+  }
+
+  @override
+  Future<void> confirmPasswordReset({
+    required String email,
+    required String code,
     required String newPassword,
-  }) async {
-    throw const ApiException.unsupported(
-      'Mobile password resets go through PasswordResetStore.',
-    );
+  }) {
+    throw const ApiException.unsupported('Local password resets go through PasswordResetStore.');
   }
 
   @override

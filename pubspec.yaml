@@ -23,6 +23,15 @@ dependencies:
   # See packages/on_go_shared and ARCHITECTURE.md.
   on_go_shared:
     path: packages/on_go_shared
+
+  # The On Go API client (HTTP, sessions, the event socket) that implements
+  # those contracts. Shared with the console too. See packages/on_go_api.
+  on_go_api:
+    path: packages/on_go_api
+
+  # Where the mobile session's refresh token is kept: Keychain / Keystore.
+  flutter_secure_storage: ^10.3.1
+  http: ^1.6.0
   file_picker: ^8.1.4
   image_picker: ^1.1.2
   path_provider: ^2.1.6

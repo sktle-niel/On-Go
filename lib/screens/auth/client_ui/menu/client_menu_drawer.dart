@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../data/client_account_store.dart';
+import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
 import '../../sign_in_screen.dart';
 import '../profile/client_profile_screen.dart';
@@ -105,6 +107,9 @@ class _ClientMenuDrawerState extends State<ClientMenuDrawer> {
                   label: 'Sign Out',
                   destructive: true,
                   onTap: () {
+                    // Clears this device's session at once; telling the
+                    // server is not something the user waits for.
+                    unawaited(MobileBackend.instance.auth.signOut());
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(builder: (_) => const SignInScreen()),
                       (route) => false,

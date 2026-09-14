@@ -9,7 +9,7 @@ import 'local_verification_service.dart';
 
 export 'package:on_go_shared/on_go_shared.dart';
 
-/// Every call this app makes that will one day leave the device.
+/// Every call this app makes that leaves the device.
 ///
 /// The mobile app (Client + Mechanic) and the admin console website (Admin +
 /// Moderator) are separate applications. Wherever one of them needs something
@@ -17,11 +17,10 @@ export 'package:on_go_shared/on_go_shared.dart';
 /// booked as platform revenue, the Sign In background an admin uploaded — the
 /// call goes through one of the interfaces here and nowhere else.
 ///
-/// Today those interfaces are backed by local, on-device implementations, so
-/// nothing about the Client and Mechanic experience changed when the console
-/// moved out. When the backend exists, [configure] swaps in HTTP-backed
-/// implementations at startup and not one screen changes: they already await
-/// Futures and listen to Streams.
+/// The defaults are local, on-device implementations. `MobileApi.install`
+/// swaps in the On Go API's at startup for whatever the API serves today, and
+/// not one screen changes: they already await Futures and listen to Streams.
+/// The ones the API does not serve yet keep their local implementation.
 ///
 /// The console has the mirror image of this file in `on_go_console/lib/src/backend`.
 class MobileBackend {
@@ -32,16 +31,20 @@ class MobileBackend {
     required this.appearance,
     required this.pointsPolicy,
     required this.location,
+    required this.usesApi,
   });
 
-  static MobileBackend _instance = MobileBackend._(
-    auth: LocalAuthService(),
-    verification: LocalVerificationService(),
-    revenue: LocalRevenueService(),
-    appearance: LocalAppearanceService(),
-    pointsPolicy: LocalPointsPolicyService(),
-    location: LocalLocationService(),
-  );
+  factory MobileBackend._local() => MobileBackend._(
+        auth: LocalAuthService(),
+        verification: LocalVerificationService(),
+        revenue: LocalRevenueService(),
+        appearance: LocalAppearanceService(),
+        pointsPolicy: LocalPointsPolicyService(),
+        location: LocalLocationService(),
+        usesApi: false,
+      );
+
+  static MobileBackend _instance = MobileBackend._local();
 
   static MobileBackend get instance => _instance;
 
@@ -65,9 +68,13 @@ class MobileBackend {
   /// nearby-job matching. Reading GPS is not this: that is `LocationService`.
   final LocationApi location;
 
+  /// Whether accounts live on the On Go API. When true the server owns
+  /// passwords, registration and resets, and the screens call [auth] for
+  /// them; when false the local account stores do, as they always have.
+  final bool usesApi;
+
   /// Replaces some or all of the implementations. Call it once, before
-  /// `runApp`, when the API client arrives; each argument left null keeps the
-  /// local implementation it already had.
+  /// `runApp`; each argument left null keeps the implementation it already had.
   static void configure({
     AuthApi? auth,
     AccountVerificationApi? verification,
@@ -75,6 +82,7 @@ class MobileBackend {
     PlatformAppearanceApi? appearance,
     PointsPolicyApi? pointsPolicy,
     LocationApi? location,
+    bool? usesApi,
   }) {
     _instance = MobileBackend._(
       auth: auth ?? _instance.auth,
@@ -83,6 +91,10 @@ class MobileBackend {
       appearance: appearance ?? _instance.appearance,
       pointsPolicy: pointsPolicy ?? _instance.pointsPolicy,
       location: location ?? _instance.location,
+      usesApi: usesApi ?? _instance.usesApi,
     );
   }
+
+  /// Back to the local implementations. For tests.
+  static void debugReset() => _instance = MobileBackend._local();
 }

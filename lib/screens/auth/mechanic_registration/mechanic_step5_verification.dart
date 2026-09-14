@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:livelyness_detection/livelyness_detection.dart';
 import '../../../data/mechanic_account_store.dart';
 import '../../../data/mechanic_credential_store.dart';
+import '../../../services/backend/mobile_backend.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/auth_widgets.dart';
 import '../../../data/registration_draft.dart';
@@ -475,7 +476,16 @@ class _MechanicStep5VerificationState
                   StepNavButtons(
                     onBack: () => Navigator.pop(context),
                     onNext: () async {
-                      if (!_validate()) return;
+                      if (_submitting || !_validate()) return;
+                      _submitting = true;
+
+                      // With the On Go API the account is created there
+                      // first; nothing below runs unless it was accepted.
+                      final usesApi = MobileBackend.instance.usesApi;
+                      if (usesApi && !await _registerWithApi()) {
+                        _submitting = false;
+                        return;
+                      }
 
                       // Files the account's verification request with the
                       // moderation queue — see MobileBackend. Awaited so the
@@ -487,7 +497,8 @@ class _MechanicStep5VerificationState
                         email: _draft.email,
                         phone: _draft.mobile,
                         address: _draft.address,
-                        password: _draft.password,
+                        // The server holds an API account's password.
+                        password: usesApi ? '' : _draft.password,
                         photoPath: _profilePhoto?.path,
                         documents: [
                           if (_draft.validIdPath.isNotEmpty) _draft.validIdPath.split('/').last,
@@ -527,6 +538,46 @@ class _MechanicStep5VerificationState
       ),
     );
   }
+
+  /// Set while SUBMIT is running, so a second tap cannot register twice.
+  bool _submitting = false;
+
+  /// Creates the account on the On Go API. False — with the server's reason on
+  /// screen — when it was refused or could not be reached; the draft is left
+  /// as it is so the user can go back and fix it.
+  Future<bool> _registerWithApi() async {
+    try {
+      await MobileBackend.instance.auth.register(RegisterRequest(
+        email: _draft.email.trim(),
+        password: _draft.password,
+        firstName: _draft.firstName.trim(),
+        lastName: _draft.lastName.trim(),
+        phone: _draft.mobile.trim(),
+        role: UserRole.mechanic,
+      ));
+      return true;
+    } on ApiException catch (error) {
+      if (!mounted) return false;
+      final detail = error.details.isEmpty ? null : error.details.first;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(detail == null
+            ? error.message
+            : '${error.message} (${_fieldLabel(detail.field)}: ${detail.message})'),
+        backgroundColor: AppColors.error,
+        duration: AppDurations.snackBar,
+      ));
+      return false;
+    }
+  }
+
+  static String _fieldLabel(String field) => switch (field) {
+        'email' => 'Email',
+        'password' => 'Password',
+        'firstName' => 'First name',
+        'lastName' => 'Last name',
+        'phone' => 'Mobile number',
+        _ => field,
+      };
 
   Widget _buildHeader() {
     return Container(

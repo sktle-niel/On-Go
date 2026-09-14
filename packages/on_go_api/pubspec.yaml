@@ -1,0 +1,25 @@
+name: on_go_api
+description: >-
+  The On Go API client: HTTP, sessions and the live event socket, behind the
+  interfaces in package:on_go_shared. Used by both front ends — the mobile app
+  (Client + Mechanic) and the admin console (Admin + Moderator).
+
+  Pure Dart, so it runs on Android, iOS and the web alike. Anything
+  platform-specific — where a refresh token is kept, whether the browser sends
+  cookies — is handed in by the app that uses it.
+publish_to: 'none'
+
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  http: ^1.6.0
+  http_parser: ^4.0.0
+  web_socket_channel: ^3.0.3
+  on_go_shared:
+    path: ../on_go_shared
+
+dev_dependencies:
+  flutter_lints: ^6.0.0

@@ -77,6 +77,30 @@ class ClientAccountStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Takes on an account the On Go API signed in.
+  ///
+  /// Details this device already holds for the same email — from registering
+  /// here this session — are kept. Otherwise the server's display name stands
+  /// in for the profile: the API has no profile route yet, so there is no
+  /// address, phone or photo to fill in. The password is the server's and is
+  /// never kept here.
+  void adoptServerAccount({required String email, required String displayName}) {
+    final sameAccount = isRegistered && this.email.trim().toLowerCase() == email.trim().toLowerCase();
+    mode = ClientAccountMode.registered;
+    if (!sameAccount) {
+      firstName = displayName;
+      lastName = '';
+      this.email = email;
+      address = '';
+      phone = '';
+      photoPath = null;
+      photoIsNetwork = false;
+      photoLastChangedAt = null;
+    }
+    _password = '';
+    notifyListeners();
+  }
+
   bool get canChangePhoto {
     if (photoLastChangedAt == null) return true;
     return DateTime.now().difference(photoLastChangedAt!) >= photoChangeCooldown;

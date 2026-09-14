@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../data/client_account_store.dart';
+import '../../../services/backend/mobile_backend.dart';
 import '../client_ui/client_home_screen.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/auth_widgets.dart';
@@ -47,6 +48,11 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
 
   // ── Validation errors ─────────────────────────────────────────────────────────
   Map<String, String?> _err = {};
+
+  /// Whether the form asks for a password. A Google sign-up skips it locally,
+  /// but an On Go API account always has one — the API has no Google sign-in,
+  /// so Google only fills in the name and email.
+  bool get _requiresPassword => !_isSocialLogin || MobileBackend.instance.usesApi;
 
   @override
   void initState() {
@@ -151,7 +157,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
       e['phone'] = 'Enter a valid mobile number';
     }
 
-    if (!_isSocialLogin) {
+    if (_requiresPassword) {
       if (_passCtrl.text.isEmpty) {
         e['password'] = 'Password is required';
       } else if (_passCtrl.text.length < 8) {
@@ -159,9 +165,9 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
       }
 
       if (_confirmPassCtrl.text.isEmpty) {
-        e['confirmPass'] = 'Please confirm your password';
+        e['confirmPassword'] = 'Please confirm your password';
       } else if (_passCtrl.text != _confirmPassCtrl.text) {
-        e['confirmPass'] = 'Passwords do not match';
+        e['confirmPassword'] = 'Passwords do not match';
       }
     }
 
@@ -169,8 +175,36 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
     return e.isEmpty;
   }
 
-    void _submit() {
-    if (!_validate()) return;
+    Future<void> _submit() async {
+    if (_isLoading || !_validate()) return;
+
+    // With the On Go API the account is created there first; nothing is kept
+    // on the device unless the server accepted it.
+    final usesApi = MobileBackend.instance.usesApi;
+    if (usesApi) {
+      setState(() => _isLoading = true);
+      try {
+        await MobileBackend.instance.auth.register(RegisterRequest(
+          email: _emailCtrl.text.trim(),
+          password: _passCtrl.text,
+          firstName: _firstNameCtrl.text.trim(),
+          lastName: _lastNameCtrl.text.trim(),
+          phone: _phoneCtrl.text.trim(),
+          role: UserRole.client,
+        ));
+      } on ApiException catch (error) {
+        if (!mounted) return;
+        final fieldErrors = _serverFieldErrors(error);
+        setState(() {
+          _isLoading = false;
+          _err = fieldErrors;
+        });
+        if (fieldErrors.isEmpty) _snack(error.message, error: true);
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
 
     ClientAccountStore.instance.registerAccount(
       firstName: _firstNameCtrl.text.trim(),
@@ -178,7 +212,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
       email: _emailCtrl.text.trim(),
       address: _addressCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
-      password: _isSocialLogin ? '' : _passCtrl.text,
+      // The server holds an API account's password; it is never kept here.
+      password: usesApi || _isSocialLogin ? '' : _passCtrl.text,
       photoPath: _profilePhoto?.path ?? _socialPhotoUrl,
       photoIsNetwork: _profilePhoto == null && _socialPhotoUrl != null,
     );
@@ -187,6 +222,18 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
       MaterialPageRoute(builder: (_) => const ClientHomeScreen()),
       (route) => false,
     );
+  }
+
+  /// The server's refusal, placed under the fields it names. A taken email
+  /// (`conflict`) goes under Email. Address has no counterpart on the API.
+  Map<String, String?> _serverFieldErrors(ApiException error) {
+    const formFields = {'email', 'firstName', 'lastName', 'phone', 'password'};
+    final errors = <String, String?>{
+      for (final entry in error.fieldErrors.entries)
+        if (formFields.contains(entry.key)) entry.key: entry.value,
+    };
+    if (error.code == ApiErrorCodes.conflict) errors['email'] = error.message;
+    return errors;
   }
 
   void _snack(String msg, {bool error = false}) {
@@ -449,7 +496,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                       ),
 
                       // ── Password (manual only) ────────────────────────────────
-                      if (!_isSocialLogin) ...[
+                      if (_requiresPassword) ...[
                         const SizedBox(height: 14),
                         OnGoTextField(
                           label: 'Password *',

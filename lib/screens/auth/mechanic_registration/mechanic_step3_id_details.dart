@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/wheel_date_picker.dart';
 import '../../../widgets/auth_widgets.dart';
 import '../../../data/registration_draft.dart';
 import '../../../utils/step_navigator.dart';
@@ -107,20 +108,12 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
 
   Future<void> _openCalendar() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final picked = await showWheelDatePicker(
       context: context,
       initialDate: _selectedDob ?? DateTime(now.year - 18, now.month, now.day),
       firstDate: DateTime(1900),
       lastDate: now,
-      helpText: 'Select Date of Birth',
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context)
-              .colorScheme
-              .copyWith(primary: AppColors.primary),
-        ),
-        child: child!,
-      ),
+      title: 'Select Date of Birth',
     );
     if (picked != null) {
       setState(() {
