@@ -688,29 +688,34 @@ class _JobTabBarState extends State<_JobTabBar> with SingleTickerProviderStateMi
   /// pulsing, which leaves the original decoration untouched.
   Widget _pill(int i, {double glow = 0}) {
     final selected = i == widget.currentIndex;
-    return Container(
-      margin: EdgeInsets.only(right: i < 2 ? 8 : 0),
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primary : AppColors.surface,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.2)),
-        boxShadow: glow == 0
-            ? null
-            : [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.45 * glow),
-                  blurRadius: 14 * glow,
-                  spreadRadius: 2 * glow,
-                ),
-              ],
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Container(
+        margin: EdgeInsets.only(right: i < 2 ? 8 : 0),
+        // 12 above and below brings the pill up to a comfortable thumb height.
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : AppColors.surface,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.2)),
+          boxShadow: glow == 0
+              ? null
+              : [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.45 * glow),
+                    blurRadius: 14 * glow,
+                    spreadRadius: 2 * glow,
+                  ),
+                ],
+        ),
+        child: Text('${_JobTabBar._labels[i]} ${widget.counts[i]}',
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? AppColors.textlight : AppColors.textmedium)),
       ),
-      child: Text('${_JobTabBar._labels[i]} ${widget.counts[i]}',
-          style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: selected ? AppColors.textlight : AppColors.textmedium)),
     );
   }
 
@@ -949,7 +954,7 @@ class _JobCard extends StatelessWidget {
           Text(problem.issue, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
           const SizedBox(height: 2),
           Text(problem.description, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
-                    if (request.photoPaths.isNotEmpty) ...[
+          if (request.photoPaths.isNotEmpty) ...[
             const SizedBox(height: 10),
             JobPhotoPreview(photoPaths: request.photoPaths),
           ],
@@ -1236,6 +1241,11 @@ class _ActiveJobCard extends StatelessWidget {
 
   const _ActiveJobCard({required this.request, required this.quote, required this.onOpen, required this.onCancel});
 
+  void _openChat(BuildContext context) => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: request.clientName)),
+      );
+
   @override
   Widget build(BuildContext context) {
     final problem = _splitProblem(request.problem);
@@ -1273,17 +1283,27 @@ class _ActiveJobCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(request.clientName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-                ),
-                _CircleIconButton(icon: Icons.call, color: AppColors.success, onTap: () {}),
-                const SizedBox(width: 8),
-                ChatIconButton(
-                  requestId: request.id,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: request.clientName)),
+                  child: Text(
+                    request.clientName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.2),
                   ),
                 ),
+                CircleIconButton(
+                  icon: Icons.call,
+                  color: AppColors.success,
+                  tooltip: 'Call ${request.clientName}',
+                  onTap: () => showContactSheet(
+                    context,
+                    name: request.clientName,
+                    // Clients' numbers aren't shared with mechanics yet, so
+                    // the sheet leads with the chat.
+                    phone: '',
+                    onMessage: () => _openChat(context),
+                  ),
+                ),
+                ChatIconButton(requestId: request.id, onTap: () => _openChat(context)),
               ],
             ),
             const SizedBox(height: 8),
@@ -1398,28 +1418,6 @@ class _TimeRemainingRow extends StatelessWidget {
                 style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _CircleIconButton({required this.icon, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-        child: Icon(icon, color: color, size: 18),
       ),
     );
   }

@@ -120,11 +120,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(24)),
                     child: TextField(
                       onChanged: (v) => setState(() => _query = v),
-                      decoration: const InputDecoration(
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        // The list filters as you type, so the magnifier marks
+                        // the field instead of being a button that does nothing.
+                        prefixIcon: Icon(Icons.search, size: 20, color: AppColors.textdark.withValues(alpha: 0.55)),
+                        prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                         hintText: 'Search mechanics...',
                         border: InputBorder.none,
                         isDense: true,
@@ -132,10 +137,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(icon: const Icon(Icons.search), onPressed: () {}),
-                IconButton(icon: const Icon(Icons.swap_vert), onPressed: () => setState(() => _ascending = !_ascending)),
-                IconButton(icon: const Icon(Icons.filter_list), onPressed: () => setState(() => _filterOpen = !_filterOpen)),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.swap_vert),
+                  tooltip: 'Reverse order',
+                  onPressed: () => setState(() => _ascending = !_ascending),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  tooltip: 'Filter mechanics',
+                  onPressed: () => setState(() => _filterOpen = !_filterOpen),
+                ),
               ],
             ),
             const SizedBox(height: 12),

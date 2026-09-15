@@ -167,10 +167,10 @@ class _MechanicProfileScreenState extends State<MechanicProfileScreen> {
               Row(
                 children: [
                   _StatBox(value: '${QuoteNotificationStore.instance.completedJobsFor(myName).length}', label: 'Jobs Done'),
-                  _StatBox(value: reviews.isEmpty ? '—' : average.toStringAsFixed(1), label: 'Ratings'),
-                  // Todo: no experience-tracking data source yet — left as
-                  // a static placeholder, not wired up.
-                  const _StatBox(value: '9yr', label: 'Experience'),
+                  _StatBox(value: reviews.isEmpty ? '—' : average.toStringAsFixed(1), label: 'Rating'),
+                  // Reviews, not years of experience: nothing records
+                  // experience yet, and a made-up figure reads as fact.
+                  _StatBox(value: '${reviews.length}', label: 'Reviews'),
                 ],
               ),
             ],
@@ -234,8 +234,8 @@ class _MechanicProfileScreenState extends State<MechanicProfileScreen> {
               // three reachable at every width, and costs nothing on a wide
               // screen where they still sit on one.
               Wrap(
-                spacing: 6,
-                runSpacing: 6,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   _FilterChip(label: 'All', selected: _filter == _ReviewFilter.all, onTap: () => setState(() => _filter = _ReviewFilter.all)),
                   _FilterChip(label: 'Rating', selected: _filter == _ReviewFilter.rating, onTap: () => setState(() => _filter = _ReviewFilter.rating)),
@@ -271,7 +271,7 @@ class _MechanicProfileScreenState extends State<MechanicProfileScreen> {
             ],
           ),
         ),
-            ],
+      ],
     );
 
     if (!widget.standalone) return content;
@@ -337,22 +337,26 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary.withValues(alpha: 0.1) : AppColors.surface,
-          border: Border.all(color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.2)),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.55),
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary.withValues(alpha: 0.1) : AppColors.surface,
+            border: Border.all(color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.2)),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.55),
+            ),
           ),
         ),
       ),
@@ -414,7 +418,9 @@ class _ReviewCard extends StatelessWidget {
           onTap: onToggleLike,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+            // Tall enough to hit with a thumb, and flush left with the review
+            // text above it.
+            padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

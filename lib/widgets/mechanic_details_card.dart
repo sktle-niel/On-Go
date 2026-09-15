@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_theme.dart';
 import 'common_widgets.dart';
@@ -95,6 +96,20 @@ class _DetailRow extends StatelessWidget {
             ],
           ),
         ),
+        // The app can't dial or open mail yet, so the number and address can
+        // at least be copied out instead of retyped from the screen.
+        if (!missing)
+          IconButton(
+            tooltip: 'Copy ${label.toLowerCase()}',
+            visualDensity: VisualDensity.compact,
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: value.trim()));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$label copied'), duration: AppDurations.snackBar),
+              );
+            },
+            icon: Icon(Icons.copy, size: 16, color: AppColors.textdark.withValues(alpha: 0.55)),
+          ),
       ],
     );
   }

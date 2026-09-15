@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../data/client_account_store.dart';
 import '../../../../theme/app_theme.dart';
+import '../../../../widgets/common_widgets.dart';
 
 class ClientProfileScreen extends StatefulWidget {
   const ClientProfileScreen({super.key});
@@ -92,42 +93,55 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
         children: [
           Center(
             child: Stack(
-              clipBehavior: Clip.none,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(70),
-                  child: photo == null
-                      ? Container(
-                          width: context.layout.scale(120),
-                          height: context.layout.scale(120),
-                          color: AppColors.background,
-                          child: Icon(Icons.person, size: context.layout.scale(56), color: AppColors.textdark.withValues(alpha: 0.55)),
-                        )
-                      : (_store.photoIsNetwork
-                          ? Image.network(photo, width: context.layout.scale(120), height: context.layout.scale(120), fit: BoxFit.cover)
-                          : Image.file(File(photo), width: context.layout.scale(120), height: context.layout.scale(120), fit: BoxFit.cover)),
+                // Inset by the camera button's overhang, so the whole button
+                // lies inside the stack: a tap outside a stack's bounds never
+                // reaches its children.
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(70),
+                    child: photo == null
+                        ? Container(
+                            width: context.layout.scale(120),
+                            height: context.layout.scale(120),
+                            color: AppColors.background,
+                            child: Icon(Icons.person, size: context.layout.scale(56), color: AppColors.textdark.withValues(alpha: 0.55)),
+                          )
+                        : (_store.photoIsNetwork
+                            ? Image.network(photo, width: context.layout.scale(120), height: context.layout.scale(120), fit: BoxFit.cover)
+                            : Image.file(File(photo), width: context.layout.scale(120), height: context.layout.scale(120), fit: BoxFit.cover)),
+                  ),
                 ),
                 Positioned(
-                  right: -4,
-                  bottom: -4,
-                  child: InkWell(
-                    onTap: _changePhoto,
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: canChange ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.55),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.surface, width: 2),
+                  right: 0,
+                  bottom: 0,
+                  child: Tooltip(
+                    message: 'Change photo',
+                    child: InkResponse(
+                      onTap: _changePhoto,
+                      radius: 22,
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: canChange ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.55),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.surface, width: 2),
+                            ),
+                            child: Icon(Icons.camera_alt, color: AppColors.textlight, size: 16),
+                          ),
+                        ),
                       ),
-                      child: Icon(Icons.camera_alt, color: AppColors.textlight, size: 16),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
           Center(
             child: Text(
               canChange
@@ -137,7 +151,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          Text('ACCOUNT INFORMATION', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600)),
+          const SectionLabel('ACCOUNT INFORMATION'),
           const SizedBox(height: 12),
           _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: _store.name.isEmpty ? '—' : _store.name),
           _InfoRow(icon: Icons.email_outlined, label: 'Email', value: _store.email.isEmpty ? '—' : _store.email),

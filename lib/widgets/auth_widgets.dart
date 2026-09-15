@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 
+// The registration screens reach the photo badge through this file, as before.
+export 'common_widgets.dart' show PhotoRemoveButton;
+
 /// What a date field on the registration forms accepts as it is typed:
 /// digits and slashes, at most "mm/dd/yyyy".
 final List<TextInputFormatter> dateInputFormatters = [
@@ -473,38 +476,6 @@ class OnGoChoiceRow extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-/// The small red ✕ on a photo preview. The badge stays 24 points, and a
-/// 36-point area around it takes the tap, so removing a photo is not a
-/// precision tap.
-class PhotoRemoveButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const PhotoRemoveButton({super.key, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Remove photo',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onPressed,
-        child: SizedBox(
-          width: 36,
-          height: 36,
-          child: Center(
-            child: CircleAvatar(
-              radius: 12,
-              backgroundColor: AppColors.error,
-              child: Icon(Icons.close, size: 14, color: AppColors.textmedium),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
