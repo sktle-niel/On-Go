@@ -253,6 +253,32 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     _confirmCtrl.clear();
   }
 
+  /// Sends another code to the same address.
+  Future<void> _resendCode() async {
+    _codeCtrl.clear();
+    if (_usesApi) {
+      await _requestCodeFromServer();
+    } else {
+      _submitEmailLocally();
+    }
+    if (!mounted || _error != null || _stage != _Stage.code) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('A new code is on its way.'), duration: AppDurations.snackBar),
+    );
+  }
+
+  /// Back to the first stage, to correct a mistyped address.
+  void _changeEmail() => setState(() {
+        _error = null;
+        _backToEmail();
+      });
+
+  ButtonStyle get _linkStyle => TextButton.styleFrom(
+        foregroundColor: AppColors.textdark,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        minimumSize: const Size(48, 44),
+      );
+
   @override
   Widget build(BuildContext context) {
     final sentTo = _usesApi ? _sentTo : _reset.email;
@@ -263,21 +289,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         child: SafeArea(
           child: AuthBottomCard(
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  switch (_stage) {
-                    _Stage.email => 'Reset your password',
-                    _Stage.code => 'Enter your code',
-                    _Stage.newPassword => 'Create a new password',
-                  },
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textdark),
+              // Centred, like the headings on Welcome and Sign In, which share
+              // this card.
+              Text(
+                switch (_stage) {
+                  _Stage.email => 'Reset your password',
+                  _Stage.code => 'Enter your code',
+                  _Stage.newPassword => 'Create a new password',
+                },
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                  color: AppColors.textdark,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Align(
-                alignment: Alignment.centerLeft,
+                alignment: Alignment.center,
                 child: Text(
+                  textAlign: TextAlign.center,
                   switch (_stage) {
                     _Stage.email => 'We\'ll send a one-time code to the email on your account.',
                     _Stage.code =>
@@ -292,8 +324,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Row(
+                  // The icon stays beside the first line when the message wraps.
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.error_outline, size: 16, color: AppColors.error),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Icon(Icons.error_outline, size: 16, color: AppColors.error),
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(_error!, style: TextStyle(fontSize: 12, color: AppColors.error)),
@@ -318,11 +355,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         _Stage.newPassword => _submitNewPassword,
                       },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
               Center(
                 child: TextButton(
                   onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                  style: _linkStyle,
                   child: Text('Back to Sign In',
                       style: TextStyle(fontSize: 13, color: AppColors.textdark)),
                 ),
@@ -342,6 +379,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             hint: 'Email address',
             controller: _emailCtrl,
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.send,
+            autofillHints: const [AutofillHints.email],
+            onSubmitted: (_) {
+              if (!_busy) _submitEmail();
+            },
           ),
         ];
 
@@ -355,11 +397,36 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             hint: '6-digit code',
             controller: _codeCtrl,
             keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.oneTimeCode],
+            maxLength: 6,
+            onSubmitted: (_) {
+              if (!_busy) _submitCode();
+            },
           ),
           if (notice != null) ...[
             const SizedBox(height: 12),
             _InfoNote(notice),
           ],
+          const SizedBox(height: 4),
+          // A code that never arrived, or went to a mistyped address, has a
+          // way forward from here, not only "Back to Sign In".
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TextButton(
+                onPressed: _busy ? null : _resendCode,
+                style: _linkStyle,
+                child: Text('Resend code', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textdark)),
+              ),
+              TextButton(
+                onPressed: _busy ? null : _changeEmail,
+                style: _linkStyle,
+                child: Text('Change email', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textdark)),
+              ),
+            ],
+          ),
         ];
 
       case _Stage.newPassword:
@@ -368,6 +435,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             hint: 'New password',
             controller: _passwordCtrl,
             obscure: _obscurePassword,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.newPassword],
             onChanged: (_) => setState(() {}),
             suffixIcon: IconButton(
               icon: Icon(
@@ -384,6 +453,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             hint: 'Confirm new password',
             controller: _confirmCtrl,
             obscure: _obscureConfirm,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.newPassword],
+            onSubmitted: (_) {
+              if (!_busy) _submitNewPassword();
+            },
             onChanged: (_) => setState(() {}),
             suffixIcon: IconButton(
               icon: Icon(

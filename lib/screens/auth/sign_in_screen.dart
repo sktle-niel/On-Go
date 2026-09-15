@@ -125,31 +125,63 @@ class _SignInScreenState extends State<SignInScreen> {
         child: SafeArea(
           child: AuthBottomCard(
             children: [
-              AuthTextField(
-                // The API signs in by email; the local build also takes the
-                // demo usernames.
-                hint: usesApi ? 'Email' : 'Username',
-                controller: _usernameCtrl,
-                keyboardType: usesApi ? TextInputType.emailAddress : TextInputType.text,
-              ),
-              const SizedBox(height: 16),
-              AuthTextField(
-                hint: 'Password',
-                obscure: _obscurePassword,
-                controller: _passwordCtrl,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    color: AppColors.textdark.withValues(alpha: 0.55),
-                    size: 20,
-                  ),
-                  onPressed: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
+              Text(
+                'Welcome back',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                  color: AppColors.textdark,
                 ),
               ),
               const SizedBox(height: 8),
+              Text(
+                'Sign in to find help or take on jobs',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.textdark),
+              ),
+              const SizedBox(height: 24),
+              AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AuthTextField(
+                      // The API signs in by email; the local build also takes
+                      // the demo usernames.
+                      hint: usesApi ? 'Email' : 'Username',
+                      controller: _usernameCtrl,
+                      keyboardType: usesApi ? TextInputType.emailAddress : TextInputType.text,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: [usesApi ? AutofillHints.email : AutofillHints.username],
+                    ),
+                    const SizedBox(height: 16),
+                    AuthTextField(
+                      hint: 'Password',
+                      obscure: _obscurePassword,
+                      controller: _passwordCtrl,
+                      // The keyboard's key signs in, so a user does not have
+                      // to dismiss it to reach the button.
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.password],
+                      onSubmitted: (_) => _handleSignIn(),
+                      suffixIcon: IconButton(
+                        tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: AppColors.textdark.withValues(alpha: 0.55),
+                          size: 20,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
@@ -157,9 +189,12 @@ class _SignInScreenState extends State<SignInScreen> {
                     context,
                     MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
                   ),
+                  // A real tap area; with zero padding and no minimum size the
+                  // link was only as big as its letters.
                   style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(0, 0),
+                    foregroundColor: AppColors.textdark,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                    minimumSize: const Size(48, 44),
                   ),
                   child: Text(
                     'Forgot Password?',
@@ -167,7 +202,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               AuthWhiteButton(
                 label: _signingIn ? 'Signing In…' : 'Sign In',
                 onPressed: _signingIn ? null : _handleSignIn,
@@ -186,10 +221,15 @@ class _SignInScreenState extends State<SignInScreen> {
                     "Don't have account? ",
                     style: TextStyle(fontSize: 13, color: AppColors.textdark),
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
+                  TextButton(
+                    onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textdark,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      minimumSize: const Size(48, 44),
                     ),
                     child: Text(
                       'Sign Up',

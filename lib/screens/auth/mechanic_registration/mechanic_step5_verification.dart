@@ -225,7 +225,7 @@ class _MechanicStep5VerificationState
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          _buildHeader(),
+          const RegistrationHeader(),
           Expanded(
             child: SingleChildScrollView(
               padding: context.layout.pageInsets,
@@ -250,18 +250,7 @@ class _MechanicStep5VerificationState
                   const SizedBox(height: 20),
 
                   // ── Profile Picture ─────────────────────────────────────
-                  Row(
-                    children: [
-                      Text('Profile Picture',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w500)),
-                      Text('*',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.error)),
-                    ],
-                  ),
+                  const OnGoFieldLabel('Profile Picture', isRequired: true),
                   const SizedBox(height: 4),
                   Text(
                     'Upload a clear photo of yourself. You can update it every 3 months for security purposes.',
@@ -274,27 +263,25 @@ class _MechanicStep5VerificationState
                   if (_profilePhoto != null) ...[
                     Center(
                       child: Stack(
-                        clipBehavior: Clip.none,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.file(_profilePhoto!,
-                                width: context.layout.scale(140), height: context.layout.scale(140), fit: BoxFit.cover),
+                          // Room around the photo keeps the remove button
+                          // inside the stack, where it can actually be tapped.
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.file(_profilePhoto!,
+                                  width: context.layout.scale(140), height: context.layout.scale(140), fit: BoxFit.cover),
+                            ),
                           ),
                           Positioned(
-                            top: -10,
-                            right: -10,
-                            child: GestureDetector(
-                              onTap: () {
+                            top: 0,
+                            right: 0,
+                            child: PhotoRemoveButton(
+                              onPressed: () {
                                 setState(() => _profilePhoto = null);
                                 _autosave();
                               },
-                              child: CircleAvatar(
-                                radius: 12,
-                                backgroundColor: AppColors.error,
-                                child: Icon(Icons.close,
-                                    size: 14, color: AppColors.textmedium),
-                              ),
                             ),
                           ),
                         ],
@@ -354,18 +341,7 @@ class _MechanicStep5VerificationState
                   const SizedBox(height: 24),
 
                   // ── Face Verification ───────────────────────────────────
-                  Row(
-                    children: [
-                      Text('Face Verification',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w500)),
-                      Text('*',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.error)),
-                    ],
-                  ),
+                  const OnGoFieldLabel('Face Verification', isRequired: true),
                   const SizedBox(height: 4),
                   Text(
                     'We need to confirm you are a real person. You will be asked to blink and smile.',
@@ -471,19 +447,23 @@ class _MechanicStep5VerificationState
                       shape: const StadiumBorder(),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
                   StepNavButtons(
                     onBack: () => Navigator.pop(context),
+                    // Registering can take a moment on a slow connection; the
+                    // button says so and cannot be pressed a second time.
+                    busy: _submitting,
+                    busyLabel: 'SUBMITTING…',
                     onNext: () async {
                       if (_submitting || !_validate()) return;
-                      _submitting = true;
+                      setState(() => _submitting = true);
 
                       // With the On Go API the account is created there
                       // first; nothing below runs unless it was accepted.
                       final usesApi = MobileBackend.instance.usesApi;
                       if (usesApi && !await _registerWithApi()) {
-                        _submitting = false;
+                        if (mounted) setState(() => _submitting = false);
                         return;
                       }
 
@@ -578,24 +558,4 @@ class _MechanicStep5VerificationState
         'phone' => 'Mobile number',
         _ => field,
       };
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(20, 48, 20, 16),
-      child: Column(
-        children: [
-          Text('On Go Registration',
-              style: TextStyle(
-                  color: AppColors.textlight,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700)),
-          SizedBox(height: 4),
-          Text('Complete all steps to provide services',
-              style: TextStyle(color: AppColors.textlight, fontSize: 12)),
-        ],
-      ),
-    );
-  }
 }
