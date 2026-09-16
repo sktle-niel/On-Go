@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:on_go/data/app_session.dart';
 import 'package:on_go/data/quote_store.dart';
+import 'package:on_go/data/review_store.dart';
 import 'package:on_go/services/backend/local_service_request_service.dart';
 import 'package:on_go_shared/on_go_shared.dart';
 
@@ -42,18 +43,22 @@ void main() {
 
       expect(booked.status, ServiceRequestStatus.pending);
       expect(booked.urgency, JobUrgency.urgent);
-      // The same table the server applies: 0 / 50 / 100.
-      expect(booked.surcharge, 50);
+      // The fee is whatever this backend charges, not a number written here:
+      // locally the admin's configured charge, on the server its own table.
+      // They differ today — the local default for Normal is 10, the server's
+      // is 0 — so a test that hardcoded either would be asserting the wrong
+      // backend's rule.
+      expect(booked.surcharge, additionalChargeFor('Urgent'));
       expect(booked.latitude, 14.6349);
       expect(booked.mechanicId, isNull);
     });
 
-    test('the fee follows each urgency', () async {
+    test("the fee follows the urgency, from the admin's settings", () async {
       expect((await jobs.bookRequest(const NewServiceRequest(
         problem: 'x',
         location: 'y',
         urgency: JobUrgency.normal,
-      ))).surcharge, 0);
+      ))).surcharge, additionalChargeFor('Normal'));
 
       final normal = (await jobs.listMyRequests()).first;
       await jobs.cancelRequest(normal.id);
@@ -62,7 +67,15 @@ void main() {
         problem: 'x',
         location: 'y',
         urgency: JobUrgency.emergency,
-      ))).surcharge, 100);
+      ))).surcharge, additionalChargeFor('Emergency'));
+    });
+
+    test('a booking is filed under the client, not a placeholder', () async {
+      final booked = await jobs.bookRequest(booking);
+
+      // What the job's evaluation, points and history are recorded against.
+      expect(booked.clientName, ReviewStore.currentClientName);
+      expect(booked.clientId, booked.clientName);
     });
 
     test('a second live booking is a conflict, the same as the server\'s', () async {

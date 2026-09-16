@@ -56,8 +56,14 @@ class LocalServiceRequestService implements ServiceRequestApi {
       urgency: request.urgency.wireName,
       photoPaths: const [],
       createdAt: DateTime.now(),
-      // The fee follows the urgency, the same table the server uses.
-      surcharge: _surchargeFor(request.urgency),
+      // Who the job belongs to — what its evaluation, points and history are
+      // recorded against. Without it every local booking would be filed under
+      // HelpRequest's placeholder name.
+      clientName: ReviewStore.currentClientName,
+      // The admin's configured charge for this urgency, which is what the rest
+      // of a local build prices against. The server has its own fixed table;
+      // whichever backend is in use, the fee comes from that backend.
+      surcharge: additionalChargeFor(request.urgency.wireName),
       clientLat: point?.latitude,
       clientLng: point?.longitude,
     );
@@ -390,12 +396,6 @@ class LocalServiceRequestService implements ServiceRequestApi {
         RequestStatus.pending => ServiceRequestStatus.pending,
         RequestStatus.matched => ServiceRequestStatus.matched,
         RequestStatus.completed => ServiceRequestStatus.completed,
-      };
-
-  static double _surchargeFor(JobUrgency urgency) => switch (urgency) {
-        JobUrgency.normal => 0,
-        JobUrgency.urgent => 50,
-        JobUrgency.emergency => 100,
       };
 
   /// The store enforces role and approval by throwing. On the server the same
