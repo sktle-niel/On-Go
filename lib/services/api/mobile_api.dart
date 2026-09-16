@@ -43,6 +43,7 @@ class SecureRefreshTokenStore implements RefreshTokenStore {
 /// | [PlatformAppearanceApi] | the API (read); writes are console-only |
 /// | [PlatformRevenueApi] | the API (`POST /payments`) |
 /// | [AccountVerificationApi] | local until Step 5 (`ONGO_API_VERIFICATION`) |
+/// | [ServiceRequestApi] | the API (`/service-requests/*`) |
 /// | [LocationApi] | local — not in the API contract |
 ///
 /// Jobs, quotes, ETA, chat and reviews are not in the contract at all and stay
@@ -88,6 +89,7 @@ class MobileApi {
       appearance: api.appearance,
       revenue: api.revenue,
       verification: api.features.verification ? api.verification : null,
+      serviceRequests: api.serviceRequests,
     );
     return api;
   }
