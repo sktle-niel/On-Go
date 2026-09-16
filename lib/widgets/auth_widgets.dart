@@ -1,7 +1,24 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
+
+// The registration screens reach the photo badge through this file, as before.
+export 'common_widgets.dart' show PhotoRemoveButton;
+
+/// What a date field on the registration forms accepts as it is typed:
+/// digits and slashes, at most "mm/dd/yyyy".
+final List<TextInputFormatter> dateInputFormatters = [
+  FilteringTextInputFormatter.allow(RegExp(r'[0-9/]')),
+  LengthLimitingTextInputFormatter(10),
+];
+
+/// A Philippine mobile number as the forms ask for it: 09 and nine digits.
+final List<TextInputFormatter> phMobileInputFormatters = [
+  FilteringTextInputFormatter.digitsOnly,
+  LengthLimitingTextInputFormatter(11),
+];
 
 /// Red header banner (logo + subtitle)
 class OnGoHeader extends StatelessWidget {
@@ -13,7 +30,9 @@ class OnGoHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(20, 48, 20, 20),
+      // The status bar's real height rather than a fixed 48, which was too
+      // little under a notch and too much on a phone without one.
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 16, 20, 20),
       child: Column(
         children: [
           Text(
@@ -22,7 +41,8 @@ class OnGoHeader extends StatelessWidget {
               color: AppColors.textmedium,
               fontSize: 28,
               fontWeight: FontWeight.w800,
-              letterSpacing: 1,
+              // Large type reads best slightly tightened, not spread out.
+              letterSpacing: -0.4,
             ),
           ),
           const SizedBox(height: 4),
@@ -36,27 +56,70 @@ class OnGoHeader extends StatelessWidget {
   }
 }
 
+/// A field heading, with a red asterisk when the field is required. The one
+/// way the app's forms mark a required field, so every form reads the same.
+class OnGoFieldLabel extends StatelessWidget {
+  final String text;
+  final bool isRequired;
+
+  const OnGoFieldLabel(this.text, {super.key, this.isRequired = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textdark,
+        ),
+        children: [
+          if (isRequired) TextSpan(text: ' *', style: TextStyle(color: AppColors.error)),
+        ],
+      ),
+    );
+  }
+}
+
 /// Labelled text field with optional validation support.
+///
+/// The keyboard moves a form along: [textInputAction] defaults to "next",
+/// which takes focus to the following field, and the last field of a form
+/// passes [TextInputAction.done] with [onSubmitted] so the keyboard's key
+/// submits it.
 class OnGoTextField extends StatelessWidget {
   final String label;
   final String hint;
   final bool obscure;
+  final bool isRequired;
   final TextEditingController? controller;
   final TextInputType keyboardType;
+  final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
+  final Iterable<String>? autofillHints;
+  final List<TextInputFormatter>? inputFormatters;
   final Widget? suffixIcon;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
 
   const OnGoTextField({
     super.key,
     required this.label,
     this.hint = '',
     this.obscure = false,
+    this.isRequired = false,
     this.controller,
     this.keyboardType = TextInputType.text,
+    this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
+    this.autofillHints,
+    this.inputFormatters,
     this.suffixIcon,
     this.errorText,
     this.onChanged,
+    this.onSubmitted,
   });
 
   @override
@@ -64,20 +127,20 @@ class OnGoTextField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textdark,
-          ),
-        ),
+        OnGoFieldLabel(label, isRequired: isRequired),
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           obscureText: obscure,
+          enableSuggestions: !obscure,
+          autocorrect: !obscure,
           keyboardType: keyboardType,
+          textInputAction: textInputAction ?? TextInputAction.next,
+          textCapitalization: textCapitalization,
+          autofillHints: autofillHints,
+          inputFormatters: inputFormatters,
           onChanged: onChanged,
+          onFieldSubmitted: onSubmitted,
           decoration: InputDecoration(
             hintText: hint,
             suffixIcon: suffixIcon,
@@ -119,129 +182,298 @@ class RegistrationStepper extends StatelessWidget {
     this.onStepTapped,
   });
 
+  /// The line between [before] and the step after it is green once both are
+  /// completed.
+  bool _connectorDone(int before) =>
+      before <= highestCompletedStep && before + 1 <= highestCompletedStep;
+
+  Color _lineColor(bool done) =>
+      done ? AppColors.success : AppColors.textdark.withValues(alpha: 0.2);
+
   @override
   Widget build(BuildContext context) {
+    // One column per step, all the same width. A label sits in the same column
+    // as its circle, so it is always centred under it; before, the labels were
+    // left-aligned in a separate row and drifted away from their circles. The
+    // connector between two steps is drawn as the halves on either side of
+    // each circle.
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        children: [
-          // Circles and connector lines
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: List.generate(totalSteps * 2 - 1, (i) {
-              if (i.isOdd) {
-                final stepBefore = (i ~/ 2) + 1;
-                final stepAfter = stepBefore + 1;
-                // Green if both the step before AND after are completed
-                final active =
-                    stepBefore <= highestCompletedStep &&
-                    stepAfter <= highestCompletedStep;
-                return Expanded(
-                  child: Container(
-                    height: 3,
-                    color: active
-                        ? AppColors.success
-                        : AppColors.textdark.withValues(alpha: 0.2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(totalSteps, (index) {
+          final step = index + 1;
+          final done = step < currentStep;
+          final current = step == currentStep;
+          // Any completed step is tappable, including steps ahead of the
+          // current one; the current step itself is not (already there).
+          final tappable = onStepTapped != null && step <= highestCompletedStep && !current;
+
+          final circle = Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: (done || current || step <= highestCompletedStep)
+                  ? AppColors.success
+                  : AppColors.textdark.withValues(alpha: 0.12),
+            ),
+            child: Center(
+              child: done || (step <= highestCompletedStep && !current)
+                  ? Icon(Icons.check, color: AppColors.textlight, size: 14)
+                  : Text(
+                      '$step',
+                      style: TextStyle(
+                        color: current
+                            ? AppColors.textlight
+                            : AppColors.textdark.withValues(alpha: 0.55),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+            ),
+          );
+
+          final column = Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 3,
+                      color: step == 1 ? Colors.transparent : _lineColor(_connectorDone(step - 1)),
+                    ),
                   ),
-                );
-              }
-
-              final step = i ~/ 2 + 1;
-              final done = step < currentStep;
-              final current = step == currentStep;
-              // A step is tappable if it has been completed (done) but is not
-              // Any completed step is tappable, including steps ahead of current.
-              // Current step itself is excluded (already there).
-              final tappable =
-                  step <= highestCompletedStep && step != currentStep;
-
-              final circle = Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: (done || current || step <= highestCompletedStep)
+                  circle,
+                  Expanded(
+                    child: Container(
+                      height: 3,
+                      color: step == totalSteps ? Colors.transparent : _lineColor(_connectorDone(step)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                labels[index],
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  // 10, not 9: nothing that has to be read goes below the
+                  // design system's smallest size.
+                  fontSize: 10,
+                  color: (done || current)
                       ? AppColors.success
-                      : AppColors.textdark.withValues(alpha: 0.12),
+                      : AppColors.textdark.withValues(alpha: 0.55),
+                  fontWeight: current ? FontWeight.w600 : FontWeight.normal,
                 ),
-                child: Center(
-                  child: done || (step <= highestCompletedStep && !current)
-                      ? Icon(Icons.check, color: AppColors.textlight, size: 14)
-                      : Text(
-                          '$step',
-                          style: TextStyle(
-                            color: current
-                                ? AppColors.textlight
-                                : AppColors.textdark.withValues(alpha: 0.55),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                ),
-              );
+              ),
+            ],
+          );
 
-              if (tappable && onStepTapped != null) {
-                return GestureDetector(
-                  onTap: () => onStepTapped!(step),
-                  child: circle,
-                );
-              }
-              return circle;
-            }),
-          ),
-
-          const SizedBox(height: 4),
-
-          // Labels row
-          Row(
-            children: List.generate(totalSteps * 2 - 1, (i) {
-              if (i.isOdd) return Expanded(child: Container());
-              final step = i ~/ 2 + 1;
-              final done = step < currentStep;
-              final current = step == currentStep;
-              return SizedBox(
-                width: 45,
-                child: Text(
-                  labels[step - 1],
-                  textAlign: TextAlign.left,
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: (done || current)
-                        ? AppColors.success
-                        : AppColors.textdark.withValues(alpha: 0.55),
-                    fontWeight: current ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
+          return Expanded(
+            child: tappable
+                ? Semantics(
+                    button: true,
+                    label: 'Go back to ${labels[index]}',
+                    child: GestureDetector(
+                      // The whole column, circle and label, is the target.
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onStepTapped!(step),
+                      child: column,
+                    ),
+                  )
+                : column,
+          );
+        }),
       ),
     );
   }
 }
 
 /// Back / Next button row for multi-step forms.
+///
+/// Back appears whenever [onBack] is given. While [busy], both buttons are
+/// disabled and Next shows [busyLabel], so a slow submit cannot be sent twice
+/// and the user can see it is working.
 class StepNavButtons extends StatelessWidget {
   final VoidCallback? onBack;
   final VoidCallback? onNext;
   final String nextLabel;
+  final String backLabel;
   final bool isLastStep;
+  final bool busy;
+  final String busyLabel;
 
   const StepNavButtons({
     super.key,
     this.onBack,
     this.onNext,
     this.nextLabel = 'NEXT',
+    this.backLabel = 'BACK',
     this.isLastStep = false,
+    this.busy = false,
+    this.busyLabel = 'PLEASE WAIT…',
   });
 
   @override
   Widget build(BuildContext context) {
+    final next = ElevatedButton(
+      onPressed: busy ? null : onNext,
+      child: Text(busy ? busyLabel : nextLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+    );
+
     return Row(
       children: [
-        Expanded(
-          child: ElevatedButton(onPressed: onNext, child: Text(nextLabel)),
+        if (onBack != null) ...[
+          Expanded(
+            child: OutlinedButton(
+              onPressed: busy ? null : onBack,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary),
+                minimumSize: const Size(0, 48),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.25),
+              ),
+              child: Text(backLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+        Expanded(child: next),
+      ],
+    );
+  }
+}
+
+/// The band at the top of every registration screen: a back button, the title
+/// and a subtitle.
+///
+/// It reads the real status bar height, so the title never sits under a notch,
+/// and the back button gives every step a visible way out. An empty slot the
+/// size of the button balances the other side, so the title stays centred.
+class RegistrationHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const RegistrationHeader({
+    super.key,
+    this.title = 'On Go Registration',
+    this.subtitle = 'Complete all steps to provide services',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final canGoBack = Navigator.of(context).canPop();
+
+    return Container(
+      width: double.infinity,
+      color: AppColors.primary,
+      padding: EdgeInsets.fromLTRB(4, MediaQuery.paddingOf(context).top + 8, 4, 16),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 48,
+            child: canGoBack
+                ? IconButton(
+                    icon: Icon(Icons.arrow_back, color: AppColors.textlight),
+                    tooltip: 'Back',
+                    onPressed: () => Navigator.maybePop(context),
+                  )
+                : null,
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.textlight,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textlight, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
+  }
+}
+
+/// A labelled set of radio choices laid out in a row.
+///
+/// The word next to each radio is part of its tap area, and the radios are
+/// drawn compact, so they line up with the left edge of the fields above and
+/// below instead of sitting indented inside Material's 48-point padding.
+class OnGoChoiceRow extends StatelessWidget {
+  final String label;
+  final bool isRequired;
+  final List<String> options;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const OnGoChoiceRow({
+    super.key,
+    required this.label,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+    this.isRequired = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        OnGoFieldLabel(label, isRequired: isRequired),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 16,
+          children: [
+            for (final option in options)
+              InkWell(
+                borderRadius: AppRadii.borderSm,
+                onTap: () => onChanged(option),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6, bottom: 6, right: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Radio<String>(
+                        value: option,
+                        // ignore: deprecated_member_use
+                        groupValue: value,
+                        activeColor: AppColors.primary,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        // ignore: deprecated_member_use
+                        onChanged: (picked) {
+                          if (picked != null) onChanged(picked);
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      Text(option, style: TextStyle(fontSize: 13, color: AppColors.textdark)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );
@@ -338,6 +570,14 @@ class AuthTextField extends StatelessWidget {
   /// the user types (the password match indicator, for one).
   final ValueChanged<String>? onChanged;
 
+  /// What the keyboard's action key does, and what happens when it is pressed.
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final Iterable<String>? autofillHints;
+
+  /// Caps the length and hides the counter — for a fixed-length code.
+  final int? maxLength;
+
   const AuthTextField({
     super.key,
     required this.hint,
@@ -346,6 +586,10 @@ class AuthTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.suffixIcon,
     this.onChanged,
+    this.textInputAction,
+    this.onSubmitted,
+    this.autofillHints,
+    this.maxLength,
   });
 
   @override
@@ -358,8 +602,14 @@ class AuthTextField extends StatelessWidget {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
+      enableSuggestions: !obscure,
+      autocorrect: !obscure,
       keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      autofillHints: autofillHints,
+      maxLength: maxLength,
       onChanged: onChanged,
+      onFieldSubmitted: onSubmitted,
       style: TextStyle(color: AppColors.textdark),
       decoration: InputDecoration(
         hintText: hint,
@@ -371,9 +621,12 @@ class AuthTextField extends StatelessWidget {
           horizontal: 16,
           vertical: 14,
         ),
+        counterText: maxLength == null ? null : '',
         border: border,
         enabledBorder: border,
-        focusedBorder: border,
+        // Same colour, heavier line: the field being typed into is visible at
+        // a glance without the palette changing.
+        focusedBorder: border.copyWith(borderSide: border.borderSide.copyWith(width: 2.5)),
       ),
     );
   }

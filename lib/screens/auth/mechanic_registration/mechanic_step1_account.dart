@@ -123,6 +123,19 @@ class _MechanicStep1AccountState extends State<MechanicStep1Account> {
   // Stepper tap — delegate to shared helper which handles all 5 steps
   void _onStepTapped(int step) => goToRegistrationStep(context, step);
 
+  void _goNext() {
+    if (!_validate()) return;
+    _draft.username        = _usernameCtrl.text.trim();
+    _draft.email           = _emailCtrl.text.trim();
+    _draft.password        = _passCtrl.text;
+    _draft.confirmPassword = _confirmPassCtrl.text;
+    _draft.saveStep1();
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MechanicStep2Personal()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
@@ -135,23 +148,7 @@ class _MechanicStep1AccountState extends State<MechanicStep1Account> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            color: AppColors.primary,
-            padding: const EdgeInsets.fromLTRB(20, 48, 20, 16),
-            child: Column(
-              children: [
-                Text('On Go Registration',
-                    style: TextStyle(
-                        color: AppColors.textlight,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700)),
-                SizedBox(height: 4),
-                Text('Complete all steps to provide services',
-                    style: TextStyle(color: AppColors.textlight, fontSize: 12)),
-              ],
-            ),
-          ),
+          const RegistrationHeader(),
           Expanded(
             child: SingleChildScrollView(
               padding: context.layout.pageInsets,
@@ -176,6 +173,8 @@ class _MechanicStep1AccountState extends State<MechanicStep1Account> {
                     child: OnGoTextField(
                       label: 'Username',
                       hint: 'juandelacruz',
+                      isRequired: true,
+                      autofillHints: const [AutofillHints.newUsername],
                       controller: _usernameCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -192,6 +191,8 @@ class _MechanicStep1AccountState extends State<MechanicStep1Account> {
                     child: OnGoTextField(
                       label: 'Email',
                       hint: 'juandelacruz@gmail.com',
+                      isRequired: true,
+                      autofillHints: const [AutofillHints.email],
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
                       onChanged: (_) {
@@ -209,6 +210,8 @@ class _MechanicStep1AccountState extends State<MechanicStep1Account> {
                     child: OnGoTextField(
                       label: 'Password',
                       hint: '********',
+                      isRequired: true,
+                      autofillHints: const [AutofillHints.newPassword],
                       obscure: _obscurePass,
                       controller: _passCtrl,
                       onChanged: (_) {
@@ -236,6 +239,10 @@ class _MechanicStep1AccountState extends State<MechanicStep1Account> {
                     child: OnGoTextField(
                       label: 'Confirm Password',
                       hint: '********',
+                      isRequired: true,
+                      autofillHints: const [AutofillHints.newPassword],
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _goNext(),
                       obscure: _obscureConfirm,
                       controller: _confirmPassCtrl,
                       onChanged: (_) {
@@ -261,22 +268,11 @@ class _MechanicStep1AccountState extends State<MechanicStep1Account> {
                     password: _passCtrl.text,
                     confirmPassword: _confirmPassCtrl.text,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
                   StepNavButtons(
-                    onNext: () {
-                      if (!_validate()) return;
-                      _draft.username        = _usernameCtrl.text.trim();
-                      _draft.email           = _emailCtrl.text.trim();
-                      _draft.password        = _passCtrl.text;
-                      _draft.confirmPassword = _confirmPassCtrl.text;
-                      _draft.saveStep1();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const MechanicStep2Personal()),
-                      );
-                    },
+                    onBack: () => Navigator.maybePop(context),
+                    onNext: _goNext,
                   ),
                 ],
               ),

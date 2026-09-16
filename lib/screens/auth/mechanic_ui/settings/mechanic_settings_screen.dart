@@ -4,6 +4,7 @@ import '../../../../services/backend/mobile_backend.dart';
 import '../../../../data/mechanic_settings_store.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/change_password_dialog.dart';
+import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/location_widgets.dart';
 import '../../../../widgets/password_strength.dart';
 import '../../../shared/theme_screen.dart';
@@ -61,12 +62,13 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
       body: ListView(
         padding: context.layout.pageInsets,
         children: [
-          Text('APPEARANCE', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600)),
+          const SectionLabel('APPEARANCE'),
+          const SizedBox(height: 8),
           const ThemesSettingsTile(),
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 16),
-          Text('NOTIFICATIONS', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600)),
+          const SectionLabel('NOTIFICATIONS'),
           const SizedBox(height: 8),
           AnimatedBuilder(
             animation: MechanicSettingsStore.instance,
@@ -85,6 +87,7 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(width: 12),
                 // Colors come from the app-wide switchTheme.
                 Switch(
                   value: MechanicSettingsStore.instance.emergencyPulseEnabled,
@@ -96,14 +99,14 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 16),
-          Text('LOCATION', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600)),
+          const SectionLabel('LOCATION'),
           const SizedBox(height: 8),
           const LocationAccessTile(),
           const SizedBox(height: 8),
           const Divider(),
           const SizedBox(height: 16),
-          Text('SECURITY', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
+          const SectionLabel('SECURITY'),
+          const SizedBox(height: 8),
           if (!hasLocalPassword) ...[
             Container(
               padding: const EdgeInsets.all(14),

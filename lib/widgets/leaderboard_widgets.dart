@@ -59,15 +59,19 @@ class _SeasonLeaderboardViewState extends State<SeasonLeaderboardView> {
             Text(season.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(24)),
               child: TextField(
                 onChanged: (value) => setState(() => _query = value),
-                decoration: const InputDecoration(
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  // The list filters as you type, so the magnifier marks the
+                  // field instead of sitting outside it as decoration.
+                  prefixIcon: Icon(Icons.search, size: 20, color: AppColors.textdark.withValues(alpha: 0.55)),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   hintText: 'Search mechanics...',
                   border: InputBorder.none,
                   isDense: true,
-                  icon: Icon(Icons.search),
                 ),
               ),
             ),

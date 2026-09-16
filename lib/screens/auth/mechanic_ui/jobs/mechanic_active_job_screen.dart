@@ -57,6 +57,21 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
 
   void _onChange() => setState(() {});
 
+  void _openChat(HelpRequest request) => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: request.clientName)),
+      );
+
+  /// How far the mechanic is from the client, from the latest location fix.
+  /// A dash when either end is unknown, never a stand-in figure.
+  String _distanceLabel(HelpRequest request) {
+    final here = _location.current;
+    if (here == null || !request.hasClientCoordinates) return '—';
+    final meters = here.point.distanceTo(GeoPoint(request.clientLat!, request.clientLng!));
+    if (meters < 1000) return '${meters.round()} m';
+    return '${(meters / 1000).toStringAsFixed(1)} km';
+  }
+
   void _beginNavigating(HelpRequest request) {
     _store.mechanicStartNavigating(request.id);
     _startTracking(request);
@@ -113,6 +128,8 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
 
     _lastHandled = update;
     _handlePosition(request, update.point);
+    // The distance on the card moves with every fix.
+    setState(() {});
   }
 
   void _handlePosition(HelpRequest request, GeoPoint position) {
@@ -264,15 +281,20 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
                                     ],
                                   ),
                                 ),
-                                _CircleIconButton(icon: Icons.call, color: AppColors.success, onTap: () {}),
-                                const SizedBox(width: 8),
-                                ChatIconButton(
-                                  requestId: request.id,
-                                  onTap: () => Navigator.push(
+                                CircleIconButton(
+                                  icon: Icons.call,
+                                  color: AppColors.success,
+                                  tooltip: 'Call ${request.clientName}',
+                                  onTap: () => showContactSheet(
                                     context,
-                                    MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: request.clientName)),
+                                    name: request.clientName,
+                                    // Clients' numbers aren't shared with
+                                    // mechanics yet; the sheet offers the chat.
+                                    phone: '',
+                                    onMessage: () => _openChat(request),
                                   ),
                                 ),
+                                ChatIconButton(requestId: request.id, onTap: () => _openChat(request)),
                               ],
                             ),
                             const SizedBox(height: 12),
@@ -282,16 +304,16 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
                               child: request.isEmergency
                                   ? Row(
                                       children: [
-                                        _InfoColumn(label: 'ETA', value: quote?.eta ?? '15 mins'),
+                                        _InfoColumn(label: 'ETA', value: quote?.eta ?? '—'),
                                         const _VerticalDivider(),
-                                        const _InfoColumn(label: 'Distance', value: '20 km'),
+                                        _InfoColumn(label: 'Distance', value: _distanceLabel(request)),
                                       ],
                                     )
                                   : Row(
                                       children: [
-                                        _InfoColumn(label: 'ETA', value: quote?.eta ?? '20 mins'),
+                                        _InfoColumn(label: 'ETA', value: quote?.eta ?? '—'),
                                         const _VerticalDivider(),
-                                        const _InfoColumn(label: 'Distance', value: '20 km'),
+                                        _InfoColumn(label: 'Distance', value: _distanceLabel(request)),
                                         const _VerticalDivider(),
                                         _InfoColumn(label: 'Quote', value: quote?.price ?? '—', valueColor: AppColors.success),
                                       ],
@@ -594,28 +616,6 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
           minimumSize: const Size(double.infinity, 46),
           shape: const StadiumBorder(),
         ),
-      ),
-    );
-  }
-}
-
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _CircleIconButton({required this.icon, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-        child: Icon(icon, color: color, size: 18),
       ),
     );
   }

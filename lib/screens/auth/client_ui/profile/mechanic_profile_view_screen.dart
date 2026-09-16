@@ -374,12 +374,14 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                 const SizedBox(height: 8),
                 const Divider(height: 1),
                 const SizedBox(height: 12),
-                Row(
+                // Wrap, not Row: all three stay on screen, and tappable, on a
+                // narrow phone at a large text size.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     _FilterChip(label: 'All', selected: _filter == _ReviewFilter.all, onTap: () => setState(() => _filter = _ReviewFilter.all)),
-                    const SizedBox(width: 6),
                     _FilterChip(label: 'Rating', selected: _filter == _ReviewFilter.rating, onTap: () => setState(() => _filter = _ReviewFilter.rating)),
-                    const SizedBox(width: 6),
                     _FilterChip(
                         label: 'Most Relevant',
                         selected: _filter == _ReviewFilter.mostRelevant,
@@ -423,22 +425,26 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary.withValues(alpha: 0.1) : AppColors.surface,
-          border: Border.all(color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.2)),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.55),
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary.withValues(alpha: 0.1) : AppColors.surface,
+            border: Border.all(color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.2)),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected ? AppColors.primary : AppColors.textdark.withValues(alpha: 0.55),
+            ),
           ),
         ),
       ),
@@ -502,7 +508,9 @@ class _ReviewCard extends StatelessWidget {
             onTap: onToggleLike,
             borderRadius: BorderRadius.circular(16),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+              // Tall enough to hit with a thumb, and flush left with the
+              // review text above it.
+              padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [

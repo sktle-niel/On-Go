@@ -182,11 +182,16 @@ class _MechanicRankingsViewState extends State<MechanicRankingsView> {
                   children: [
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(24)),
                         child: TextField(
                           onChanged: (v) => setState(() => _query = v),
-                          decoration: const InputDecoration(
+                          textInputAction: TextInputAction.search,
+                          decoration: InputDecoration(
+                            // The list filters as you type, so the magnifier marks
+                            // the field instead of being a button that does nothing.
+                            prefixIcon: Icon(Icons.search, size: 20, color: AppColors.textdark.withValues(alpha: 0.55)),
+                            prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                             hintText: 'Search mechanics...',
                             border: InputBorder.none,
                             isDense: true,
@@ -194,8 +199,7 @@ class _MechanicRankingsViewState extends State<MechanicRankingsView> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+                    const SizedBox(width: 4),
                     IconButton(
                       tooltip: _ascending ? 'Lowest first' : 'Highest first',
                       icon: const Icon(Icons.swap_vert),

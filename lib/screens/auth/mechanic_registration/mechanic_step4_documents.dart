@@ -141,7 +141,7 @@ class _MechanicStep4DocumentsState extends State<MechanicStep4Documents> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          _buildHeader(),
+          const RegistrationHeader(),
           Expanded(
             child: SingleChildScrollView(
               padding: context.layout.pageInsets,
@@ -165,7 +165,7 @@ class _MechanicStep4DocumentsState extends State<MechanicStep4Documents> {
                   const SizedBox(height: 20),
 
                   _DocumentUploadTile(
-                    label: 'Valid ID*',
+                    label: 'Valid ID',
                     buttonLabel: 'UPLOAD VALID ID',
                     icon: Icons.upload_outlined,
                     file: _validIdFile,
@@ -180,8 +180,8 @@ class _MechanicStep4DocumentsState extends State<MechanicStep4Documents> {
 
                   // NCII
                   _DocumentUploadTile(
-                    label: 'NCII*',
-                    buttonLabel: 'UPLOAD NCII',
+                    label: 'NC II',
+                    buttonLabel: 'UPLOAD NC II',
                     icon: Icons.upload_outlined,
                     file: _ncIiFile,
                     showError: _ncIiError,
@@ -206,7 +206,7 @@ class _MechanicStep4DocumentsState extends State<MechanicStep4Documents> {
                       _autosave();
                     },
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
                   StepNavButtons(
                     onBack: () => Navigator.pop(context),
@@ -235,26 +235,6 @@ class _MechanicStep4DocumentsState extends State<MechanicStep4Documents> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(20, 48, 20, 16),
-      child: Column(
-        children: [
-          Text('On Go Registration',
-              style: TextStyle(
-                  color: AppColors.textlight,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700)),
-          SizedBox(height: 4),
-          Text('Complete all steps to provide services',
-              style: TextStyle(color: AppColors.textlight, fontSize: 12)),
         ],
       ),
     );
@@ -315,11 +295,8 @@ class _DocumentUploadTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w500),
-        ),
+        // Both single-document tiles are required documents.
+        OnGoFieldLabel(label, isRequired: true),
         const SizedBox(height: 8),
         if (file == null)
           OutlinedButton.icon(
@@ -411,11 +388,7 @@ class _MultiDocumentUploadTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w500),
-        ),
+        OnGoFieldLabel(label),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           icon: Icon(icon, size: 18),

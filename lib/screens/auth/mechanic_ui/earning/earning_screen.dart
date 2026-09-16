@@ -88,7 +88,7 @@ class _EarningScreenState extends State<EarningScreen> {
                 'Top Mechanics',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2),
               ),
             ),
             TextButton(
@@ -96,7 +96,7 @@ class _EarningScreenState extends State<EarningScreen> {
                     context,
                     MaterialPageRoute(builder: (_) => const MechanicRankingsScreen()),
                   ),
-              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: const Size(48, 44)),
               child: Text('View All',
                   style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
             ),
@@ -124,7 +124,7 @@ class _EarningScreenState extends State<EarningScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        const Text('Service History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        const Text('Service History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
         const SizedBox(height: 12),
         if (paidJobs.isEmpty)
           Padding(

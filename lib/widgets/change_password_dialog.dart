@@ -76,6 +76,25 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
     super.dispose();
   }
 
+  Future<void> _save() async {
+    if (saving) return;
+    setState(() => saving = true);
+    final error = await widget.onSubmit(
+      currentController.text,
+      newController.text,
+      confirmController.text,
+    );
+    if (!mounted) return;
+    if (error != null) {
+      setState(() {
+        errorText = error;
+        saving = false;
+      });
+      return;
+    }
+    Navigator.pop(context, true);
+  }
+
   @override
   Widget build(BuildContext ctx) {
     void setDialogState(VoidCallback fn) => setState(fn);
@@ -97,12 +116,20 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                 TextField(
                   controller: currentController,
                   obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.password],
                   decoration: const InputDecoration(labelText: 'Current Password'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: newController,
                   obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.newPassword],
                   onChanged: (_) => setDialogState(() {}),
                   decoration: const InputDecoration(labelText: 'New Password'),
                 ),
@@ -111,7 +138,13 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                 TextField(
                   controller: confirmController,
                   obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.newPassword],
                   onChanged: (_) => setDialogState(() {}),
+                  // Done on the keyboard saves, the same as the Save button.
+                  onSubmitted: (_) => _save(),
                   decoration: const InputDecoration(labelText: 'Confirm New Password'),
                 ),
                 PasswordMatchIndicator(
@@ -130,25 +163,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: saving
-                ? null
-                : () async {
-                    setDialogState(() => saving = true);
-                    final error = await widget.onSubmit(
-                      currentController.text,
-                      newController.text,
-                      confirmController.text,
-                    );
-                    if (!mounted) return;
-                    if (error != null) {
-                      setDialogState(() {
-                        errorText = error;
-                        saving = false;
-                      });
-                      return;
-                    }
-                    Navigator.pop(context, true);
-                  },
+            onPressed: saving ? null : _save,
             child: Text(saving ? 'Saving…' : 'Save'),
           ),
         ],

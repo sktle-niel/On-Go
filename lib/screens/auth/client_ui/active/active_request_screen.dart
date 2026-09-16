@@ -8,6 +8,7 @@ import '../../../../services/backend/mobile_backend.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/evaluation_widgets.dart';
 import '../../../../data/points_wallet_store.dart';
+import '../../../../data/mechanic_contact_store.dart';
 import '../../../../data/quote_store.dart';
 import '../../../../data/review_store.dart';
 import '../../../shared/job_chat_screen.dart';
@@ -75,10 +76,25 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: AppDurations.snackBar));
   }
 
+  void _openChat(HelpRequest request, MechanicQuote quote) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: quote.mechanicName)),
+    );
+  }
+
+  void _contact(HelpRequest request, MechanicQuote quote) {
+    showContactSheet(
+      context,
+      name: quote.mechanicName,
+      phone: MechanicContactStore.instance.contactFor(quote.mechanicName).phone,
+      onMessage: () => _openChat(request, quote),
+    );
+  }
+
   Future<void> _sendPayment(HelpRequest request, MechanicQuote? quote) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (ctx) => SafeArea(
         child: Wrap(
           children: [
@@ -357,15 +373,13 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                               ],
                             ),
                           ),
-                          _CircleIconButton(icon: Icons.call, color: AppColors.success, onTap: () {}),
-                          const SizedBox(width: 8),
-                          ChatIconButton(
-                            requestId: request.id,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: quote.mechanicName)),
-                            ),
+                          CircleIconButton(
+                            icon: Icons.call,
+                            color: AppColors.success,
+                            tooltip: 'Call ${quote.mechanicName}',
+                            onTap: () => _contact(request, quote),
                           ),
+                          ChatIconButton(requestId: request.id, onTap: () => _openChat(request, quote)),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -508,10 +522,13 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                     ),
                   ),
                 ] else ...[
+                  // There is no live map of the mechanic yet (the status above
+                  // moves as they travel), so the action here is the one that
+                  // works today: talking to them.
                   ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: Icon(Icons.my_location, size: 18, color: AppColors.textlight),
-                    label: const Text('Track Mechanic Location'),
+                    onPressed: () => _openChat(request, quote),
+                    icon: Icon(Icons.chat_bubble_outline, size: 18, color: AppColors.textlight),
+                    label: const Text('Message Mechanic'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: AppColors.textlight,
@@ -526,8 +543,8 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                     children: [
                       Text('Need help?', style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
                       TextButton(
-                        onPressed: () {},
-                        style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+                        onPressed: () => showComingSoon(context, 'Contact Support'),
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12), minimumSize: const Size(48, 44)),
                         child: Text('Contact Support',
                             style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
                       ),
@@ -628,28 +645,6 @@ class _ArrivalStatus extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _CircleIconButton({required this.icon, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-        child: Icon(icon, color: color, size: 18),
       ),
     );
   }

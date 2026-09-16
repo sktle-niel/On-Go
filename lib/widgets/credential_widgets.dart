@@ -50,7 +50,7 @@ class CredentialRow extends StatelessWidget {
         ),
         TextButton(
           onPressed: onView,
-          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), minimumSize: const Size(48, 44)),
           child: Text('View', style: TextStyle(color: AppColors.info, fontSize: 12, fontWeight: FontWeight.w600)),
         ),
       ],
