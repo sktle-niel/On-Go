@@ -518,6 +518,54 @@ JobCountdown? jobCountdown(HelpRequest request, MechanicQuote? acceptedQuote, [D
   return remaining == null ? null : JobCountdown(JobCountdownKind.arrival, remaining);
 }
 
+/// The longest ETA a mechanic may promise on a job the backend holds.
+///
+/// A job in the pool has not been matched, so the whole of its urgency's
+/// completion window is still ahead of it — there is no elapsed time to take
+/// off yet, which is the one thing [maxEtaFor] has to work out for a job the
+/// device is already tracking. Null for Normal, which has no window at all.
+Duration? maxEtaOf(ServiceRequest request) => completionWindowFor(request.urgency.wireName);
+
+/// Why [eta] is longer than [request] allows, in the words the mechanic needs.
+/// Null when it fits. The backend refuses the same promise; this says so at
+/// the field, before they send it.
+String? etaTooLongReasonOf(ServiceRequest request, Duration eta) {
+  final window = maxEtaOf(request);
+  if (window == null || eta <= window) return null;
+  return 'A ${request.urgency.wireName} job must be completed within '
+      '${formatEtaDuration(window)}, and your arrival has to fit inside that. '
+      'Enter ${formatEtaDuration(window)} or less.';
+}
+
+/// The same question, asked of a job the backend holds.
+///
+/// [jobCountdown] works it out from the device's own record and the accepted
+/// quote. A [ServiceRequest] does not need either: the backend already stamped
+/// `deadlineAt` when the job was matched, and `expectedArrivalAt` from the ETA
+/// its mechanic promised, so both clocks are read rather than derived — and a
+/// phone with a skewed clock cannot disagree with the server about them.
+///
+/// The rule is the one above. A job with a completion deadline counts down to
+/// it; one without counts down to the arrival; neither runs once the work is
+/// under way.
+JobCountdown? jobCountdownOf(ServiceRequest request, [DateTime? now]) {
+  if (request.status != ServiceRequestStatus.matched) return null;
+  if (request.workStarted || request.serviceCompleted) return null;
+
+  final at = now ?? DateTime.now();
+  final deadline = request.deadlineAt;
+  if (deadline != null) {
+    final left = deadline.difference(at);
+    return JobCountdown(JobCountdownKind.completion, left.isNegative ? Duration.zero : left);
+  }
+  // No completion window: the promise is the arrival, and arriving stops it.
+  if (request.arrived) return null;
+  final due = request.expectedArrivalAt;
+  if (due == null) return null;
+  final left = due.difference(at);
+  return JobCountdown(JobCountdownKind.arrival, left.isNegative ? Duration.zero : left);
+}
+
 double? effectivePaymentAmount(HelpRequest request, MechanicQuote? acceptedQuote) {
   if (request.isEmergency) return request.agreedPaymentAmount;
   return acceptedQuote == null ? null : parsePesoAmount(acceptedQuote.price);
@@ -1106,6 +1154,22 @@ class QuoteNotificationStore extends ChangeNotifier {
       .toList();
 
   bool get hasUnseenEmergencyJobs => unseenEmergencyJobs.isNotEmpty;
+
+  /// Whether any of [emergencyIds] has still not been put in front of the
+  /// mechanic. The pulse is this phone's own memory of what it has shown, so
+  /// it is kept here — but the jobs themselves come from whichever backend
+  /// holds the pool, which is why the ids are passed in rather than read off
+  /// the device's list.
+  bool hasUnseenEmergencies(Iterable<String> emergencyIds) =>
+      emergencyIds.any((id) => !_seenEmergencyRequestIds.contains(id));
+
+  /// Marks [emergencyIds] as shown, stopping the pulse for them.
+  void markEmergenciesSeen(Iterable<String> emergencyIds) {
+    final fresh = emergencyIds.where((id) => !_seenEmergencyRequestIds.contains(id)).toList();
+    if (fresh.isEmpty) return;
+    _seenEmergencyRequestIds.addAll(fresh);
+    notifyListeners();
+  }
 
   /// Called when the mechanic opens the Emergency Jobs list — this is what
   /// stops the pulse.

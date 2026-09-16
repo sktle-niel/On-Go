@@ -6,7 +6,6 @@ import '../../../../data/mechanic_account_store.dart';
 import '../../../../data/mechanic_settings_store.dart';
 import '../../../../services/backend/mobile_backend.dart';
 import '../../../../data/quote_store.dart';
-import '../../../../data/review_store.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/chat_icon_button.dart';
 import '../../../../widgets/common_widgets.dart';
@@ -90,6 +89,85 @@ class _JobsScreenState extends State<JobsScreen> {
 
   String get _mechanicName => QuoteNotificationStore.currentMechanicName;
 
+  ServiceRequestApi get _jobs => MobileBackend.instance.serviceRequests;
+
+  /// The open pool and this mechanic's own jobs, as the backend holds them.
+  List<ServiceRequest> _open = const [];
+  List<ServiceRequest> _accepted = const [];
+
+  /// This mechanic's live quote on each open job, and the jobs the client has
+  /// already turned them down on. Both drive which action a card offers, and
+  /// both come from the job's quote list rather than a second store.
+  Map<String, JobQuote> _myQuotes = const {};
+  Set<String> _rejectedOn = const {};
+
+  /// What each accepted job is worth. A ServiceRequest carries the amount once
+  /// the job is paid, and an Emergency's agreed price before that — but a
+  /// quoted job's price lives on the quote, so it is read here and kept.
+  Map<String, double> _acceptedPrice = const {};
+
+  bool _loading = true;
+  String? _error;
+  StreamSubscription<ServiceRequest>? _watchRequests;
+  StreamSubscription<JobQuote>? _watchQuotes;
+
+  /// The emergencies in the pool right now, whichever backend holds it. The
+  /// pulse is about these, not about anything the device happens to remember.
+  Iterable<String> get _emergencyIds =>
+      _open.where((r) => r.urgency == JobUrgency.emergency).map((r) => r.id);
+
+  /// Reads everything the three tabs draw from. One place, so the counts on
+  /// the tab bar and the cards under it can never come from different reads.
+  Future<void> _load() async {
+    try {
+      final open = await _jobs.listOpenRequests();
+      final mine = (await _jobs.listMyRequests())
+          .where((request) =>
+              request.status == ServiceRequestStatus.matched && request.mechanicId != null)
+          .toList();
+
+      // A mechanic's standing offer, and the jobs they have been turned down
+      // on: both are in the job's own quote list, so one read answers both.
+      final live = <String, JobQuote>{};
+      final rejected = <String>{};
+      for (final request in open) {
+        for (final quote in await _jobs.listQuotes(request.id)) {
+          if (quote.mechanicName != _mechanicName) continue;
+          if (quote.rejectedAt != null) {
+            rejected.add(request.id);
+          } else if (quote.withdrawnAt == null) {
+            live[request.id] = quote;
+          }
+        }
+      }
+
+      final prices = <String, double>{};
+      for (final request in mine) {
+        if (request.urgency == JobUrgency.emergency) continue;
+        for (final quote in await _jobs.listQuotes(request.id)) {
+          if (quote.accepted) prices[request.id] = quote.price;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _open = open;
+        _accepted = mine;
+        _myQuotes = live;
+        _rejectedOn = rejected;
+        _acceptedPrice = prices;
+        _loading = false;
+        _error = null;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.message;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +179,11 @@ class _JobsScreenState extends State<JobsScreen> {
     // stopping or restarting.
     _ticker = Timer.periodic(const Duration(seconds: 1), _onTick);
     widget.focus?.addListener(_onFocusRequested);
+    _load();
+    // A job entering or leaving the pool, or a quote of theirs being accepted
+    // or turned down, repaints these tabs.
+    _watchRequests = _jobs.watchRequests().listen((_) => _load());
+    _watchQuotes = _jobs.watchQuotes().listen((_) => _load());
     // A request made before this screen existed is still waiting to be served.
     if (widget.focus?.value != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _onFocusRequested());
@@ -120,6 +203,8 @@ class _JobsScreenState extends State<JobsScreen> {
   void dispose() {
     _ticker?.cancel();
     _spotlightTimer?.cancel();
+    _watchRequests?.cancel();
+    _watchQuotes?.cancel();
     widget.focus?.removeListener(_onFocusRequested);
     _availableScroll.dispose();
     _emergencyScroll.dispose();
@@ -151,8 +236,8 @@ class _JobsScreenState extends State<JobsScreen> {
 
     // The same filter the tab itself applies, so the index is the card's
     // position in the list on screen.
-    final list = QuoteNotificationStore.instance.availableJobs
-        .where((r) => r.isEmergency == request.emergency)
+    final list = _open
+        .where((r) => (r.urgency == JobUrgency.emergency) == request.emergency)
         .toList();
     final index = list.indexWhere((r) => r.id == request.requestId);
     if (index < 0) return;
@@ -182,23 +267,19 @@ class _JobsScreenState extends State<JobsScreen> {
     }
   }
 
+  /// Ticks the Accepted tab's numbers once a second. Nothing here decides
+  /// whether a job has run out of time: the backend sweeps overdue jobs and
+  /// says so, and every deadline on screen is read off the record it sent.
   void _onTick(Timer _) {
-    final store = QuoteNotificationStore.instance;
-    // Notifies (and so rebuilds) by itself only when something actually
-    // expired; the setState below is just for the ticking numbers.
-    store.expireOverdueJobs();
     if (!mounted) return;
-    final counting = store
-        .matchedJobsFor(_mechanicName)
-        .any((r) => jobCountdown(r, store.acceptedQuoteFor(r.id)) != null);
-    if (counting) setState(() {});
+    if (_accepted.any((request) => jobCountdownOf(request) != null)) setState(() {});
   }
 
   /// Opening the Emergency tab is what "viewing the Emergency Jobs list"
   /// means, so that is where the pulse stops.
   void _onTabChanged(int index) {
     if (index == _JobTabBar.emergencyIndex) {
-      QuoteNotificationStore.instance.markEmergencyJobsSeen();
+      QuoteNotificationStore.instance.markEmergenciesSeen(_emergencyIds);
     }
     setState(() => _tabIndex = index);
   }
@@ -217,7 +298,7 @@ class _JobsScreenState extends State<JobsScreen> {
     _wasApproved = nowApproved;
   }
 
-  Future<void> _sendQuote(HelpRequest request) async {
+  Future<void> _sendQuote(ServiceRequest request) async {
     if (!MechanicAccountStore.instance.canPerformJobActions) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Your account must be approved before you can send quotes.'), duration: AppDurations.snackBar),
@@ -234,19 +315,21 @@ class _JobsScreenState extends State<JobsScreen> {
     if (input == null) return;
 
     try {
-      QuoteNotificationStore.instance.mechanicSendQuote(
+      await _jobs.submitQuote(
         request.id,
-        mechanicName: _mechanicName,
-        price: '₱${input.total.toStringAsFixed(0)}',
-        eta: input.eta,
-        rating: ReviewStore.instance.averageRatingFor(_mechanicName),
+        QuoteSubmission(price: input.total, etaMinutes: input.eta.inMinutes),
       );
-    } on StateError catch (e) {
+    } on ApiException catch (error) {
+      // An unapproved account, an ETA past the completion window, a job that
+      // has just been taken: the backend says which, in its own words.
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), duration: AppDurations.snackBar));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message), duration: AppDurations.snackBar));
+      await _load();
       return;
     }
 
+    await _load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Quote sent — the client will compare offers and choose.'), duration: AppDurations.snackBar),
@@ -258,8 +341,8 @@ class _JobsScreenState extends State<JobsScreen> {
   /// Confirmed first, because the client stops seeing the quote the moment it
   /// happens — and unlike a rejection, this one is the mechanic's own doing,
   /// so they can quote the job again afterwards.
-  Future<void> _withdrawQuote(HelpRequest request) async {
-    final quote = QuoteNotificationStore.instance.mechanicLiveQuoteFor(request.id, _mechanicName);
+  Future<void> _withdrawQuote(ServiceRequest request) async {
+    final quote = _myQuotes[request.id];
     if (quote == null) return;
 
     final confirmed = await showDialog<bool>(
@@ -267,8 +350,8 @@ class _JobsScreenState extends State<JobsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Withdraw your quote?'),
         content: Text(
-          '${request.clientName} will no longer see your ${quote.price} quote or your '
-          '${quote.eta} arrival time, and cannot accept it.\n\n'
+          '${request.clientName} will no longer see your ${formatPesos(quote.price)} quote or your '
+          '${formatEtaDuration(Duration(minutes: quote.etaMinutes))} arrival time, and cannot accept it.\n\n'
           'You can send this job a new quote afterwards.',
           style: const TextStyle(fontSize: 13),
         ),
@@ -284,20 +367,22 @@ class _JobsScreenState extends State<JobsScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    final withdrawn =
-        QuoteNotificationStore.instance.mechanicWithdrawQuote(request.id, mechanicName: _mechanicName);
+    String message;
+    try {
+      await _jobs.withdrawQuote(request.id);
+      message = 'Quote withdrawn. The client can no longer see it.';
+    } on ApiException catch (error) {
+      // Most often: the client accepted it a moment ago.
+      message = error.message;
+    }
+    await _load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(withdrawn
-            ? 'Quote withdrawn. The client can no longer see it.'
-            : 'That quote has already been accepted, so it can no longer be withdrawn.'),
-        duration: AppDurations.snackBar,
-      ),
+      SnackBar(content: Text(message), duration: AppDurations.snackBar),
     );
   }
 
-  Future<void> _acceptEmergency(HelpRequest request) async {
+  Future<void> _acceptEmergency(ServiceRequest request) async {
     if (!MechanicAccountStore.instance.canPerformJobActions) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Your account must be approved before you can accept jobs.'), duration: AppDurations.snackBar),
@@ -305,9 +390,9 @@ class _JobsScreenState extends State<JobsScreen> {
       return;
     }
 
-    final store = QuoteNotificationStore.instance;
-
-    if (store.mechanicHasActiveEmergency(_mechanicName)) {
+    // Checked here so the mechanic is told before the dialog rather than
+    // after it. The backend enforces the same rule; this is the courtesy.
+    if (_accepted.any((job) => job.urgency == JobUrgency.emergency)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Finish your current emergency job before accepting another.'), duration: AppDurations.snackBar),
       );
@@ -339,35 +424,35 @@ class _JobsScreenState extends State<JobsScreen> {
     );
     if (confirmed != true) return;
 
-    final won = store.mechanicAcceptEmergency(
-      request.id,
-      mechanicName: _mechanicName,
+    String message;
+    try {
       // No price on purpose — an emergency's amount is agreed with the client
       // in person and set via Set Payment Amount, so there is nothing to
       // record here yet.
-      eta: const Duration(minutes: 15),
-      rating: ReviewStore.instance.averageRatingFor(_mechanicName),
-    );
-
+      await _jobs.acceptEmergency(request.id, etaMinutes: 15);
+      message = 'Job accepted! Head to the client now.';
+    } on ApiException catch (error) {
+      // First come, first served: the backend hands this to exactly one
+      // mechanic, and everyone else is told they were too late.
+      message = error.code == ApiErrorCodes.conflict
+          ? 'Too late — another mechanic already took this emergency.'
+          : error.message;
+    }
+    await _load();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(won
-            ? 'Job accepted! Head to the client now.'
-            : 'Too late — another mechanic already took this emergency.'),
-        duration: AppDurations.snackBar,
-      ),
+      SnackBar(content: Text(message), duration: AppDurations.snackBar),
     );
   }
 
-  Future<void> _openActiveJob(HelpRequest request) async {
+  Future<void> _openActiveJob(ServiceRequest request) async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => MechanicActiveJobScreen(requestId: request.id)),
     );
   }
 
-  Future<void> _cancelAccepted(HelpRequest request) async {
+  Future<void> _cancelAccepted(ServiceRequest request) async {
     final controller = TextEditingController();
     final reason = await showDialog<String>(
       context: context,
@@ -401,16 +486,20 @@ class _JobsScreenState extends State<JobsScreen> {
     );
     if (reason == null || reason.isEmpty || !mounted) return;
 
+    String message;
     try {
-      final ok = QuoteNotificationStore.instance.mechanicCancelJob(request.id, reason);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ok ? 'Job cancelled — the client has been notified.' : 'Could not cancel this job.'), duration: AppDurations.snackBar),
-      );
-    } on StateError catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), duration: AppDurations.snackBar));
+      await _jobs.mechanicCancelJob(request.id, reason: reason);
+      message = 'Job cancelled — the client has been notified.';
+    } on ApiException catch (error) {
+      // Refused once any progress step is reported, and never for an
+      // Emergency — the backend draws both lines.
+      message = error.message;
     }
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: AppDurations.snackBar),
+    );
   }
 
   @override
@@ -426,25 +515,28 @@ class _JobsScreenState extends State<JobsScreen> {
         final account = MechanicAccountStore.instance;
         final canAct = account.canPerformJobActions;
 
+        if (_loading) return const Center(child: CircularProgressIndicator());
+        final loadError = _error;
+        if (loadError != null) return _LoadFailed(message: loadError, onRetry: _load);
+
         // Sitting on the Emergency tab counts as viewing the list, so a job
         // that arrives while it is open is already seen and never pulses.
         // Deferred to after the frame — this notifies, and we are in build.
-        if (_tabIndex == _JobTabBar.emergencyIndex && store.hasUnseenEmergencyJobs) {
+        if (_tabIndex == _JobTabBar.emergencyIndex && store.hasUnseenEmergencies(_emergencyIds)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) QuoteNotificationStore.instance.markEmergencyJobsSeen();
+            if (mounted) QuoteNotificationStore.instance.markEmergenciesSeen(_emergencyIds);
           });
         }
 
         // The toggle wins outright: off means never pulse.
         final pulseEmergency = MechanicSettingsStore.instance.emergencyPulseEnabled &&
             _tabIndex != _JobTabBar.emergencyIndex &&
-            store.hasUnseenEmergencyJobs;
+            store.hasUnseenEmergencies(_emergencyIds);
 
-        final allAvailable = store.availableJobs;
-        final available = allAvailable.where((r) => !r.isEmergency).toList();
-        final emergency = allAvailable.where((r) => r.isEmergency).toList();
-        final accepted = store.matchedJobsFor(_mechanicName);
-        final hasActiveEmergency = store.mechanicHasActiveEmergency(_mechanicName);
+        final available = _open.where((r) => r.urgency != JobUrgency.emergency).toList();
+        final emergency = _open.where((r) => r.urgency == JobUrgency.emergency).toList();
+        final accepted = _accepted;
+        final hasActiveEmergency = accepted.any((r) => r.urgency == JobUrgency.emergency);
 
         return Column(
           children: [
@@ -463,6 +555,8 @@ class _JobsScreenState extends State<JobsScreen> {
                 children: [
                   _AvailableTab(
                     requests: available,
+                    myQuotes: _myQuotes,
+                    rejectedOn: _rejectedOn,
                     canAct: canAct,
                     onSendQuote: _sendQuote,
                     onWithdrawQuote: _withdrawQuote,
@@ -481,7 +575,7 @@ class _JobsScreenState extends State<JobsScreen> {
                   ),
                   _AcceptedTab(
                     requests: accepted,
-                    store: store,
+                    prices: _acceptedPrice,
                     onOpen: _openActiveJob,
                     onCancel: (r) {
                       _cancelAccepted(r);
@@ -592,12 +686,13 @@ Color _urgencyColor(String urgency) {
   }
 }
 
-String _paymentDisplay(HelpRequest request, MechanicQuote? quote) {
+String _paymentDisplay(ServiceRequest request, double? quotedPrice) {
   // Once paid this is the recorded amount; before that it is the agreed
   // Emergency price or the accepted quote. Never a fixed fallback figure.
-  final amount = settledPaymentAmount(request, quote);
-  if (amount != null) return '₱${amount.toStringAsFixed(0)}';
-  return request.isEmergency ? 'To be agreed' : 'To be quoted';
+  final amount = request.amountPaid ??
+      (request.urgency == JobUrgency.emergency ? request.agreedPaymentAmount : quotedPrice);
+  if (amount != null) return formatPesos(amount);
+  return request.urgency == JobUrgency.emergency ? 'To be agreed' : 'To be quoted';
 }
 
 String _timeAgo(DateTime time) {
@@ -812,8 +907,38 @@ class _LocationBlock extends StatelessWidget {
   }
 }
 
+/// Shown when the tabs could not be read at all — no network, or the backend
+/// refused. A retry rather than an empty list, because "no jobs" and "could
+/// not ask" are different things and a mechanic acts on them differently.
+class _LoadFailed extends StatelessWidget {
+  final String message;
+  final Future<void> Function() onRetry;
+
+  const _LoadFailed({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_off, size: 48, color: AppColors.textdark.withValues(alpha: 0.55)),
+            const SizedBox(height: 12),
+            const Text("Couldn't load your jobs",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
+            const SizedBox(height: 12),
+            TextButton(onPressed: onRetry, child: const Text('Try again')),
+          ],
+        ),
+      );
+}
+
 class _DeadlineRow extends StatelessWidget {
-  final HelpRequest request;
+  final ServiceRequest request;
   const _DeadlineRow({required this.request});
 
   @override
@@ -825,7 +950,8 @@ class _DeadlineRow extends StatelessWidget {
           Icon(Icons.schedule, size: 13, color: AppColors.textdark.withValues(alpha: 0.55)),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(request.durationLabel, style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55))),
+            child: Text(completionWindowLabel(request.urgency.wireName),
+                style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55))),
           ),
         ],
       ),
@@ -838,16 +964,24 @@ class _DeadlineRow extends StatelessWidget {
 // ---------------------------------------------------------------------
 
 class _AvailableTab extends StatelessWidget {
-  final List<HelpRequest> requests;
+  final List<ServiceRequest> requests;
+
+  /// This mechanic's standing offer per job, and the jobs the client already
+  /// turned them down on. Read once by the screen and handed down, so every
+  /// card in a build agrees about which state it is in.
+  final Map<String, JobQuote> myQuotes;
+  final Set<String> rejectedOn;
   final bool canAct;
-  final void Function(HelpRequest) onSendQuote;
-  final void Function(HelpRequest) onWithdrawQuote;
+  final Future<void> Function(ServiceRequest) onSendQuote;
+  final Future<void> Function(ServiceRequest) onWithdrawQuote;
   final ScrollController controller;
   final GlobalKey Function(String requestId) cardKeyFor;
   final String? spotlightId;
 
   const _AvailableTab({
     required this.requests,
+    required this.myQuotes,
+    required this.rejectedOn,
     required this.canAct,
     required this.onSendQuote,
     required this.onWithdrawQuote,
@@ -858,8 +992,6 @@ class _AvailableTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mechanicName = QuoteNotificationStore.currentMechanicName;
-
     return ListView(
       controller: controller,
       padding: context.layout.listInsets(),
@@ -874,12 +1006,11 @@ class _AvailableTab extends StatelessWidget {
             ),
           ),
         ...requests.map((request) {
-          final store = QuoteNotificationStore.instance;
           // Three states, in order of precedence: an offer of theirs is
           // standing (they can take it back), the client already turned one
           // down (nothing more to do here), or the job is open to them.
-          final live = store.mechanicLiveQuoteFor(request.id, mechanicName);
-          final rejected = store.mechanicQuoteWasRejected(request.id, mechanicName);
+          final live = myQuotes[request.id];
+          final rejected = rejectedOn.contains(request.id);
           return Padding(
             padding: const EdgeInsets.only(bottom: jobCardSpacing),
             child: _Spotlight(
@@ -903,7 +1034,7 @@ class _AvailableTab extends StatelessWidget {
 }
 
 class _JobCard extends StatelessWidget {
-  final HelpRequest request;
+  final ServiceRequest request;
   final String actionLabel;
   final bool actionEnabled;
 
@@ -923,7 +1054,7 @@ class _JobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final problem = _splitProblem(request.problem);
-    final urgencyColor = _urgencyColor(request.urgency);
+    final urgencyColor = _urgencyColor(request.urgency.wireName);
 
     return AppCard(
       padding: jobCardPadding,
@@ -946,7 +1077,7 @@ class _JobCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(color: urgencyColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
-                child: Text(request.urgency,
+                child: Text(request.urgency.wireName,
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: urgencyColor)),
               ),
             ],
@@ -993,8 +1124,8 @@ class _JobCard extends StatelessWidget {
 // ---------------------------------------------------------------------
 
 class _EmergencyTab extends StatelessWidget {
-  final List<HelpRequest> requests;
-  final void Function(HelpRequest) onAccept;
+  final List<ServiceRequest> requests;
+  final Future<void> Function(ServiceRequest) onAccept;
   final bool blocked;
   final bool canAct;
   final ScrollController controller;
@@ -1084,12 +1215,15 @@ extension on _AcceptedSort {
 }
 
 class _AcceptedTab extends StatefulWidget {
-  final List<HelpRequest> requests;
-  final QuoteNotificationStore store;
-  final void Function(HelpRequest) onOpen;
-  final void Function(HelpRequest) onCancel;
+  final List<ServiceRequest> requests;
 
-  const _AcceptedTab({required this.requests, required this.store, required this.onOpen, required this.onCancel});
+  /// Job id to what it is worth, for the ones priced by an accepted quote.
+  final Map<String, double> prices;
+  final Future<void> Function(ServiceRequest) onOpen;
+  final void Function(ServiceRequest) onCancel;
+
+  const _AcceptedTab(
+      {required this.requests, required this.prices, required this.onOpen, required this.onCancel});
 
   @override
   State<_AcceptedTab> createState() => _AcceptedTabState();
@@ -1099,25 +1233,26 @@ class _AcceptedTabState extends State<_AcceptedTab> {
   _AcceptedSort _sort = _AcceptedSort.urgency;
   bool _sortOpen = false;
 
-  static DateTime _acceptedAt(HelpRequest r) => r.matchedAt ?? r.createdAt;
+  static DateTime _acceptedAt(ServiceRequest r) => r.matchedAt ?? r.createdAt;
 
-  List<HelpRequest> get _sorted {
+  List<ServiceRequest> get _sorted {
     final list = [...widget.requests];
     switch (_sort) {
       case _AcceptedSort.urgency:
         list.sort((a, b) {
-          final byUrgency = urgencyPriority(a.urgency).compareTo(urgencyPriority(b.urgency));
+          final byUrgency =
+              urgencyPriority(a.urgency.wireName).compareTo(urgencyPriority(b.urgency.wireName));
           return byUrgency != 0 ? byUrgency : _acceptedAt(b).compareTo(_acceptedAt(a));
         });
       case _AcceptedSort.dateAccepted:
         list.sort((a, b) => _acceptedAt(b).compareTo(_acceptedAt(a)));
       case _AcceptedSort.timeRemaining:
-        final store = QuoteNotificationStore.instance;
         list.sort((a, b) {
           // Whatever each job is actually counting down to — a completion
           // deadline for Urgent and Emergency, the quoted arrival for Normal.
-          final left = jobCountdown(a, store.acceptedQuoteFor(a.id))?.remaining;
-          final right = jobCountdown(b, store.acceptedQuoteFor(b.id))?.remaining;
+          // Both are stamped on the record by the backend.
+          final left = jobCountdownOf(a)?.remaining;
+          final right = jobCountdownOf(b)?.remaining;
           // Jobs already under way have no clock left to run, so they sit
           // below the ones still waiting to be started.
           if (left == null && right == null) return _acceptedAt(b).compareTo(_acceptedAt(a));
@@ -1180,7 +1315,7 @@ class _AcceptedTabState extends State<_AcceptedTab> {
                   padding: const EdgeInsets.only(bottom: jobCardSpacing),
                   child: _ActiveJobCard(
                     request: r,
-                    quote: widget.store.acceptedQuoteFor(r.id),
+                    quotedPrice: widget.prices[r.id],
                     onOpen: () => widget.onOpen(r),
                     onCancel: () => widget.onCancel(r),
                   ),
@@ -1226,7 +1361,7 @@ class _AcceptedTabState extends State<_AcceptedTab> {
   }
 }
 
-String _mechanicStatusLabel(HelpRequest request) {
+String _mechanicStatusLabel(ServiceRequest request) {
   if (!request.navigating) return 'Navigate';
   if (!request.arrived) return 'En Route';
   if (!request.workStarted) return 'Mechanic Arrived';
@@ -1235,12 +1370,17 @@ String _mechanicStatusLabel(HelpRequest request) {
 }
 
 class _ActiveJobCard extends StatelessWidget {
-  final HelpRequest request;
-  final MechanicQuote? quote;
+  final ServiceRequest request;
+
+  /// What the job is worth, when the price lives on the accepted quote rather
+  /// than on the request. Null for an Emergency, whose amount is agreed in
+  /// person, and for a job not yet priced.
+  final double? quotedPrice;
   final VoidCallback onOpen;
   final VoidCallback onCancel;
 
-  const _ActiveJobCard({required this.request, required this.quote, required this.onOpen, required this.onCancel});
+  const _ActiveJobCard(
+      {required this.request, required this.quotedPrice, required this.onOpen, required this.onCancel});
 
   void _openChat(BuildContext context) => Navigator.push(
         context,
@@ -1252,7 +1392,7 @@ class _ActiveJobCard extends StatelessWidget {
     final problem = _splitProblem(request.problem);
     final label = _mechanicStatusLabel(request);
     final statusColor = label == 'Awaiting Payment' ? AppColors.primary : AppColors.success;
-    final showCancel = !request.isEmergency && !request.navigating;
+    final showCancel = request.urgency != JobUrgency.emergency && !request.navigating;
 
     return InkWell(
       onTap: onOpen,
@@ -1320,7 +1460,7 @@ class _ActiveJobCard extends StatelessWidget {
                   children: [
                     Text('Payment', style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55))),
                     const SizedBox(height: 2),
-                    Text(_paymentDisplay(request, quote),
+                    Text(_paymentDisplay(request, quotedPrice),
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.success)),
                   ],
                 ),
@@ -1394,13 +1534,13 @@ class _ActiveJobCard extends StatelessWidget {
 /// countdown stops — Work in Progress for a completion clock, arrival for an
 /// ETA clock — which stops the expiry too rather than just hiding it.
 class _TimeRemainingRow extends StatelessWidget {
-  final HelpRequest request;
+  final ServiceRequest request;
 
   const _TimeRemainingRow({required this.request});
 
   @override
   Widget build(BuildContext context) {
-    final countdown = jobCountdown(request, QuoteNotificationStore.instance.acceptedQuoteFor(request.id));
+    final countdown = jobCountdownOf(request);
     if (countdown == null) return const SizedBox.shrink();
     final remaining = countdown.remaining;
 
