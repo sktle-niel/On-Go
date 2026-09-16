@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../../data/job_photo_store.dart';
 import '../../../../data/mechanic_account_store.dart';
 import '../../../../data/mechanic_settings_store.dart';
 import '../../../../services/backend/mobile_backend.dart';
@@ -954,9 +955,9 @@ class _JobCard extends StatelessWidget {
           Text(problem.issue, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
           const SizedBox(height: 2),
           Text(problem.description, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
-          if (request.photoPaths.isNotEmpty) ...[
+          if (JobPhotoStore.instance.hasPhotos(request.id)) ...[
             const SizedBox(height: 10),
-            JobPhotoPreview(photoPaths: request.photoPaths),
+            JobPhotoPreview(photoPaths: JobPhotoStore.instance.pathsFor(request.id)),
           ],
           const SizedBox(height: 10),
           _LocationBlock(location: request.location),

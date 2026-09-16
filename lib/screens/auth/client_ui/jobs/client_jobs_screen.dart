@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/job_photo_preview.dart';
+import '../../../../data/job_photo_store.dart';
 import '../../../../data/mechanic_contact_store.dart';
 import '../../../../data/quote_store.dart';
 import '../home/quotes_screen.dart';
@@ -537,9 +538,9 @@ class _UploadedJobCard extends StatelessWidget {
           Text(problem.issue, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
           const SizedBox(height: 2),
           Text(problem.description, style: TextStyle(fontSize: 13, color: AppColors.textdark.withValues(alpha: 0.55))),
-          if (request.photoPaths.isNotEmpty) ...[
+          if (JobPhotoStore.instance.hasPhotos(request.id)) ...[
             const SizedBox(height: 10),
-            JobPhotoPreview(photoPaths: request.photoPaths),
+            JobPhotoPreview(photoPaths: JobPhotoStore.instance.pathsFor(request.id)),
           ],
           const SizedBox(height: 10),
           _locationBlock(request.location),
@@ -658,9 +659,9 @@ class _PendingJobCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(problem.issue, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             Text(problem.description, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
-            if (request.photoPaths.isNotEmpty) ...[
+            if (JobPhotoStore.instance.hasPhotos(request.id)) ...[
               const SizedBox(height: 10),
-              JobPhotoPreview(photoPaths: request.photoPaths),
+              JobPhotoPreview(photoPaths: JobPhotoStore.instance.pathsFor(request.id)),
             ],
             const SizedBox(height: 12),
             Row(
@@ -791,9 +792,9 @@ class _ActiveJobCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(problem.issue, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             Text(problem.description, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
-            if (request.photoPaths.isNotEmpty) ...[
+            if (JobPhotoStore.instance.hasPhotos(request.id)) ...[
               const SizedBox(height: 10),
-              JobPhotoPreview(photoPaths: request.photoPaths),
+              JobPhotoPreview(photoPaths: JobPhotoStore.instance.pathsFor(request.id)),
             ],
             const SizedBox(height: 12),
             Row(

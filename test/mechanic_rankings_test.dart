@@ -181,7 +181,6 @@ void main() {
         problem: 'Flat tire',
         location: 'Puerto Princesa City',
         urgency: 'Normal',
-        photoPaths: const [],
         createdAt: DateTime.now(),
         clientName: ReviewStore.currentClientName,
       ));
