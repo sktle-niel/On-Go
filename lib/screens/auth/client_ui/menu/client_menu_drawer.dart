@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../data/client_account_store.dart';
 import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
+import '../../../../widgets/common_widgets.dart';
 import '../../sign_in_screen.dart';
 import '../profile/client_profile_screen.dart';
 import '../rewards/client_rewards_screen.dart';
@@ -33,6 +34,27 @@ class _ClientMenuDrawerState extends State<ClientMenuDrawer> {
 
   void _onChange() => setState(() {});
 
+  /// Closes the drawer and says the page isn't built yet. A menu row that
+  /// only closes the menu reads as broken.
+  void _comingSoon(String feature) {
+    Navigator.pop(context);
+    showComingSoon(context, feature);
+  }
+
+  /// Signing out is the one menu action Back can't undo, so it asks first.
+  Future<void> _signOut() async {
+    final confirmed = await confirmSignOut(context);
+    if (!confirmed) return;
+    if (!mounted) return;
+    // Clears this device's session at once; telling the server is not
+    // something the user waits for.
+    unawaited(MobileBackend.instance.auth.signOut());
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const SignInScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final photo = _store.photoPath;
@@ -47,7 +69,9 @@ class _ClientMenuDrawerState extends State<ClientMenuDrawer> {
           Container(
             width: double.infinity,
             color: AppColors.primary,
-            padding: const EdgeInsets.fromLTRB(20, 56, 20, 24),
+            // Clears the status bar on every phone rather than guessing its
+            // height, so the name never tucks under a notch.
+            padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 24, 20, 20),
             child: Row(
               children: [
                 CircleAvatar(
@@ -59,12 +83,22 @@ class _ClientMenuDrawerState extends State<ClientMenuDrawer> {
                   child: photo == null ? Icon(Icons.person_outline, color: AppColors.textlight, size: 32) : null,
                 ),
                 const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(displayName, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textlight, fontWeight: FontWeight.w700)),
-                    Text(_store.isDemo ? 'Demo Mode' : 'Client', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textlight.withValues(alpha: 0.7))),
-                  ],
+                // Expanded, so a long name ellipses inside the drawer instead
+                // of running past its edge.
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textlight, fontWeight: FontWeight.w700, letterSpacing: -0.2),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(_store.isDemo ? 'Demo Mode' : 'Client', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textlight.withValues(alpha: 0.7))),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -100,23 +134,24 @@ class _ClientMenuDrawerState extends State<ClientMenuDrawer> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientSettingsScreen()));
                   },
                 ),
-                _DrawerItem(icon: Icons.help_outline, label: 'Help & Support', onTap: () => Navigator.pop(context)),
-                _DrawerItem(icon: Icons.call_outlined, label: 'Contact Us', onTap: () => Navigator.pop(context)),
-                _DrawerItem(
-                  icon: Icons.logout,
-                  label: 'Sign Out',
-                  destructive: true,
-                  onTap: () {
-                    // Clears this device's session at once; telling the
-                    // server is not something the user waits for.
-                    unawaited(MobileBackend.instance.auth.signOut());
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const SignInScreen()),
-                      (route) => false,
-                    );
-                  },
-                ),
+                _DrawerItem(icon: Icons.help_outline, label: 'Help & Support', onTap: () => _comingSoon('Help & Support')),
+                _DrawerItem(icon: Icons.call_outlined, label: 'Contact Us', onTap: () => _comingSoon('Contact Us')),
               ],
+            ),
+          ),
+          // Pinned to the bottom, apart from the pages above it: always in
+          // the same place, and never hit on the way to Settings.
+          const Divider(height: 1),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: _DrawerItem(
+                icon: Icons.logout,
+                label: 'Sign Out',
+                destructive: true,
+                onTap: _signOut,
+              ),
             ),
           ),
         ],

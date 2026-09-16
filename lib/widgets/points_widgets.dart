@@ -111,11 +111,16 @@ class PointsEntryRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            '${credit ? '+' : '−'}${formatPoints(entry.points.abs())}',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: colour),
-          ),
+          // What a job earned is the admin's to see: the balance shows the
+          // total and this row that the job paid out, but not by how much.
+          // Spending keeps its figure — that is the user's own choice.
+          if (!entry.kind.isCredit) ...[
+            const SizedBox(width: 8),
+            Text(
+              '−${formatPoints(entry.points.abs())}',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: colour),
+            ),
+          ],
         ],
       ),
     );

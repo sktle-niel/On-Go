@@ -103,7 +103,6 @@ class _JobChatScreenState extends State<JobChatScreen> {
   void _showMessageOptions(ChatMessage msg) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (ctx) => SafeArea(
         child: Wrap(
           children: [
@@ -245,6 +244,7 @@ class _JobChatScreenState extends State<JobChatScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
+                    tooltip: 'Cancel reply',
                     onPressed: () => setState(() => _replyingTo = null),
                   ),
                 ],
@@ -255,29 +255,46 @@ class _JobChatScreenState extends State<JobChatScreen> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(
+                // Bottom-aligned, so the buttons stay beside the last line as
+                // a long message grows the field upward.
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   IconButton(
                     icon: Icon(Icons.camera_alt_outlined, color: AppColors.textdark.withValues(alpha: 0.55)),
+                    tooltip: 'Take a photo',
                     onPressed: () => _pickImage(ImageSource.camera),
                   ),
                   IconButton(
                     icon: Icon(Icons.image_outlined, color: AppColors.textdark.withValues(alpha: 0.55)),
+                    tooltip: 'Send a photo',
                     onPressed: () => _pickImage(ImageSource.gallery),
                   ),
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(24)),
                       child: TextField(
                         controller: _controller,
+                        minLines: 1,
+                        maxLines: 4,
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(),
                         decoration: const InputDecoration(hintText: 'Message', border: InputBorder.none, isDense: true),
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.send, color: AppColors.primary),
-                    onPressed: _send,
+                  // Live only once there is something to send.
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _controller,
+                    builder: (context, value, _) {
+                      final empty = value.text.trim().isEmpty;
+                      return IconButton(
+                        icon: Icon(Icons.send, color: empty ? AppColors.primary.withValues(alpha: 0.4) : AppColors.primary),
+                        tooltip: 'Send',
+                        onPressed: empty ? null : _send,
+                      );
+                    },
                   ),
                 ],
               ),

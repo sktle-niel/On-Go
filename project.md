@@ -24,9 +24,9 @@ routes, so the two applications cannot yet see each other.
 | --- | --- |
 | `/lib` — mobile app (Client + Mechanic) | Working, in-memory |
 | `on_go_console` (separate repo) — console (Admin + Moderator) | Working, in-memory |
-| `/packages/on_go_shared` — API contract | Complete for what exists |
+| `../Backend/on_go_backend/packages/on_go_shared` — API contract | Complete for what exists |
 | `/packages/on_go_design` — design system | Complete, 8 themes in 4 families |
-| `/server` — backend | Schema + infrastructure only, **no routes** |
+| `../Backend/on_go_backend` — backend | Schema + infrastructure only, **no routes** |
 
 ---
 
@@ -98,7 +98,7 @@ where a change is cheap and a duplicate is expensive.
 | `clientCancelLockedByEta()` | same | Whether the client may cancel yet, enforced in the store rather than per screen |
 | `PointsPolicyStore.current` | `lib/data/points_policy_store.dart` | Every points rate, so an admin changing one changes all the arithmetic at once |
 | `revenueUrgencyColor()` | `on_go_console/lib/src/widgets/revenue_charts.dart` | The colour of Normal / Urgent / Emergency in every console chart, ring and key |
-| `PlatformRevenueSummary.yearlyTotals` | `packages/on_go_shared/…/platform_revenue.dart` | A year's revenue, always summed from its months rather than stored beside them |
+| `PlatformRevenueSummary.yearlyTotals` | `on_go_shared/…/platform_revenue.dart` | A year's revenue, always summed from its months rather than stored beside them |
 
 **The priority fee is platform revenue, not payout.** +₱50 Urgent and +₱100
 Emergency are charged at checkout, booked as ONGO revenue on a successful
@@ -165,16 +165,16 @@ The visible consequences, all of which are correct for two disconnected apps:
 
 ### The backend — the one thing blocking everything else
 
-`/server` has the parts that are hard to retrofit and none of the part that is
-merely laborious:
+`../Backend/on_go_backend` (formerly `/server`) has the parts that are hard to
+retrofit and none of the part that is merely laborious:
 
 - **Present:** Postgres schema (3 migrations), least-privilege roles, password
   hashing, token issue/verify, connection pool, structured logging, audit
   logging, error types, secret loading.
-- **Absent:** every route. `server/src/routes/` and `server/src/plugins/` are
-  empty directories. Nothing in `/server` reads or writes a row yet.
+- **Absent:** every route. `src/routes/` and `src/plugins/` are empty
+  directories. Nothing in the backend reads or writes a row yet.
 
-Until routes exist, `packages/on_go_shared` is a contract with two clients and
+Until routes exist, `on_go_shared` is a contract with two clients and
 no server.
 
 ### Test coverage
@@ -289,6 +289,6 @@ rule.
 2. Run both applications (see [README.md](README.md)). Sign in on the app as
    `client` and `demo-mechanic`; sign in on the console as `admin` and create
    the first moderator.
-3. The highest-value work, in order: **routes in `/server`**, then **tests for
+3. The highest-value work, in order: **routes in `../Backend/on_go_backend`**, then **tests for
    `lib/data/`** starting with the rules table above, then the known-issue
    one-liners.

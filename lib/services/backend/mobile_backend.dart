@@ -1,10 +1,13 @@
 import 'package:on_go_shared/on_go_shared.dart';
 
 import 'local_appearance_service.dart';
+import 'local_leaderboard_config_service.dart';
 import 'local_location_service.dart';
 import 'local_points_policy_service.dart';
+import 'local_rank_policy_service.dart';
 import 'local_auth_service.dart';
 import 'local_revenue_service.dart';
+import 'local_urgency_policy_service.dart';
 import 'local_verification_service.dart';
 
 export 'package:on_go_shared/on_go_shared.dart';
@@ -22,7 +25,8 @@ export 'package:on_go_shared/on_go_shared.dart';
 /// not one screen changes: they already await Futures and listen to Streams.
 /// The ones the API does not serve yet keep their local implementation.
 ///
-/// The console has the mirror image of this file in `on_go_console/lib/src/backend`.
+/// The console has the mirror image of this file in
+/// `Backend/on_go_console_backend/lib/console_backend.dart`.
 class MobileBackend {
   MobileBackend._({
     required this.auth,
@@ -30,6 +34,9 @@ class MobileBackend {
     required this.revenue,
     required this.appearance,
     required this.pointsPolicy,
+    required this.urgencyPolicy,
+    required this.rankPolicy,
+    required this.leaderboardConfig,
     required this.location,
     required this.usesApi,
   });
@@ -40,6 +47,9 @@ class MobileBackend {
         revenue: LocalRevenueService(),
         appearance: LocalAppearanceService(),
         pointsPolicy: LocalPointsPolicyService(),
+        urgencyPolicy: LocalUrgencyPolicyService(),
+        rankPolicy: LocalRankPolicyService(),
+        leaderboardConfig: LocalLeaderboardConfigService(),
         location: LocalLocationService(),
         usesApi: false,
       );
@@ -63,6 +73,18 @@ class MobileBackend {
   /// The points rules the console configures and this app awards by.
   final PointsPolicyApi pointsPolicy;
 
+  /// Each urgency level's additional charge and completion time. Local even
+  /// with the API installed: the API contract has no place for them yet.
+  final UrgencyPolicyApi urgencyPolicy;
+
+  /// The mechanic ranks' requirements and points multipliers. Local even with
+  /// the API installed: the API contract has no place for them yet.
+  final RankPolicyApi rankPolicy;
+
+  /// The seasonal leaderboard's settings (including whether it is public) and
+  /// its seasons. Local even with the API installed: not in the contract yet.
+  final LeaderboardConfigApi leaderboardConfig;
+
   /// Where the signed-in user's live location is reported, and — once the
   /// backend exists — where a mechanic's last known location is kept for
   /// nearby-job matching. Reading GPS is not this: that is `LocationService`.
@@ -81,6 +103,9 @@ class MobileBackend {
     PlatformRevenueApi? revenue,
     PlatformAppearanceApi? appearance,
     PointsPolicyApi? pointsPolicy,
+    UrgencyPolicyApi? urgencyPolicy,
+    RankPolicyApi? rankPolicy,
+    LeaderboardConfigApi? leaderboardConfig,
     LocationApi? location,
     bool? usesApi,
   }) {
@@ -90,6 +115,9 @@ class MobileBackend {
       revenue: revenue ?? _instance.revenue,
       appearance: appearance ?? _instance.appearance,
       pointsPolicy: pointsPolicy ?? _instance.pointsPolicy,
+      urgencyPolicy: urgencyPolicy ?? _instance.urgencyPolicy,
+      rankPolicy: rankPolicy ?? _instance.rankPolicy,
+      leaderboardConfig: leaderboardConfig ?? _instance.leaderboardConfig,
       location: location ?? _instance.location,
       usesApi: usesApi ?? _instance.usesApi,
     );

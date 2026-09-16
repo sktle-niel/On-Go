@@ -21,6 +21,7 @@ export 'src/api/account_verification_api.dart';
 export 'src/api/api_endpoints.dart';
 export 'src/api/api_exception.dart';
 export 'src/api/auth_api.dart';
+export 'src/api/leaderboard_apis.dart';
 export 'src/api/location_api.dart';
 export 'src/api/mechanic_review_api.dart';
 export 'src/api/moderator_directory_api.dart';

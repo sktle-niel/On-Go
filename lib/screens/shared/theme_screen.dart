@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../../widgets/common_widgets.dart';
 
 /// Theme picker, shared by the Client and Mechanic shells. The admin console
 /// has its own, built on the same palettes.
@@ -54,23 +55,17 @@ class _ThemeScreenState extends State<ThemeScreen> {
       body: ListView(
         padding: context.layout.pageInsets,
         children: [
-          Text(
-            'APPEARANCE',
-            style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
+          const SectionLabel('APPEARANCE'),
+          const SizedBox(height: 8),
           Text(
             'Pick a color theme. It applies everywhere in the app and is remembered the next time you open On Go.',
-            style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55)),
+            style: TextStyle(fontSize: 12, height: 1.4, color: AppColors.textdark.withValues(alpha: 0.55)),
           ),
           const SizedBox(height: 16),
           _ControlsCard(controller: _controller),
           const SizedBox(height: 20),
-          Text(
-            _controller.isDarkModeActive ? 'DARK THEMES' : 'LIGHT THEMES',
-            style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
+          SectionLabel(_controller.isDarkModeActive ? 'DARK THEMES' : 'LIGHT THEMES'),
+          const SizedBox(height: 8),
           for (final option in _controller.availableThemes) ...[
             _ThemeOptionCard(
               option: option,

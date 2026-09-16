@@ -54,19 +54,24 @@ String formatPointsLabel(double points) =>
 ///
 /// Every rate is a `double`: an admin setting a Normal job to 0.5 pts is an
 /// example in the brief, not an edge case.
+///
+/// One figure per urgency, awarded to BOTH sides of a paid job: the client who
+/// paid and the mechanic who was paid earn the same points. The field names
+/// are the On Go API's (`clientNormal`…), which is why they still say client.
+/// Neither side is shown what a job awards — only the admin sees the rates.
 class PointsPolicy {
-  /// Points a client earns for a completed Normal job.
+  /// Points for a completed, paid Normal job — client and mechanic alike.
   final double clientNormal;
 
-  /// …for a completed Urgent job.
+  /// …for an Urgent job.
   final double clientUrgent;
 
-  /// …for a completed Emergency job.
+  /// …for an Emergency job.
   final double clientEmergency;
 
-  /// Points a mechanic earns per peso of their payout, so a ₱500 job at 0.05
-  /// is 25 pts. A rate rather than a flat amount, because a mechanic's reward
-  /// should follow the size of the work.
+  /// The API's old per-peso mechanic rate. The apps no longer award by it —
+  /// mechanics earn [pointsFor] their job's urgency — but the API requires the
+  /// field on every update, so it is carried through unchanged.
   final double mechanicPerPeso;
 
   const PointsPolicy({
@@ -82,9 +87,10 @@ class PointsPolicy {
   /// The urgency names the mobile app uses on a job.
   static const List<String> urgencies = ['Normal', 'Urgent', 'Emergency'];
 
-  /// What a client earns for completing a job of [urgency]. An unknown
-  /// urgency is treated as Normal, the same way the app's own pricing does.
-  double clientPointsFor(String urgency) {
+  /// What a paid job of [urgency] awards — to the client, and the same to the
+  /// mechanic. An unknown urgency is treated as Normal, the same way the app's
+  /// own pricing does.
+  double pointsFor(String urgency) {
     switch (urgency) {
       case 'Emergency':
         return clientEmergency;
@@ -94,10 +100,6 @@ class PointsPolicy {
         return clientNormal;
     }
   }
-
-  /// What a mechanic earns for a payout of [amount].
-  double mechanicPointsFor(double amount) =>
-      amount <= 0 ? 0 : amount * mechanicPerPeso;
 
   PointsPolicy copyWith({
     double? clientNormal,
@@ -112,9 +114,9 @@ class PointsPolicy {
         mechanicPerPeso: mechanicPerPeso ?? this.mechanicPerPeso,
       );
 
-  /// The client rate for [urgency], replaced — so the admin screen can edit
-  /// one row without knowing which field backs it.
-  PointsPolicy withClientRate(String urgency, double points) {
+  /// The points for [urgency], replaced — so the admin screen can edit one row
+  /// without knowing which field backs it.
+  PointsPolicy withPoints(String urgency, double points) {
     switch (urgency) {
       case 'Emergency':
         return copyWith(clientEmergency: points);

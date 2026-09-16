@@ -179,6 +179,24 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
 
   void _onStepTapped(int step) => goToRegistrationStep(context, step);
 
+  void _goNext() {
+    if (!_validate()) return;
+    // Commit validated values to draft
+    _draft.firstName  = _firstNameCtrl.text.trim();
+    _draft.middleName = _middleNameCtrl.text.trim();
+    _draft.lastName   = _lastNameCtrl.text.trim();
+    _draft.suffix     = _suffixCtrl.text.trim();
+    _draft.dob        = _dobCtrl.text;
+    _draft.sex        = _sex;
+    _draft.address    = _addressCtrl.text.trim();
+    _draft.mobile     = _mobileCtrl.text.trim();
+    _draft.saveStep2();
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MechanicStep3IdDetails()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
@@ -189,7 +207,7 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          const _RegHeader(),
+          const RegistrationHeader(),
           Expanded(
             child: SingleChildScrollView(
               padding: context.layout.pageInsets,
@@ -215,6 +233,9 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
                     child: OnGoTextField(
                       label: 'First Name',
                       hint: 'Juan',
+                      isRequired: true,
+                      textCapitalization: TextCapitalization.words,
+                      autofillHints: const [AutofillHints.givenName],
                       controller: _firstNameCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -232,6 +253,9 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
                     child: OnGoTextField(
                       label: 'Middle Name',
                       hint: 'Dela',
+                      isRequired: true,
+                      textCapitalization: TextCapitalization.words,
+                      autofillHints: const [AutofillHints.middleName],
                       controller: _middleNameCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -249,6 +273,9 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
                     child: OnGoTextField(
                       label: 'Last Name',
                       hint: 'Cruz',
+                      isRequired: true,
+                      textCapitalization: TextCapitalization.words,
+                      autofillHints: const [AutofillHints.familyName],
                       controller: _lastNameCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -264,6 +291,8 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
                   OnGoTextField(
                     label: 'Suffix (Optional)',
                     hint: 'Jr., Sr., II, III',
+                    textCapitalization: TextCapitalization.words,
+                    autofillHints: const [AutofillHints.nameSuffix],
                     controller: _suffixCtrl,
                     onChanged: (_) => _autosave(),
                   ),
@@ -275,16 +304,21 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
                     child: OnGoTextField(
                       label: 'Date of Birth',
                       hint: 'mm/dd/yyyy',
+                      isRequired: true,
                       controller: _dobCtrl,
                       keyboardType: TextInputType.datetime,
+                      autofillHints: const [AutofillHints.birthday],
+                      inputFormatters: dateInputFormatters,
                       onChanged: (_) {
                         _selectedDob = null; // reset calendar pick on manual type
                         _autosave();
                         if (_dobError != null) setState(() => _dobError = null);
                       },
-                      suffixIcon: GestureDetector(
-                        onTap: _openCalendar,
-                        child: Icon(Icons.calendar_today_outlined,
+                      // A full-size button, not an 18-point icon to aim at.
+                      suffixIcon: IconButton(
+                        onPressed: _openCalendar,
+                        tooltip: 'Pick a date',
+                        icon: Icon(Icons.calendar_today_outlined,
                             size: 18, color: AppColors.textdark.withValues(alpha: 0.55)),
                       ),
                     ),
@@ -292,29 +326,15 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
                   const SizedBox(height: 14),
 
                   // Sex
-                  const Text('Sex',
-                      style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: ['Male', 'Female'].map((s) {
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Radio<String>(
-                            value: s,
-                            groupValue: _sex,
-                            activeColor: AppColors.primary,
-                            onChanged: (v) {
-                              setState(() => _sex = v ?? 'Male');
-                              _autosave();
-                            },
-                          ),
-                          Text(s, style: const TextStyle(fontSize: 13)),
-                          const SizedBox(width: 8),
-                        ],
-                      );
-                    }).toList(),
+                  OnGoChoiceRow(
+                    label: 'Sex',
+                    isRequired: true,
+                    options: const ['Male', 'Female'],
+                    value: _sex,
+                    onChanged: (v) {
+                      setState(() => _sex = v);
+                      _autosave();
+                    },
                   ),
                   const SizedBox(height: 14),
 
@@ -323,7 +343,10 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
                     error: _addressError,
                     child: OnGoTextField(
                       label: 'Permanent Address',
-                      hint: 'Address',
+                      hint: 'House no., street, barangay, city',
+                      isRequired: true,
+                      textCapitalization: TextCapitalization.words,
+                      autofillHints: const [AutofillHints.fullStreetAddress],
                       controller: _addressCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -341,8 +364,13 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
                     child: OnGoTextField(
                       label: 'Mobile Number',
                       hint: '09XXXXXXXXX',
+                      isRequired: true,
                       controller: _mobileCtrl,
                       keyboardType: TextInputType.phone,
+                      autofillHints: const [AutofillHints.telephoneNumber],
+                      inputFormatters: phMobileInputFormatters,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _goNext(),
                       onChanged: (_) {
                         _autosave();
                         if (_mobileError != null) {
@@ -355,53 +383,12 @@ class _MechanicStep2PersonalState extends State<MechanicStep2Personal> {
 
                   StepNavButtons(
                     onBack: () => Navigator.pop(context),
-                    onNext: () {
-                      if (!_validate()) return;
-                      // Commit validated values to draft
-                      _draft.firstName  = _firstNameCtrl.text.trim();
-                      _draft.middleName = _middleNameCtrl.text.trim();
-                      _draft.lastName   = _lastNameCtrl.text.trim();
-                      _draft.suffix     = _suffixCtrl.text.trim();
-                      _draft.dob        = _dobCtrl.text;
-                      _draft.sex        = _sex;
-                      _draft.address    = _addressCtrl.text.trim();
-                      _draft.mobile     = _mobileCtrl.text.trim();
-                      _draft.saveStep2();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const MechanicStep3IdDetails()),
-                      );
-                    },
+                    onNext: _goNext,
                   ),
                 ],
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RegHeader extends StatelessWidget {
-  const _RegHeader();
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(20, 48, 20, 16),
-      child: Column(
-        children: [
-          Text('On Go Registration',
-              style: TextStyle(
-                  color: AppColors.textlight,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700)),
-          SizedBox(height: 4),
-          Text('Complete all steps to provide services',
-              style: TextStyle(color: AppColors.textlight, fontSize: 12)),
         ],
       ),
     );

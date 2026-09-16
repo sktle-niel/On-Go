@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../theme/app_theme.dart';
 // Todo: adjust this path to wherever quote_store.dart lives in your project
 import '../../../../data/quote_store.dart';
@@ -181,7 +182,8 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        // Clears the gesture bar on phones that have one.
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + MediaQuery.paddingOf(context).bottom),
         decoration: BoxDecoration(
           color: AppColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -196,7 +198,9 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Send a Quote — ${widget.request.clientName}',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
               const SizedBox(height: 16),
               _QuoteField(label: 'Labor Fee', controller: _laborCtrl, onChanged: (_) => setState(() {})),
               const SizedBox(height: 14),
@@ -223,7 +227,7 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
                     ? '${widget.request.urgency} job — must be completed within '
                         '${formatEtaDuration(widget.request.completionWindow!)}, so your ETA cannot '
                         'be longer than ${formatEtaDuration(_maxEta!)}.'
-                    : 'Normal job — no fixed completion deadline. The ETA you set is the timing '
+                    : '${widget.request.urgency} job — no fixed completion deadline. The ETA you set is the timing '
                         'the client is promised.',
                 style: TextStyle(fontSize: 11, color: AppColors.textmedium, height: 1.3),
               ),
@@ -237,6 +241,9 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
                     child: TextField(
                       controller: _etaValueCtrl,
                       keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      // A whole number of minutes, hours or days.
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)],
                       onChanged: (_) => setState(() {}),
                       decoration: _etaDecoration(hint: 'e.g. 1', error: _etaTooLong),
                     ),
@@ -309,21 +316,10 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
                 ),
               ),
               const SizedBox(height: 20),
+              // Cancel first and Send Quote last, the order every dialog in
+              // the app uses, so the commitment sits under the thumb.
               Row(
                 children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      // Off while the ETA is blank or longer than the job allows;
-                      // the line under the field says which.
-                      onPressed: _etaProblem == null ? _send : null,
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: const StadiumBorder(),
-                      ),
-                      child: const Text('Send Quote'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context, null),
@@ -335,6 +331,19 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
                         shape: const StadiumBorder(),
                       ),
                       child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      // Off while the ETA is blank or longer than the job allows;
+                      // the line under the field says which.
+                      onPressed: _etaProblem == null ? _send : null,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: const StadiumBorder(),
+                      ),
+                      child: const Text('Send Quote'),
                     ),
                   ),
                 ],
@@ -368,6 +377,9 @@ class _QuoteField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.next,
+          // Pesos: digits and a decimal point, nothing else.
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
           onChanged: onChanged,
           decoration: InputDecoration(
             filled: true,

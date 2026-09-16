@@ -4,11 +4,12 @@ import '../../../data/quote_store.dart';
 import '../../../data/review_store.dart';
 import '../../../services/location/location_service.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/evaluation_widgets.dart';
 import 'home/need_help_screen.dart';
 import 'notifications/client_notifications_screen.dart';
 import 'jobs/client_jobs_screen.dart';
 import 'history/service_history_screen.dart';
-import 'rank/leaderboard_screen.dart';
+import 'rank/rankings_screen.dart';
 import 'menu/client_menu_drawer.dart';
 
 class ClientHomeScreen extends StatefulWidget {
@@ -51,7 +52,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
       NeedHelpScreen(onRequestUploaded: () => _goToTab(1)),
       const ClientJobsScreen(),
       const ServiceHistoryScreen(),
-      const LeaderboardScreen(),
+      // Mechanic Rankings — discovery by rank, rating and reviews. The
+      // competitive seasonal leaderboard is a separate, future feature.
+      const RankingsScreen(),
     ];
 
     return Scaffold(
@@ -67,7 +70,14 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         ),
       ),
       drawer: const ClientMenuDrawer(),
-      body: IndexedStack(index: _currentIndex, children: tabs),
+      body: Column(
+        children: [
+          // Stays until every completed job is evaluated — on every tab,
+          // across restarts, without ever blocking the app.
+          const PendingEvaluationBanner(),
+          Expanded(child: IndexedStack(index: _currentIndex, children: tabs)),
+        ],
+      ),
       bottomNavigationBar: OnGoBottomNav(
         currentIndex: _currentIndex,
         onTap: _goToTab,
@@ -75,7 +85,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           OnGoNavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home'),
           OnGoNavItem(icon: Icons.work_outline, activeIcon: Icons.work, label: 'Jobs'),
           OnGoNavItem(icon: Icons.history, label: 'History'),
-          OnGoNavItem(icon: Icons.emoji_events_outlined, activeIcon: Icons.emoji_events, label: 'Leaderboard'),
+          OnGoNavItem(icon: Icons.emoji_events_outlined, activeIcon: Icons.emoji_events, label: 'Rankings'),
         ],
       ),
     );

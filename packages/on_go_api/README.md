@@ -101,15 +101,16 @@ A `501 not_implemented` is an unfinished feature, not a crash. Check
 
 ## Checking a live server
 
-From `on_go/`. Read-only: no credentials, no accounts, nothing written.
+From this package's folder (`Backend/on_go_backend/packages/on_go_api`).
+Read-only: no credentials, no accounts, nothing written.
 
 ```bash
-dart run tool/api/smoke.dart
+dart run tool/smoke.dart
 ```
 
 ## Tests
 
-From `on_go/`:
+The tests run on `flutter_test` and stay with the mobile app. From `on_go/`:
 
 ```bash
 flutter test test/api

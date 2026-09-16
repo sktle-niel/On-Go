@@ -6,7 +6,7 @@ in **two repositories**: this one, and `on_go_console` beside it.
 ```
                         THIS REPOSITORY (on_go)
    ┌───────────────────────────────┐  ┌───────────────────────────────┐
-   │    packages/on_go_shared      │  │    packages/on_go_design      │
+   │  ../Backend/…/on_go_shared    │  │    packages/on_go_design      │
    │  models + API contracts       │  │  palettes, theme registry,    │
    │  (pure Dart — no Flutter,     │  │  tokens, ThemeController      │
    │   no HTTP, no database)       │  │  (Flutter)                    │
@@ -25,7 +25,8 @@ in **two repositories**: this one, and `on_go_console` beside it.
    └───────────────┬───────────┘   └──────────────┬───────────────┘
       this repo    │                              │  sibling repo
                    │        ┌──────────────┐      │
-                   └───────►│   /server    │◄─────┘
+                   └───────►│ ../Backend/  │◄─────┘
+                            │on_go_backend │
                             │  NOT BUILT   │
                             │     YET      │
                             └──────────────┘
@@ -47,12 +48,17 @@ shared packages in this repository by **relative path**, so the two checkouts
 have to be siblings:
 
 ```
-Flutter/
+On Go project/
   on_go/          this repository — the mobile app, and packages/
   on_go_console/  the Admin + Moderator console
+  Backend/
+    on_go_backend/          the API scaffold (TypeScript) — one API for every role
+      packages/on_go_shared   the API contract (pure Dart), used by both apps
+      packages/on_go_api      the API client (pure Dart), used by both apps
+    on_go_console_backend/  the console's backend seam (ConsoleBackend, local services, ConsoleApi)
 ```
 
-An edit to `packages/on_go_design` or `packages/on_go_shared` is picked up by
+An edit to `packages/on_go_design` or `on_go_shared` is picked up by
 the console immediately, with no publish step — the same as when it was one
 repository. What changed is only that the console's own history, issues and
 deploys are its own.
@@ -65,9 +71,10 @@ deploys are its own.
 | ----------------------------- | ------------------------ | ---------------------- |
 | `/lib`                        | Flutter mobile app       | Clients, Mechanics     |
 | `../on_go_console` (own repo) | Flutter **web** console  | Admins, Moderators     |
-| `/packages/on_go_shared`      | Pure-Dart API contract   | Both, and the backend  |
+| `../Backend/on_go_backend/packages/on_go_shared` | Pure-Dart API contract | Both, and the backend |
+| `../Backend/on_go_backend/packages/on_go_api`    | Pure-Dart API client   | Both front ends       |
 | `/packages/on_go_design`      | The shared design system | Both front ends        |
-| `/server`                     | Backend scaffold         | Nothing yet            |
+| `../Backend/on_go_backend`    | Backend scaffold         | Nothing yet            |
 
 ### `/lib` — the mobile app
 
@@ -103,7 +110,7 @@ cd ../on_go_console && flutter run -d chrome
 Sign in as `admin` to create the first moderator; moderators then sign in with
 the email and password the admin set.
 
-### `/packages/on_go_shared` — the contract
+### `../Backend/on_go_backend/packages/on_go_shared` — the contract
 
 What the two applications say to each other. Pure Dart on purpose — no Flutter,
 no `dart:io`, no HTTP client — so the backend can depend on it too.
@@ -205,10 +212,10 @@ website instead of claiming their password is wrong.
 Each application has exactly one place where a call leaves it:
 
 - Mobile: `lib/services/backend/mobile_backend.dart`
-- Console: `on_go_console/lib/src/backend/console_backend.dart`
+- Console: `Backend/on_go_console_backend/lib/console_backend.dart` (`package:on_go_console_backend`)
 
 Both are a small holder of contract implementations plus a `configure()`. The
-HTTP implementations live in `packages/on_go_api`, which both apps share. Each
+HTTP implementations live in `../Backend/on_go_backend/packages/on_go_api`, which both apps share. Each
 app installs them at startup: `MobileApi` on mobile, `ConsoleApi` on the console.
 
 ```dart
@@ -244,6 +251,10 @@ now owns: passwords, registration, resets and sessions. They branch on
 | `PlatformAppearanceApi` | API (read) | API; publish/remove answer 501 until Step 7 |
 | `AccountVerificationApi` | local until Step 5 | local until Step 5 |
 | `ModeratorDirectoryApi` | — | local until Step 6 |
+| `UrgencyPolicyApi` (additional charge, completion time) | local defaults (not in the API contract) | local, saved in the browser (not in the API contract) |
+| `RankPolicyApi` (rank requirements, points multipliers) | local defaults (not in the API contract) | local, saved in the browser (not in the API contract) |
+| `LeaderboardConfigApi` (public switch, seasons, scoring, seasonal multipliers, cap) | local defaults — disabled, no seasons (not in the API contract) | local, saved in the browser, every change audited (not in the API contract) |
+| `PerformanceReviewApi` (standings, score breakdowns, evaluations, point transactions, flags, adjustments) | — (phones calculate their own with `LeaderboardEngine`) | local and empty: phone records do not reach the console until the jobs domain is on the API |
 | `LocationApi` | local (not in the API contract) | — |
 
 The API-backed rows switch to local with `--dart-define=ONGO_BACKEND=local`.
@@ -290,7 +301,7 @@ otherwise:
 
 Keep the two apps from drifting by going in this order:
 
-1. Add the DTO in `packages/on_go_shared/lib/src/models/`, with
+1. Add the DTO in `../Backend/on_go_backend/packages/on_go_shared/lib/src/models/`, with
    `toJson`/`fromJson`.
 2. Add the method to the right interface in `.../lib/src/api/`, returning a
    `Future` or `Stream`.
@@ -308,11 +319,12 @@ The On Go API is deployed on staging (Google Cloud Run and Neon PostgreSQL, in
 Singapore). Its contract is the OpenAPI document at `/docs/json` together with
 the integration guide. `ApiEndpoints` mirrors those routes; add nothing to it
 that the contract lacks. The location routes are the one marked exception: they
-are this app's proposal. `/server` in this repository is only a partial
+are this app's proposal. `../Backend/on_go_backend` is only a partial
 TypeScript scaffold and is not the deployed service.
 
 To see what a server answers without credentials, run
-`dart run tool/api/smoke.dart` (read-only).
+`dart run tool/smoke.dart` from `../Backend/on_go_backend/packages/on_go_api`
+(read-only).
 
 Two rules the server owns that the clients cannot be trusted with:
 

@@ -97,10 +97,10 @@ class _QuotesScreenState extends State<QuotesScreen> {
           return ListView(
             padding: context.layout.pageInsets,
             children: [
-              const Text('Quotes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
+              // The app bar already says Quotes, so the page opens on what
+              // matters: how many requests are waiting on the client.
               Text('${pending.length} request${pending.length == 1 ? '' : 's'} awaiting your decision',
-                  style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textdark.withValues(alpha: 0.55))),
               const SizedBox(height: 16),
               ...pending.map((request) => Padding(
                     padding: const EdgeInsets.only(bottom: 16),

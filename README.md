@@ -8,7 +8,7 @@ repositories**:
 | **Mobile app** | `/lib`, this repository | Client + Mechanic — Flutter, Android/iOS |
 | **Admin console** | `on_go_console`, its own repository | Admin + Moderator — Flutter web |
 
-They share no code except `/packages/on_go_shared`, which holds the models and
+They share no code except `on_go_shared` (in `../Backend/on_go_backend/packages`), which holds the models and
 API contracts they exchange. They will meet at a backend that implements those
 contracts; that backend is not built yet.
 
@@ -56,19 +56,26 @@ lib/                      Mobile app (Client + Mechanic)
   services/backend/         ← everything that will become a network call
   theme/  widgets/
 
-packages/on_go_shared/    API contract shared by both — pure Dart
-  lib/src/models/           DTOs with toJson/fromJson
-  lib/src/api/              Abstract interfaces + the agreed REST routes
-
 packages/on_go_design/    Design system shared by both
   lib/src/                  Palettes, theme registry, tokens, ThemeController
 
-server/                   Backend scaffold. No routes yet.
 ```
 
 The console is not in this tree — it is the `on_go_console` repository beside
-it, and it consumes `packages/on_go_shared` and `packages/on_go_design` above
-by relative path.
+it, and it consumes `packages/on_go_design` above by relative path.
+
+The backend scaffold is not in this tree either: it lives in
+`../Backend/on_go_backend` (TypeScript, no routes yet). The API contract and
+client both apps use live beside it:
+
+```
+../Backend/on_go_backend/packages/
+  on_go_shared/             API contract shared by both — pure Dart
+    lib/src/models/           DTOs with toJson/fromJson
+    lib/src/api/              Abstract interfaces + the agreed REST routes
+  on_go_api/                The HTTP client, sessions and event socket
+    tool/smoke.dart           Read-only checks against a live API
+```
 
 ## The rules that keep this working
 
