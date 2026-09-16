@@ -260,27 +260,9 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
           Column(
             children: [
               // ── Header ───────────────────────────────────────────────────────
-              Container(
-                width: double.infinity,
-                color: AppColors.primary,
-                padding: const EdgeInsets.fromLTRB(20, 48, 20, 16),
-                child: Column(
-                  children: [
-                    Text(
-                      'Client Registration',
-                      style: TextStyle(
-                        color: AppColors.textlight,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Create your account to book services',
-                      style: TextStyle(color: AppColors.textlight, fontSize: 12),
-                    ),
-                  ],
-                ),
+              const RegistrationHeader(
+                title: 'Client Registration',
+                subtitle: 'Create your account to book services',
               ),
 
               Expanded(
@@ -343,22 +325,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                       ],
 
                       // ── Profile Picture ───────────────────────────────────────
-                      Row(
-                        children: [
-                          Text(
-                            'Profile Picture',
-                            style: TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w500),
-                          ),
-                          Text(
-                            ' *',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.error),
-                          ),
-                        ],
-                      ),
+                      const OnGoFieldLabel('Profile Picture', isRequired: true),
                       const SizedBox(height: 4),
                       Text(
                         'Upload a clear photo of yourself.',
@@ -371,10 +338,13 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                       if (hasPhoto) ...[
                         Center(
                           child: Stack(
-                            clipBehavior: Clip.none,
                             children: [
-                              // 140×140 rounded-square preview — matches mechanic Step 5
-                              ClipRRect(
+                              // 140×140 rounded-square preview — matches mechanic Step 5.
+                              // The padding keeps the remove button inside the
+                              // stack, where it can actually be tapped.
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: _profilePhoto != null
                                     ? Image.file(
@@ -400,19 +370,12 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                                         ),
                                       ),
                               ),
+                              ),
                               // Red ✕ remove button
                               Positioned(
-                                top: -10,
-                                right: -10,
-                                child: GestureDetector(
-                                  onTap: _removePhoto,
-                                  child: CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor: AppColors.error,
-                                    child: Icon(Icons.close,
-                                        size: 14, color: AppColors.textmedium),
-                                  ),
-                                ),
+                                top: 0,
+                                right: 0,
+                                child: PhotoRemoveButton(onPressed: _removePhoto),
                               ),
                             ],
                           ),
@@ -459,38 +422,54 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
 
                       // ── Form fields ───────────────────────────────────────────
                       OnGoTextField(
-                        label: 'Email *',
+                        label: 'Email',
                         hint: 'juandelacruz@gmail.com',
+                        isRequired: true,
+                        autofillHints: const [AutofillHints.email],
                         controller: _emailCtrl,
                         keyboardType: TextInputType.emailAddress,
                         errorText: _err['email'],
                       ),
                       const SizedBox(height: 14),
                       OnGoTextField(
-                        label: 'First Name *',
+                        label: 'First Name',
                         hint: 'Juan',
+                        isRequired: true,
+                        textCapitalization: TextCapitalization.words,
+                        autofillHints: const [AutofillHints.givenName],
                         controller: _firstNameCtrl,
                         errorText: _err['firstName'],
                       ),
                       const SizedBox(height: 14),
                       OnGoTextField(
-                        label: 'Last Name *',
+                        label: 'Last Name',
                         hint: 'De la Cruz',
+                        isRequired: true,
+                        textCapitalization: TextCapitalization.words,
+                        autofillHints: const [AutofillHints.familyName],
                         controller: _lastNameCtrl,
                         errorText: _err['lastName'],
                       ),
                       const SizedBox(height: 14),
                       OnGoTextField(
-                        label: 'Address *',
+                        label: 'Address',
                         hint: 'Puerto Princesa City',
+                        isRequired: true,
+                        textCapitalization: TextCapitalization.words,
+                        autofillHints: const [AutofillHints.fullStreetAddress],
                         controller: _addressCtrl,
                         errorText: _err['address'],
                       ),
                       const SizedBox(height: 14),
                       OnGoTextField(
-                        label: 'Mobile Number *',
+                        label: 'Mobile Number',
                         hint: '+63 XXX XXX XXXX',
+                        isRequired: true,
                         keyboardType: TextInputType.phone,
+                        autofillHints: const [AutofillHints.telephoneNumber],
+                        // The last field when Google manages the password.
+                        textInputAction: _requiresPassword ? TextInputAction.next : TextInputAction.done,
+                        onSubmitted: _requiresPassword ? null : (_) => _submit(),
                         controller: _phoneCtrl,
                         errorText: _err['phone'],
                       ),
@@ -499,8 +478,10 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                       if (_requiresPassword) ...[
                         const SizedBox(height: 14),
                         OnGoTextField(
-                          label: 'Password *',
+                          label: 'Password',
                           hint: '••••••••',
+                          isRequired: true,
+                          autofillHints: const [AutofillHints.newPassword],
                           obscure: _obscurePass,
                           controller: _passCtrl,
                           errorText: _err['password'],
@@ -520,8 +501,12 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                         PasswordStrengthMeter(password: _passCtrl.text),
                         const SizedBox(height: 14),
                                                 OnGoTextField(
-                          label: 'Confirm Password *',
+                          label: 'Confirm Password',
                           hint: '••••••••',
+                          isRequired: true,
+                          autofillHints: const [AutofillHints.newPassword],
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _submit(),
                           obscure: _obscureConfirm,
                           controller: _confirmPassCtrl,
                           errorText: _err['confirmPassword'],
@@ -574,18 +559,17 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _submit,
+                          // Disabled while the request is out, and it says so.
+                          onPressed: _isLoading ? null : _submit,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: AppColors.textlight,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: const StadiumBorder(),
                           ),
-                          child: const Text(
-                            'Sign Up',
-                            style: TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w700),
-                          ),
+                          // The theme's button text, like every other primary
+                          // button, instead of its own smaller size.
+                          child: Text(_isLoading ? 'Signing Up…' : 'Sign Up'),
                         ),
                       ),
                       const SizedBox(height: 24),

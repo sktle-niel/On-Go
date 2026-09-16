@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/job_photo_preview.dart';
+import '../../../../data/mechanic_contact_store.dart';
 import '../../../../data/quote_store.dart';
 import '../home/quotes_screen.dart';
 import '../active/active_request_screen.dart';
@@ -332,24 +333,44 @@ Widget _locationBlock(String location) {
   );
 }
 
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
+/// The mechanic's name with the call and chat buttons beside it, as both the
+/// Pending and the Active card show it.
+class _MechanicContactRow extends StatelessWidget {
+  final String requestId;
+  final String mechanicName;
 
-  const _CircleIconButton({required this.icon, required this.color, required this.onTap});
+  const _MechanicContactRow({required this.requestId, required this.mechanicName});
+
+  void _openChat(BuildContext context) => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => JobChatScreen(requestId: requestId, otherPartyName: mechanicName)),
+      );
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-        child: Icon(icon, color: color, size: 18),
-      ),
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            mechanicName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.2),
+          ),
+        ),
+        CircleIconButton(
+          icon: Icons.call,
+          color: AppColors.success,
+          tooltip: 'Call $mechanicName',
+          onTap: () => showContactSheet(
+            context,
+            name: mechanicName,
+            phone: MechanicContactStore.instance.contactFor(mechanicName).phone,
+            onMessage: () => _openChat(context),
+          ),
+        ),
+        ChatIconButton(requestId: requestId, onTap: () => _openChat(context)),
+      ],
     );
   }
 }
@@ -633,20 +654,7 @@ class _PendingJobCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 8),
-                        Row(
-              children: [
-                Expanded(child: Text(quote?.mechanicName ?? 'Mechanic', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18))),
-                _CircleIconButton(icon: Icons.call, color: AppColors.success, onTap: () {}),
-                const SizedBox(width: 8),
-                ChatIconButton(
-                  requestId: request.id,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: quote?.mechanicName ?? 'Mechanic')),
-                  ),
-                ),
-              ],
-            ),
+            _MechanicContactRow(requestId: request.id, mechanicName: quote?.mechanicName ?? 'Mechanic'),
             const SizedBox(height: 8),
             Text(problem.issue, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             Text(problem.description, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
@@ -779,20 +787,7 @@ class _ActiveJobCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: Text(quote?.mechanicName ?? 'Mechanic', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18))),
-                _CircleIconButton(icon: Icons.call, color: AppColors.success, onTap: () {}),
-                const SizedBox(width: 8),
-                ChatIconButton(
-                  requestId: request.id,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: quote?.mechanicName ?? 'Mechanic')),
-                  ),
-                ),
-              ],
-            ),
+            _MechanicContactRow(requestId: request.id, mechanicName: quote?.mechanicName ?? 'Mechanic'),
             const SizedBox(height: 8),
             Text(problem.issue, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             Text(problem.description, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),

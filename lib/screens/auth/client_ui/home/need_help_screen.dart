@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:on_go_shared/on_go_shared.dart' show formatAdditionalCharge;
 import '../../../../../services/location/place_sources.dart';
 import '../../../../../widgets/location_selector.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,6 +9,7 @@ import '../../../../../theme/app_theme.dart';
 import '../../../../../widgets/common_widgets.dart';
 // Todo: adjust this path to wherever quote_store.dart lives in your project
 import '../../../../../data/quote_store.dart';
+import '../../../../../data/review_store.dart';
 
 class NeedHelpScreen extends StatefulWidget {
   /// Called after the request has been successfully uploaded.
@@ -20,14 +22,6 @@ class NeedHelpScreen extends StatefulWidget {
   State<NeedHelpScreen> createState() => _NeedHelpScreenState();
 }
 
-/// What picking an urgency costs. The completion promise beside it isn't
-/// stored here — it comes from [completionWindowLabel], the same windows the
-/// job's deadline runs on.
-class _UrgencyInfo {
-  final int surcharge;
-  const _UrgencyInfo(this.surcharge);
-}
-
 class _NeedHelpScreenState extends State<NeedHelpScreen> {
   final _problemCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
@@ -36,6 +30,11 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
 
   final List<XFile> _photos = [];
   bool _uploading = false;
+
+  // Shown under the field each belongs to, and cleared as soon as the client
+  // starts putting it right.
+  String? _problemError;
+  String? _locationError;
 
   // Only set when "Use Current Location" succeeds — cleared the moment the
   // client edits the field by hand, so we never send stale/mismatched
@@ -58,17 +57,23 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
   // Sampled directly from the design reference: light-blue card, deep navy text.
   static Color get _pricingCardBg => AppColors.surface;
 
-  static const Map<String, _UrgencyInfo> _urgencyInfo = {
-    'Normal': _UrgencyInfo(0),
-    'Urgent': _UrgencyInfo(50),
-    'Emergency': _UrgencyInfo(100),
-  };
+  @override
+  void initState() {
+    super.initState();
+    _locationCtrl.addListener(_clearLocationError);
+  }
 
   @override
   void dispose() {
+    _locationCtrl.removeListener(_clearLocationError);
     _problemCtrl.dispose();
     _locationCtrl.dispose();
     super.dispose();
+  }
+
+  void _clearLocationError() {
+    if (_locationError == null || _locationCtrl.text.trim().isEmpty) return;
+    setState(() => _locationError = null);
   }
 
   // ---------------------------------------------------------------------
@@ -153,18 +158,26 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
   // ---------------------------------------------------------------------
 
   Future<void> _uploadRequest() async {
-    if (_problemCtrl.text.trim().isEmpty) {
-      _showSnack('Please describe the problem.');
-      return;
-    }
-    if (_locationCtrl.text.trim().isEmpty) {
-      _showSnack('Please add your location.');
+    final problemError =
+        _problemCtrl.text.trim().isEmpty ? 'Describe the problem so mechanics know what to quote.' : null;
+    final locationError =
+        _locationCtrl.text.trim().isEmpty ? 'Add your location so mechanics can reach you.' : null;
+    if (problemError != null || locationError != null) {
+      setState(() {
+        _problemError = problemError;
+        _locationError = locationError;
+      });
+      // The fields can be scrolled out of sight of the Upload button, so the
+      // first problem is said here as well.
+      _showSnack(problemError ?? locationError!);
       return;
     }
 
     setState(() => _uploading = true);
 
-    final info = _urgencyInfo[_urgency]!;
+    // What picking this urgency costs, from the admin's settings — the same
+    // ones the job's deadline is set from.
+    final charge = additionalChargeFor(_urgency);
     final request = HelpRequest(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       problem: _problemCtrl.text.trim(),
@@ -172,7 +185,10 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
       urgency: _urgency,
       photoPaths: _photos.map((f) => f.path).toList(),
       createdAt: DateTime.now(),
-      surcharge: info.surcharge,
+      surcharge: charge,
+      // Who the job belongs to — what its evaluation, points and history are
+      // recorded against.
+      clientName: ReviewStore.currentClientName,
       clientLat: _capturedLat,
       clientLng: _capturedLng,
     );
@@ -201,12 +217,16 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
       _urgency = 'Normal';
       _capturedLat = null;
       _capturedLng = null;
+      _problemError = null;
+      _locationError = null;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final info = _urgencyInfo[_urgency]!;
+    // What picking this urgency costs, from the admin's settings — the same
+    // ones the job's deadline is set from.
+    final charge = additionalChargeFor(_urgency);
     final urgencyColor = _urgency == 'Emergency'
       ? AppColors.error
       : _urgency == 'Urgent'
@@ -221,17 +241,17 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
           Text(
             'Need Help?',
             style: TextStyle(
-                fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textdark),
+                fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: AppColors.textdark),
           ),
           const SizedBox(height: 4),
           Text(
             'Describe your motorcycle problem to help mechanics understand your situation better. The more details you provide, the better quotes you will receive.',
-            style: TextStyle(fontSize: 13, color: AppColors.textdark),
+            style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.textdark),
           ),
           const SizedBox(height: 20),
           const Text('Common Issues',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           GridView.count(
             // Three across on a phone, more on a wider screen — the tiles
             // keep their size and the grid gains columns, rather than three
@@ -249,7 +269,13 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
                 borderRadius: BorderRadius.circular(12),
                 onTap: () => setState(() {
                   _selectedIssue = issue['label'] as String;
-                  _problemCtrl.text = '${issue['label']}: ';
+                  final prefix = '${issue['label']}: ';
+                  // The cursor lands after the prefix, ready for the details.
+                  _problemCtrl.value = TextEditingValue(
+                    text: prefix,
+                    selection: TextSelection.collapsed(offset: prefix.length),
+                  );
+                  _problemError = null;
                 }),
                 child: Container(
                   decoration: BoxDecoration(
@@ -285,11 +311,17 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
           TextFormField(
             controller: _problemCtrl,
             maxLines: 4,
-            decoration: const InputDecoration(
+            maxLength: 500,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) {
+              if (_problemError != null) setState(() => _problemError = null);
+            },
+            decoration: InputDecoration(
               hintText: "E.g. My motorcycle won't start, and I hear a clicking sound when I turn the key.",
+              errorText: _problemError,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
@@ -299,7 +331,8 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
                 _photos.isEmpty ? 'Add Photos' : 'Add Photos (${_photos.length})',
                 style: TextStyle(color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.w600),
               ),
-              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+              // Flush with the field above, and a full thumb's height to hit.
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 44)),
             ),
           ),
           if (_photos.isNotEmpty) ...[
@@ -324,19 +357,15 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
                           fit: BoxFit.cover,
                         ),
                       ),
+                      // In the thumbnail's corner rather than hanging off it:
+                      // the part of a button outside its stack takes no taps,
+                      // and this list clips its edges as well.
                       Positioned(
-                        top: -6,
-                        right: -6,
-                        child: GestureDetector(
-                          onTap: () => _removePhoto(index),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(Icons.close, size: 14, color: AppColors.textmedium),
-                          ),
+                        top: 0,
+                        right: 0,
+                        child: PhotoRemoveButton(
+                          color: AppColors.primary,
+                          onPressed: () => _removePhoto(index),
                         ),
                       ),
                     ],
@@ -359,6 +388,10 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
             geocoder: PlaceSources.geocoder,
             hintText: 'Enter your location or use current location',
           ),
+          if (_locationError != null) ...[
+            const SizedBox(height: 6),
+            Text(_locationError!, style: TextStyle(fontSize: 12, color: AppColors.error)),
+          ],
           if (_capturedLat != null) ...[
             const SizedBox(height: 4),
             Row(
@@ -378,10 +411,10 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
               ],
             ),
           ],
-          const SizedBox(height: 14),
-          const Text('Urgency Level !!!',
+          const SizedBox(height: 20),
+          const Text('Urgency Level',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             children: [
               _UrgencyChip(
@@ -436,10 +469,10 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        info.surcharge > 0
-                            ? 'Additional charge applies: +₱${info.surcharge} for faster service, '
+                        charge > 0
+                            ? 'Additional charge applies: +${formatAdditionalCharge(charge)}, '
                                 'added to your total when you pay'
-                            : 'No additional charge for standard service',
+                            : 'No additional charge',
                         style: TextStyle(
                           fontSize: 12,
                           color: urgencyColor,
@@ -512,23 +545,29 @@ class _UrgencyChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(30),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            border: selected ? Border.all(color: color, width: 2) : null,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: color,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              // Always drawn, just clear when unselected, so picking a chip
+              // never makes the row jump by the width of the border.
+              border: Border.all(color: selected ? color : color.withValues(alpha: 0), width: 2),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
             ),
           ),
         ),

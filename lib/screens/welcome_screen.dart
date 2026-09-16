@@ -3,6 +3,7 @@ import '../theme/app_theme.dart';
 import '../widgets/auth_widgets.dart';
 import 'auth/client_registration/client_registration_screen.dart';
 import 'auth/mechanic_registration/mechanic_step1_account.dart';
+import 'auth/sign_in_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -10,12 +11,14 @@ class WelcomeScreen extends StatelessWidget {
   Future<void> _startClientRegistration(BuildContext context) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      // No shape here: the theme's sheet shape, like every other sheet.
       builder: (ctx) => SafeArea(
         child: Wrap(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              // 16 on the sides, the same indent as the ListTiles below, so
+              // the heading lines up with their icons.
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -52,6 +55,17 @@ class WelcomeScreen extends StatelessWidget {
     );
   }
 
+  /// Sign In is usually the screen underneath; when it is not, it replaces
+  /// this one.
+  void _backToSignIn(BuildContext context) {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      navigator.pushReplacement(MaterialPageRoute(builder: (_) => const SignInScreen()));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -64,8 +78,9 @@ class WelcomeScreen extends StatelessWidget {
                 'Welcome!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 30,
+                  fontSize: 28,
                   fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
                   color: AppColors.textdark,
                 ),
               ),
@@ -91,6 +106,34 @@ class WelcomeScreen extends StatelessWidget {
                     builder: (_) => const MechanicStep1Account(),
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+              // A way back for someone who already has an account.
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'Already have an account? ',
+                    style: TextStyle(fontSize: 13, color: AppColors.textdark),
+                  ),
+                  TextButton(
+                    onPressed: () => _backToSignIn(context),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textdark,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      minimumSize: const Size(48, 44),
+                    ),
+                    child: Text(
+                      'Sign In',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textdark,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -12,7 +12,7 @@ import 'jobs/jobs_screen.dart';
 import 'notifications/mechanic_notifications_screen.dart';
 import 'earning/earning_screen.dart';
 import 'qr/qr_screen.dart';
-import 'rank/mechanic_leaderboard_screen.dart';
+import 'rank/mechanic_rankings_screen.dart';
 import 'profile/mechanic_profile_screen.dart';
 import 'menu/mechanic_menu_drawer.dart';
 
@@ -29,6 +29,7 @@ class _MechanicHomeScreenState extends State<MechanicHomeScreen> {
   // Positions in [build]'s tab list.
   static const int _jobsTab = 0;
   static const int _earningTab = 1;
+  static const int _rankingsTab = 3;
   static const int _profileTab = 4;
 
   /// How a notification asks the Jobs tab to open one particular job.
@@ -105,9 +106,11 @@ class _MechanicHomeScreenState extends State<MechanicHomeScreen> {
   Widget build(BuildContext context) {
     final tabs = [
       JobsScreen(focus: _jobFocus),
-      EarningScreen(onViewAll: () => _goToTab(3)),
+      EarningScreen(onViewAll: () => _goToTab(_rankingsTab)),
       const QrScreen(),
-      const MechanicLeaderboardScreen(),
+      // Mechanic Rankings — rank, rating and reviews. The competitive seasonal
+      // leaderboard is a separate, future feature.
+      const MechanicRankingsScreen(),
       const MechanicProfileScreen(standalone: false),
     ];
 
@@ -133,7 +136,7 @@ class _MechanicHomeScreenState extends State<MechanicHomeScreen> {
           OnGoNavItem(icon: Icons.work_outline, activeIcon: Icons.work, label: 'Jobs'),
           OnGoNavItem(icon: Icons.payments_outlined, activeIcon: Icons.payments, label: 'Earning'),
           OnGoNavItem(icon: Icons.qr_code_scanner, label: 'QR'),
-          OnGoNavItem(icon: Icons.emoji_events_outlined, activeIcon: Icons.emoji_events, label: 'Leaderboard'),
+          OnGoNavItem(icon: Icons.emoji_events_outlined, activeIcon: Icons.emoji_events, label: 'Rankings'),
           OnGoNavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile'),
         ],
       ),

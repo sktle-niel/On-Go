@@ -9,6 +9,11 @@ import 'mechanic_notification_store.dart';
 import 'points_policy_store.dart';
 import 'points_wallet_store.dart';
 import 'mechanic_account_store.dart';
+import 'job_evaluation_store.dart';
+import 'leaderboard_store.dart';
+import 'mechanic_performance_store.dart';
+import 'point_transaction_store.dart';
+import 'urgency_policy_store.dart';
 
 enum RequestStatus { pending, matched, completed }
 
@@ -149,44 +154,33 @@ int urgencyPriority(String urgency) {
   }
 }
 
-/// How long a mechanic has to COMPLETE a job, counted from the moment they
-/// accepted it. These are the job's actual deadlines — there is no separate
-/// "start" timer — and they are the single source of truth for the Accepted
-/// tab's countdown, the "Time Remaining" sort, the auto-expiry sweep and the
-/// longest ETA a mechanic may promise. Change a window here and all four
-/// follow.
+/// How long a mechanic has to COMPLETE a new job of [urgency], counted from
+/// the moment they accept it — or null when that urgency has no time limit
+/// (None in the admin's settings; Normal by default). A job with no window
+/// runs on the ETA its mechanic quotes, and nothing caps that ETA.
 ///
-/// NORMAL IS DELIBERATELY ABSENT. A normal job has no fixed completion
-/// deadline — its timing is whatever ETA the mechanic quotes, so there is
-/// nothing here to hold it to and nothing to cap the ETA against. Read this
-/// through [completionWindowFor] rather than indexing it, so the missing
-/// entry is handled as "no window" everywhere instead of falling back to a
-/// window that no longer exists.
-const Map<String, Duration> jobCompletionWindows = {
-  'Emergency': Duration(hours: 12),
-  'Urgent': Duration(days: 3),
-};
+/// Read from [UrgencyPolicyStore], which follows the admin's settings. This is
+/// what a NEW job is given: each job keeps the window it was created with (see
+/// [HelpRequest.completionWindow]), which is what the Accepted tab's
+/// countdown, the "Time Remaining" sort, the auto-expiry sweep and the ETA cap
+/// all run on — so changing a setting never moves a deadline already running.
+Duration? completionWindowFor(String urgency) =>
+    UrgencyPolicyStore.instance.current.termsFor(urgency).completionTime.duration;
 
-/// How long [urgency] gives the mechanic to finish, or null when that urgency
-/// sets no deadline of its own (Normal — see [jobCompletionWindows]).
-Duration? completionWindowFor(String urgency) => jobCompletionWindows[urgency];
+/// A completion promise in words — "Completed within 12 hours" / "3 days" —
+/// or, with no window, the mechanic's ETA.
+String completionWindowLabelFor(Duration? window) => window == null
+    ? 'Completed within the mechanic\'s quoted ETA'
+    : 'Completed within ${formatEtaDuration(window)}';
 
-/// The completion promise for an urgency, in words — "Completed within 12
-/// hours" / "3 days". Read straight off [jobCompletionWindows], so the
-/// Urgency Level picker the client chooses from and the deadline their job is
-/// actually held to can never drift apart.
-///
-/// Normal has no window, so it promises what the mechanic promises: the ETA
-/// on the quote the client accepts.
-String completionWindowLabel(String urgency) {
-  final window = completionWindowFor(urgency);
-  if (window == null) return 'Completed within the mechanic\'s quoted ETA';
-  if (window.inHours < 24) {
-    return 'Completed within ${window.inHours} hour${window.inHours == 1 ? '' : 's'}';
-  }
-  final days = window.inDays;
-  return 'Completed within $days day${days == 1 ? '' : 's'}';
-}
+/// The promise a new job of [urgency] would carry — what the Urgency Level
+/// picker shows, read from the same settings the job's deadline is set from.
+String completionWindowLabel(String urgency) => completionWindowLabelFor(completionWindowFor(urgency));
+
+/// The additional charge a new job of [urgency] carries, in pesos — fixed onto
+/// the job as [HelpRequest.surcharge] when it is uploaded.
+double additionalChargeFor(String urgency) =>
+    UrgencyPolicyStore.instance.current.termsFor(urgency).additionalCharge;
 
 /// How a remaining-time value reads on screen, switching format at the 24h
 /// mark: 24h or more counts days, hours and minutes ("4d 23h 59m",
@@ -214,14 +208,15 @@ class HelpRequest {
   /// What this job's urgency promises the client, in words. Derived rather
   /// than stored so it always matches [completionWindow] — the deadline the
   /// job is really held to.
-  String get durationLabel => completionWindowLabel(urgency);
+  String get durationLabel => completionWindowLabelFor(completionWindow);
 
-  /// ONGO's priority fee for this job's urgency — 0 for Normal, 50 for
-  /// Urgent, 100 for Emergency. This is PLATFORM revenue, not part of the
+  /// ONGO's additional charge for this job's urgency, in pesos — the admin's
+  /// setting at the moment the job was uploaded (₱10 Normal, ₱50 Urgent,
+  /// ₱100 Emergency by default). This is PLATFORM revenue, not part of the
   /// job price: the client pays it on top of the mechanic's amount at
   /// checkout, and it never reaches the mechanic's payout. See
   /// [clientTotalPaymentAmount].
-  final int surcharge;
+  final double surcharge;
 
   final double? clientLat;
   final double? clientLng;
@@ -242,10 +237,15 @@ class HelpRequest {
   DateTime? serviceCompletedAt;
   DateTime? paymentCompletedAt;
 
-  /// Points the MECHANIC earned on this job, from the configured rate at the
-  /// moment it was paid. Kept per job so the earnings list can show what each
-  /// one was worth, even after the admin changes the rate.
+  /// Points the MECHANIC earned on this job — the points its urgency awarded
+  /// the client, times the mechanic's [pointsMultiplier], at the rates in force
+  /// when it was paid. Kept per job for the mechanic's lifetime total; never
+  /// shown per job, since what a job awards is the admin's to see.
   double? pointsAwarded;
+
+  /// The multiplier [pointsAwarded] was worked out with — the mechanic's rank
+  /// multiplier plus any bonus — as it stood when the job was paid.
+  double? pointsMultiplier;
 
   /// Points the client spent to cover this job's priority fee, or null when
   /// they paid it in pesos. 1 pt = ₱1, so this doubles as the peso value.
@@ -335,7 +335,8 @@ class HelpRequest {
     this.agreedPaymentAmountSetAt,
     this.amountPaid,
     this.platformFeeCharged,
-  });
+    Duration? completionWindow,
+  }) : completionWindow = completionWindow ?? completionWindowFor(urgency);
 
   /// The full amount the client handed over — the mechanic's share plus the
   /// priority fee. Null until the job has actually been paid.
@@ -347,12 +348,13 @@ class HelpRequest {
 
   /// The ONGO priority fee for this job, as an amount. Charged to the client
   /// at checkout only — never added to what the mechanic is paid.
-  double get platformFee => surcharge.toDouble();
+  double get platformFee => surcharge;
 
-  /// How long this job's mechanic has to finish it, from the urgency the
-  /// client chose — null for Normal, which sets no deadline of its own and
-  /// runs on the mechanic's ETA instead. See [jobCompletionWindows].
-  Duration? get completionWindow => completionWindowFor(urgency);
+  /// How long this job's mechanic has to finish it: the admin's completion
+  /// time for its urgency AS IT WAS when the job was created, so a later
+  /// change to the setting never moves a deadline already running. Null when
+  /// that urgency had no time limit — the job then runs on the mechanic's ETA.
+  final Duration? completionWindow;
 
   /// The moment this job must be finished by, anchored to [matchedAt] — the
   /// instant the mechanic accepted. Because it is derived from that stored
@@ -443,15 +445,16 @@ bool clientCancelLockedByEta(HelpRequest request, MechanicQuote? acceptedQuote, 
 /// THE longest ETA a mechanic may promise on [request] — null when any ETA is
 /// allowed.
 ///
-/// An Urgent or Emergency job must be FINISHED inside its completion window,
+/// A job with a completion window (Urgent and Emergency by default) must be
+/// FINISHED inside it,
 /// so an arrival time longer than what is left of that window is a promise the
 /// job cannot keep: the mechanic would still be driving when the job was
 /// already due. The cap is therefore the window itself before the job is
 /// accepted (the clock starts on acceptance, so all of it is still ahead) and
 /// whatever is left of it afterwards.
 ///
-/// Normal jobs have no window, so nothing caps them — their timing IS the
-/// mechanic's ETA.
+/// A job with no window (Normal by default) has nothing to cap it — its timing
+/// IS the mechanic's ETA.
 Duration? maxEtaFor(HelpRequest request, [DateTime? now]) {
   final window = request.completionWindow;
   if (window == null) return null;
@@ -482,11 +485,10 @@ String? etaTooLongReason(HelpRequest request, Duration eta, [DateTime? now]) {
 
 /// What a live job is counting down to, and how long is left.
 enum JobCountdownKind {
-  /// Urgent and Emergency: the job's own completion deadline.
+  /// A job with a completion window: its own completion deadline.
   completion,
 
-  /// Normal: the arrival time the mechanic quoted, because a Normal job has
-  /// no completion deadline of its own.
+  /// A job with no completion window: the arrival time the mechanic quoted.
   arrival,
 }
 
@@ -525,7 +527,8 @@ double? effectivePaymentAmount(HelpRequest request, MechanicQuote? acceptedQuote
 
 /// What the CLIENT is charged at checkout: the mechanic's amount
 /// ([effectivePaymentAmount]) plus ONGO's priority fee for the job's urgency
-/// (+₱50 Urgent, +₱100 Emergency). The two halves stay apart on purpose — the
+/// (the additional charge fixed on the job when it was uploaded). The two
+/// halves stay apart on purpose — the
 /// mechanic is paid [effectivePaymentAmount] and nothing more, while the fee
 /// is booked as platform revenue by [QuoteNotificationStore.clientConfirmPayment].
 /// Null whenever the mechanic's amount isn't known yet.
@@ -741,6 +744,11 @@ class QuoteNotificationStore extends ChangeNotifier {
   final List<HelpRequest> _requests = [];
   final List<MechanicQuote> _allQuotes = [];
   int _unseenCount = 0;
+
+  /// Every mechanic this device has seen quote or work a job — what the
+  /// Mechanic Rankings list is built from until the API has a mechanic
+  /// directory.
+  Set<String> get knownMechanicNames => {for (final quote in _allQuotes) quote.mechanicName};
   final Set<String> _seenClientQuoteIds = {};
   final Set<String> _seenEmergencyRequestIds = {};
   final List<ClientNotification> _clientNotifications = [];
@@ -1424,6 +1432,11 @@ class QuoteNotificationStore extends ChangeNotifier {
     req.lastCancelReason = reason;
     req.lastCancelledBy = mechanicName;
     req.lastCancelledAt = DateTime.now();
+    // Kept as an event: the job's own fields were just reset, and this is what
+    // the mechanic's completion rate and seasonal score read.
+    if (mechanicName != null) {
+      MechanicPerformanceStore.instance.recordDropped(req, mechanicName, JobOutcomeKind.cancelledByMechanic);
+    }
 
     // The client is waiting on someone who is no longer coming — that has to
     // reach the bell, not just change a card they may not be looking at. The
@@ -1491,6 +1504,9 @@ class QuoteNotificationStore extends ChangeNotifier {
     if (!req.deadlinePassed(now)) return false;
 
     final mechanicName = acceptedQuoteFor(req.id)?.mechanicName;
+    if (mechanicName != null) {
+      MechanicPerformanceStore.instance.recordDropped(req, mechanicName, JobOutcomeKind.expired, now: now);
+    }
 
     if (req.isEmergency) {
       // An emergency "quote" is just the accept record (there is no quoting
@@ -1564,11 +1580,22 @@ class QuoteNotificationStore extends ChangeNotifier {
     // here — an admin changing a rate in the console changes what this pays
     // out, with nothing in this method to update.
     final policy = PointsPolicyStore.instance.current;
-    final points = policy.clientPointsFor(req.urgency);
+    final points = policy.pointsFor(req.urgency);
+    // The mechanic's multiplier as it stood BEFORE this job counted — rank,
+    // and while the leaderboard is live their seasonal placement, are earned
+    // on what was already done, not on the job being paid. Held to the
+    // configured cap.
+    final leaderboard = LeaderboardStore.instance;
+    final multiplier =
+        quote == null ? PointsMultiplier.none : leaderboard.multiplierFor(quote.mechanicName);
+    final seasonId = leaderboard.activeSeason?.id;
 
     req.paymentCompleted = true;
     req.paymentCompletedAt = DateTime.now();
-    req.pointsAwarded = policy.mechanicPointsFor(amount);
+    // The mechanic earns what the client earns for the urgency, multiplied —
+    // never scaled by the size of the payout.
+    req.pointsAwarded = multiplier.apply(points);
+    req.pointsMultiplier = multiplier.total;
     // The payment record. Stamped once, here, from the amount actually
     // charged — history reads this rather than re-deriving from the quote.
     req.amountPaid = amount;
@@ -1639,6 +1666,19 @@ class QuoteNotificationStore extends ChangeNotifier {
         points: req.pointsAwarded ?? 0,
         note: req.problem,
       );
+      // Why those points: base × rank × seasonal, capped — once per job.
+      PointTransactionStore.instance.record(PointTransaction.forJob(
+        jobId: req.id,
+        mechanicId: quote.mechanicName,
+        basePoints: points,
+        multiplier: multiplier,
+        at: req.paymentCompletedAt!,
+        seasonId: seasonId,
+      ));
+      // The raw records the mechanic's reputation, rank and seasonal score
+      // are calculated from — and the evaluation the client now owes this job.
+      MechanicPerformanceStore.instance.recordCompleted(req, quote);
+      JobEvaluationStore.instance.requireFor(req, quote);
     }
 
     // Chat intentionally NOT cleared — see clientDeleteRequest.

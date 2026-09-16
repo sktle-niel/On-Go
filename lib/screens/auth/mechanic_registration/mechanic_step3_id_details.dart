@@ -228,6 +228,49 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
 
   void _onStepTapped(int step) => goToRegistrationStep(context, step);
 
+  /// The choices for marital status, in the order a Philippine form lists them.
+  static const List<String> _maritalStatuses = ['Single', 'Married', 'Widowed', 'Separated', 'Annulled'];
+
+  /// The look both choice fields on this step share: the radius and padding of
+  /// every text field, with the outline turning to the error colour when the
+  /// choice is missing.
+  InputDecoration _dropdownDecoration({required bool hasError}) {
+    OutlineInputBorder outline(double width) => OutlineInputBorder(
+          borderRadius: AppOutlinedContainers.field.borderRadius,
+          borderSide: BorderSide(
+            color: hasError ? AppColors.error : AppColors.textdark.withValues(alpha: 0.2),
+            width: width,
+          ),
+        );
+    return InputDecoration(
+      filled: true,
+      fillColor: AppColors.surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: outline(1),
+      enabledBorder: outline(1),
+      focusedBorder: outline(2),
+    );
+  }
+
+  void _goNext() {
+    if (!_validate()) return;
+    _draft.idType        = _selectedIdType!;
+    _draft.idNumber      = _idNumberCtrl.text.trim();
+    _draft.idLastName    = _lastNameCtrl.text.trim();
+    _draft.idGivenName   = _givenNameCtrl.text.trim();
+    _draft.idMiddleName  = _middleNameCtrl.text.trim();
+    _draft.maritalStatus = _maritalStatusCtrl.text.trim();
+    _draft.placeOfBirth  = _placeOfBirthCtrl.text.trim();
+    _draft.idDob         = _dobCtrl.text;
+    _draft.idSex         = _sex;
+    _draft.idAddress     = _addressCtrl.text.trim();
+    _draft.saveStep3();
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MechanicStep4Documents()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
@@ -238,7 +281,7 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          const _RegHeader(),
+          const RegistrationHeader(),
           Expanded(
             child: SingleChildScrollView(
               padding: context.layout.pageInsets,
@@ -250,10 +293,14 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                     highestCompletedStep: _draft.highestCompletedStep,
                     onStepTapped: _onStepTapped,
                   ),
-                  const SizedBox(height: 8),
+                  // The same heading as every other step, with its note under it.
+                  const SizedBox(height: 20),
                   Text('Valid ID Details',
                       style: TextStyle(
-                          fontSize: 14, color: AppColors.textdark.withValues(alpha: 0.55))),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textdark)),
+                  const SizedBox(height: 4),
                   Text(
                     'Please enter the details exactly as they appear on your ID',
                     style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55)),
@@ -306,38 +353,15 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                     ),
 
                   // Type of ID
-                  const Text('Type of ID',
-                      style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
+                  const OnGoFieldLabel('Type of ID', isRequired: true),
                   const SizedBox(height: 6),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       DropdownButtonFormField<String>(
                         initialValue: _selectedIdType,
-                        hint: const Text('Type of ID'),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: AppColors.surface,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(
-                              color: _idTypeError != null
-                                  ? AppColors.error
-                                  : AppColors.textdark.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(
-                              color: _idTypeError != null
-                                  ? AppColors.error
-                                  : AppColors.textdark.withValues(alpha: 0.2),
-                            ),
-                          ),
-                        ),
+                        hint: const Text('Select type of ID'),
+                        decoration: _dropdownDecoration(hasError: _idTypeError != null),
                         items: _idTypes
                             .map((t) => DropdownMenuItem(
                                 value: t, child: Text(t)))
@@ -366,8 +390,12 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                     child: OnGoTextField(
                       label: 'ID Number',
                       hint: '00-000-0000',
+                      isRequired: true,
                       controller: _idNumberCtrl,
-                      keyboardType: TextInputType.number,
+                      // Text, not a number pad: a passport or a license number
+                      // carries letters, which a number pad cannot type.
+                      keyboardType: TextInputType.text,
+                      textCapitalization: TextCapitalization.characters,
                       onChanged: (_) {
                         _autosave();
                         if (_idNumberError != null) {
@@ -383,6 +411,8 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                     child: OnGoTextField(
                       label: 'Last Name',
                       hint: 'Cruz',
+                      isRequired: true,
+                      textCapitalization: TextCapitalization.words,
                       controller: _lastNameCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -399,6 +429,8 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                     child: OnGoTextField(
                       label: 'Given Name',
                       hint: 'Juan',
+                      isRequired: true,
+                      textCapitalization: TextCapitalization.words,
                       controller: _givenNameCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -415,6 +447,8 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                     child: OnGoTextField(
                       label: 'Middle Name',
                       hint: 'Dela',
+                      isRequired: true,
+                      textCapitalization: TextCapitalization.words,
                       controller: _middleNameCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -426,17 +460,29 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                   ),
                   const SizedBox(height: 14),
 
+                  // A choice, not free text: the answer is one of a handful.
+                  const OnGoFieldLabel('Marital Status', isRequired: true),
+                  const SizedBox(height: 6),
                   _field(
                     error: _maritalStatusError,
-                    child: OnGoTextField(
-                      label: 'Marital Status',
-                      hint: 'Single',
-                      controller: _maritalStatusCtrl,
-                      onChanged: (_) {
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _maritalStatusCtrl.text.isEmpty ? null : _maritalStatusCtrl.text,
+                      hint: const Text('Select marital status'),
+                      decoration: _dropdownDecoration(hasError: _maritalStatusError != null),
+                      items: [
+                        // An answer saved before this was a list stays selectable.
+                        for (final status in {
+                          ..._maritalStatuses,
+                          if (_maritalStatusCtrl.text.isNotEmpty) _maritalStatusCtrl.text,
+                        })
+                          DropdownMenuItem(value: status, child: Text(status)),
+                      ],
+                      onChanged: (v) {
+                        setState(() {
+                          _maritalStatusCtrl.text = v ?? '';
+                          _maritalStatusError = null;
+                        });
                         _autosave();
-                        if (_maritalStatusError != null) {
-                          setState(() => _maritalStatusError = null);
-                        }
                       },
                     ),
                   ),
@@ -446,6 +492,7 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                   OnGoTextField(
                     label: 'Place of Birth (Optional)',
                     hint: 'Puerto Princesa City',
+                    textCapitalization: TextCapitalization.words,
                     controller: _placeOfBirthCtrl,
                     onChanged: (_) => _autosave(),
                   ),
@@ -457,16 +504,19 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                     child: OnGoTextField(
                       label: 'Date of Birth',
                       hint: 'mm/dd/yyyy',
+                      isRequired: true,
                       controller: _dobCtrl,
                       keyboardType: TextInputType.datetime,
+                      inputFormatters: dateInputFormatters,
                       onChanged: (_) {
                         _selectedDob = null;
                         _autosave();
                         if (_dobError != null) setState(() => _dobError = null);
                       },
-                      suffixIcon: GestureDetector(
-                        onTap: _openCalendar,
-                        child: Icon(Icons.calendar_today_outlined,
+                      suffixIcon: IconButton(
+                        onPressed: _openCalendar,
+                        tooltip: 'Pick a date',
+                        icon: Icon(Icons.calendar_today_outlined,
                             size: 18, color: AppColors.textdark.withValues(alpha: 0.55)),
                       ),
                     ),
@@ -474,29 +524,15 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                   const SizedBox(height: 14),
 
                   // Sex
-                  const Text('Sex',
-                      style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: ['Male', 'Female'].map((s) {
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Radio<String>(
-                            value: s,
-                            groupValue: _sex,
-                            activeColor: AppColors.primary,
-                            onChanged: (v) {
-                              setState(() => _sex = v ?? 'Male');
-                              _autosave();
-                            },
-                          ),
-                          Text(s, style: const TextStyle(fontSize: 13)),
-                          const SizedBox(width: 8),
-                        ],
-                      );
-                    }).toList(),
+                  OnGoChoiceRow(
+                    label: 'Sex',
+                    isRequired: true,
+                    options: const ['Male', 'Female'],
+                    value: _sex,
+                    onChanged: (v) {
+                      setState(() => _sex = v);
+                      _autosave();
+                    },
                   ),
                   const SizedBox(height: 14),
 
@@ -505,6 +541,10 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
                     child: OnGoTextField(
                       label: 'Address',
                       hint: 'Puerto Princesa',
+                      isRequired: true,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _goNext(),
                       controller: _addressCtrl,
                       onChanged: (_) {
                         _autosave();
@@ -518,54 +558,12 @@ class _MechanicStep3IdDetailsState extends State<MechanicStep3IdDetails> {
 
                   StepNavButtons(
                     onBack: () => Navigator.pop(context),
-                    onNext: () {
-                      if (!_validate()) return;
-                      _draft.idType        = _selectedIdType!;
-                      _draft.idNumber      = _idNumberCtrl.text.trim();
-                      _draft.idLastName    = _lastNameCtrl.text.trim();
-                      _draft.idGivenName   = _givenNameCtrl.text.trim();
-                      _draft.idMiddleName  = _middleNameCtrl.text.trim();
-                      _draft.maritalStatus = _maritalStatusCtrl.text.trim();
-                      _draft.placeOfBirth  = _placeOfBirthCtrl.text.trim();
-                      _draft.idDob         = _dobCtrl.text;
-                      _draft.idSex         = _sex;
-                      _draft.idAddress     = _addressCtrl.text.trim();
-                      _draft.saveStep3();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const MechanicStep4Documents()),
-                      );
-                    },
+                    onNext: _goNext,
                   ),
                 ],
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RegHeader extends StatelessWidget {
-  const _RegHeader();
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(20, 48, 20, 16),
-      child: Column(
-        children: [
-          Text('On Go Registration',
-              style: TextStyle(
-                  color: AppColors.textlight,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700)),
-          SizedBox(height: 4),
-          Text('Complete all steps to provide services',
-              style: TextStyle(color: AppColors.textlight, fontSize: 12)),
         ],
       ),
     );
