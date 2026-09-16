@@ -48,3 +48,9 @@ double readDouble(Object? value, [double fallback = 0]) =>
 
 /// Reads an int that may arrive as a double (JSON has one number type).
 int readInt(Object? value) => value is num ? value.toInt() : 0;
+
+/// Reads an optional number; anything that is not a number comes back as null.
+double? readDoubleOrNull(Object? value) => value is num ? value.toDouble() : null;
+
+/// Reads a boolean; anything but `true` is false.
+bool readBool(Object? value) => value == true;
