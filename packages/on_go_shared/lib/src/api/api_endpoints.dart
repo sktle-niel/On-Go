@@ -6,9 +6,7 @@
 /// is called.
 ///
 /// Every path below has a counterpart method on one of the interfaces in this
-/// directory; the doc on each constant names it. The location routes at the
-/// bottom are the exception: they are this app's proposal and are not in the
-/// API contract yet.
+/// directory; the doc on each constant names it.
 class ApiEndpoints {
   ApiEndpoints._();
 
@@ -105,8 +103,14 @@ class ApiEndpoints {
   /// GET (`PointsPolicyApi.fetch`) and PUT (`PointsPolicyApi.update`).
   static const String pointsPolicy = '$_root/platform/points-policy';
 
+  /// GET — `PointsWalletApi.fetchWallet`. Clients and mechanics.
+  static const String pointsWallet = '$_root/points/wallet';
+
+  /// POST — `PointsWalletApi.convertPoints`. Body `{"points"}`. Mechanics.
+  static const String pointsConvert = '$_root/points/convert';
+
   // -------------------------------------------------------------- location ---
-  // Not in the API contract yet — proposed by this app, see `LocationApi`.
+  // Proposed by this app, and served by the API since its Step 10a.
 
   /// POST — `LocationApi.reportLocation`.
   static const String locations = '$_root/locations';
@@ -117,6 +121,72 @@ class ApiEndpoints {
   /// GET — `LocationApi.findNearbyJobIds`. Takes `radiusKm` as a query
   /// parameter; the mechanic's position comes from their stored location.
   static String nearbyJobs(String mechanicId) => '$_root/mechanics/$mechanicId/nearby-jobs';
+
+  // ------------------------------------------------------------------ jobs ---
+  // Owned by the server since its Step 10. Each call answers the updated
+  // `ServiceRequest` unless its doc says otherwise.
+
+  /// POST (`ServiceRequestApi.bookRequest`, answers 201) and GET
+  /// (`listOpenRequests` with `scope=open`, `listMyRequests` with `scope=mine`;
+  /// optional `urgency`).
+  static const String serviceRequests = '$_root/service-requests';
+
+  /// GET — `ServiceRequestApi.findRequest`.
+  static String serviceRequest(String id) => '$serviceRequests/$id';
+
+  /// POST — `ServiceRequestApi.cancelRequest`. Body `{"reason"?}`; send `{}`
+  /// when there is no reason.
+  static String serviceRequestCancel(String id) => '$serviceRequests/$id/cancel';
+
+  /// POST — `ServiceRequestApi.reopenRequest`. No body.
+  static String serviceRequestReopen(String id) => '$serviceRequests/$id/reopen';
+
+  /// POST — `ServiceRequestApi.mechanicCancelJob`. Body `{"reason"}`.
+  static String serviceRequestMechanicCancel(String id) => '$serviceRequests/$id/mechanic-cancel';
+
+  /// POST (`ServiceRequestApi.submitQuote`, answers 201 with a `JobQuote`) and
+  /// GET (`ServiceRequestApi.listQuotes`).
+  static String serviceRequestQuotes(String id) => '$serviceRequests/$id/quotes';
+
+  /// POST — `ServiceRequestApi.withdrawQuote`. Answers the `JobQuote`.
+  static String serviceRequestQuoteWithdraw(String id) => '$serviceRequests/$id/quotes/withdraw';
+
+  /// POST — `ServiceRequestApi.rejectQuote`. Answers the `JobQuote`.
+  static String serviceRequestQuoteReject(String id, String quoteId) =>
+      '$serviceRequests/$id/quotes/$quoteId/reject';
+
+  /// POST — `ServiceRequestApi.acceptQuote`. No body.
+  static String serviceRequestQuoteAccept(String id, String quoteId) =>
+      '$serviceRequests/$id/quotes/$quoteId/accept';
+
+  /// POST — `ServiceRequestApi.acceptEmergency`. Body `{"etaMinutes"}`.
+  static String serviceRequestAccept(String id) => '$serviceRequests/$id/accept';
+
+  /// POST — `ServiceRequestApi.advanceJob`. [step] is a
+  /// `JobProgressStep.pathSegment`. No body.
+  static String serviceRequestProgress(String id, String step) => '$serviceRequests/$id/$step';
+
+  /// PUT — `ServiceRequestApi.setAgreedAmount`. Body `{"amount"}`.
+  static String serviceRequestAgreedAmount(String id) => '$serviceRequests/$id/agreed-amount';
+
+  /// POST — `ServiceRequestApi.payForJob`. Body `JobPaymentRequest`.
+  static String serviceRequestPay(String id) => '$serviceRequests/$id/pay';
+
+  // --------------------------------------------------------------- reviews ---
+
+  /// PUT — `MechanicReviewApi.submitReview`. Body `ReviewSubmission`.
+  static String mechanicReview(String mechanicId) => '$_root/mechanics/$mechanicId/review';
+
+  /// GET — `MechanicReviewApi.fetchReviews`.
+  static String mechanicReviews(String mechanicId) => '$_root/mechanics/$mechanicId/reviews';
+
+  /// PUT (`MechanicReviewApi.markHelpful`) and DELETE
+  /// (`MechanicReviewApi.unmarkHelpful`). No body.
+  static String reviewHelpful(String reviewId) => '$_root/reviews/$reviewId/helpful';
+
+  /// GET — `MechanicReviewApi.fetchLeaderboard`. Query `sort`, `search`,
+  /// `limit`.
+  static const String leaderboard = '$_root/leaderboard';
 
   // --------------------------------------------------------------- streams ---
 
