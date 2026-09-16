@@ -4,6 +4,14 @@ import 'package:flutter/material.dart';
 import 'data/mechanic_settings_store.dart';
 import 'data/points_policy_store.dart';
 import 'data/registration_draft.dart';
+import 'data/job_evaluation_store.dart';
+import 'data/leaderboard_store.dart';
+import 'data/mechanic_performance_store.dart';
+import 'data/point_transaction_store.dart';
+import 'data/problem_report_store.dart';
+import 'data/rank_policy_store.dart';
+import 'data/review_store.dart';
+import 'data/urgency_policy_store.dart';
 import 'services/api/mobile_api.dart';
 import 'services/location/location_service.dart';
 import 'services/location/place_sources.dart';
@@ -36,6 +44,20 @@ void main() async {
   // The points rules the console configures. Loaded before the first frame so
   // a payment settled early in the session awards the right amount.
   await PointsPolicyStore.instance.load();
+  // And each urgency's additional charge and completion time, which price a
+  // new job and set its deadline.
+  await UrgencyPolicyStore.instance.load();
+  // And the mechanic ranks, whose multiplier a paid job's points are scaled by.
+  await RankPolicyStore.instance.load();
+  // Job evaluations, job outcomes, point transactions and problem reports are
+  // kept on the device between launches — an evaluation the client still owes
+  // must still be owed tomorrow — plus the leaderboard settings and seasons.
+  await ReviewStore.instance.load();
+  await JobEvaluationStore.instance.load();
+  await MechanicPerformanceStore.instance.load();
+  await PointTransactionStore.instance.load();
+  await ProblemReportStore.instance.load();
+  await LeaderboardConfigStore.instance.load();
   // The registration draft, so a launch that is really Android restarting us
   // mid-photo-pick can put the user back on the form rather than Sign In.
   await RegistrationDraft.instance.load();

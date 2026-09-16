@@ -14,7 +14,7 @@ import 'package:on_go/screens/auth/client_ui/home/quotes_screen.dart';
 import 'package:on_go/screens/auth/client_ui/jobs/client_jobs_screen.dart';
 import 'package:on_go/screens/auth/client_ui/notifications/client_notifications_screen.dart';
 import 'package:on_go/screens/auth/client_ui/profile/client_profile_screen.dart';
-import 'package:on_go/screens/auth/client_ui/rank/leaderboard_screen.dart';
+import 'package:on_go/screens/auth/client_ui/rank/rankings_screen.dart';
 import 'package:on_go/screens/auth/client_ui/rewards/client_rewards_screen.dart';
 import 'package:on_go/screens/auth/client_ui/settings/client_settings_screen.dart';
 import 'package:on_go/screens/auth/mechanic_ui/earning/earning_screen.dart';
@@ -26,7 +26,7 @@ import 'package:on_go/screens/auth/mechanic_ui/profile/mechanic_certifications_s
 import 'package:on_go/screens/auth/mechanic_ui/profile/mechanic_profile_info_screen.dart';
 import 'package:on_go/screens/auth/mechanic_ui/profile/mechanic_profile_screen.dart';
 import 'package:on_go/screens/auth/mechanic_ui/qr/qr_screen.dart';
-import 'package:on_go/screens/auth/mechanic_ui/rank/mechanic_leaderboard_screen.dart';
+import 'package:on_go/screens/auth/mechanic_ui/rank/mechanic_rankings_screen.dart';
 import 'package:on_go/screens/auth/mechanic_ui/settings/mechanic_settings_screen.dart';
 import 'package:on_go/screens/shared/theme_screen.dart';
 import 'package:on_go/screens/shared/job_chat_screen.dart';
@@ -64,7 +64,7 @@ final screens = <String, Widget Function()>{
   'ClientJobsScreen': () => const ClientJobsScreen(),
   'ClientNotificationsScreen': () => const ClientNotificationsScreen(),
   'ClientProfileScreen': () => const ClientProfileScreen(),
-  'LeaderboardScreen': () => const LeaderboardScreen(),
+  'RankingsScreen': () => const RankingsScreen(),
   'ClientRewardsScreen': () => const ClientRewardsScreen(),
   'ClientSettingsScreen': () => const ClientSettingsScreen(),
   'EarningScreen': () => const EarningScreen(),
@@ -76,7 +76,7 @@ final screens = <String, Widget Function()>{
   'MechanicProfileInfoScreen': () => const MechanicProfileInfoScreen(),
   'MechanicProfileScreen': () => const MechanicProfileScreen(),
   'QrScreen': () => const QrScreen(),
-  'MechanicLeaderboardScreen': () => const MechanicLeaderboardScreen(),
+  'MechanicRankingsScreen': () => const MechanicRankingsScreen(),
   'MechanicSettingsScreen': () => const MechanicSettingsScreen(),
   'ThemeScreen': () => const ThemeScreen(),
   // These four take an id or a name. Passing one that resolves to nothing

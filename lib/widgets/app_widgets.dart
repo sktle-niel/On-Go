@@ -30,7 +30,7 @@ class RatingStars extends StatelessWidget {
   }
 }
 
-/// Colored tier pill (Platinum / Gold / Silver / etc).
+/// Colored rank pill (Platinum / Gold / Silver / Bronze / Iron).
 class TierBadge extends StatelessWidget {
   final String tier;
   const TierBadge({super.key, required this.tier});
@@ -43,6 +43,8 @@ class TierBadge extends StatelessWidget {
         return const Color(0xFFD4A017);
       case 'Silver':
         return const Color(0xFF9E9E9E);
+      case 'Bronze':
+        return const Color(0xFFB0703C);
       default:
         return AppColors.textdark.withValues(alpha: 0.55);
     }

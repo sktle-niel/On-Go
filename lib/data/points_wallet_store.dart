@@ -7,10 +7,11 @@ enum PointsEntryKind {
   /// A client completed a job: points for its urgency.
   clientJobCompleted,
 
-  /// A mechanic was paid for a job: points on their payout.
+  /// A mechanic was paid for a job: the points for its urgency the client
+  /// earned, times the mechanic's rank multiplier.
   mechanicJobCompleted,
 
-  /// A client put points towards a job's priority fee.
+  /// A client put points towards a job's additional charge.
   clientPaidSurcharge,
 
   /// A mechanic turned points into account balance.
@@ -25,7 +26,7 @@ extension PointsEntryKindLabel on PointsEntryKind {
       case PointsEntryKind.mechanicJobCompleted:
         return 'Job paid';
       case PointsEntryKind.clientPaidSurcharge:
-        return 'Paid priority fee';
+        return 'Paid additional charge';
       case PointsEntryKind.mechanicConvertedToBalance:
         return 'Converted to balance';
     }

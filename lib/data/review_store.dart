@@ -1,8 +1,18 @@
 import 'package:flutter/foundation.dart';
+
+import '../services/local/record_box.dart';
 import 'app_session.dart';
 import 'client_account_store.dart';
 import 'mechanic_notification_store.dart';
 
+/// A client's review of a mechanic's profile — their personal opinion of the
+/// mechanic, written from the profile.
+///
+/// Not a job evaluation. A job evaluation ([JobEvaluationStore]) is about one
+/// completed job, anonymous to the mechanic, and feeds performance statistics
+/// and the future seasonal leaderboard. A profile review is signed, one per
+/// client per mechanic, can be edited, and is what a mechanic's profile rating,
+/// review count and rank are built from.
 class MechanicReview {
   final String id;
   final String clientName;
@@ -24,9 +34,40 @@ class MechanicReview {
 
   int get helpfulCount => likedBy.length;
   bool likedByViewer(String? viewerId) => viewerId != null && likedBy.contains(viewerId);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'clientName': clientName,
+        'mechanicName': mechanicName,
+        'rating': rating,
+        'comment': comment,
+        'date': date.toIso8601String(),
+        'likedBy': likedBy.toList(),
+      };
+
+  static MechanicReview? fromJson(Map<String, dynamic> json) {
+    final id = json['id'];
+    final client = json['clientName'];
+    final mechanic = json['mechanicName'];
+    final rating = json['rating'];
+    final date = DateTime.tryParse('${json['date']}');
+    if (id is! String || client is! String || mechanic is! String || rating is! num || date == null) return null;
+    if (rating < 1 || rating > 5) return null;
+    return MechanicReview(
+      id: id,
+      clientName: client,
+      mechanicName: mechanic,
+      rating: rating.toInt(),
+      comment: json['comment'] is String ? json['comment'] as String : '',
+      date: date,
+      likedBy: {
+        if (json['likedBy'] is List) ...(json['likedBy'] as List).whereType<String>(),
+      },
+    );
+  }
 }
 
-/// Singleton in-memory store for mechanic reviews left by clients.
+/// Mechanic profile reviews left by clients, saved on this device.
 ///
 /// WRITING is CLIENT-ONLY, enforced at runtime: [submitReview] checks
 /// [AppSession.instance.currentRole] and throws if called while anything
@@ -39,24 +80,42 @@ class MechanicReview {
 /// Enforces one review per client per mechanic — submitting again edits
 /// the existing review instead of creating a duplicate.
 class ReviewStore extends ChangeNotifier {
-  ReviewStore._internal() {
-    _seed();
-  }
+  ReviewStore._internal();
   static final ReviewStore instance = ReviewStore._internal();
 
   /// The single source of truth for "who is the client" when writing/owning
   /// a review — pulled live from ClientAccountStore so demo/registered
   /// clients are attributed correctly instead of a hardcoded placeholder
-  /// name that never matched who was actually signed in.
+  /// name that never matched who was actually signed in. Jobs, and so their
+  /// evaluations, are recorded against it too.
   static String get currentClientName {
     final name = ClientAccountStore.instance.name;
     return name.isEmpty ? 'Client' : name;
   }
 
+  RecordWriter _writer = RecordWriter(const SharedPreferencesRecordBox('profile_reviews'));
   final List<MechanicReview> _reviews = [];
 
+  /// Reads what was saved. Safe to call before `runApp`.
+  Future<void> load() async {
+    final records = await _writer.box.load();
+    for (final json in records) {
+      final review = MechanicReview.fromJson(json);
+      if (review == null || _reviews.any((r) => r.id == review.id)) continue;
+      // Anything already in memory is newer than what was saved.
+      if (_reviews.any((r) => r.mechanicName == review.mechanicName && r.clientName == review.clientName)) continue;
+      _reviews.add(review);
+    }
+    _reviews.sort((a, b) => a.date.compareTo(b.date));
+    notifyListeners();
+  }
+
+  /// Every mechanic someone has reviewed.
+  Set<String> get reviewedMechanics => {for (final review in _reviews) review.mechanicName};
+
+  /// Most recent first.
   List<MechanicReview> reviewsFor(String mechanicName) =>
-      _reviews.where((r) => r.mechanicName == mechanicName).toList().reversed.toList();
+      _reviews.where((r) => r.mechanicName == mechanicName).toList()..sort((a, b) => b.date.compareTo(a.date));
 
   MechanicReview? reviewByCurrentClientFor(String mechanicName) {
     final match = _reviews.where((r) => r.mechanicName == mechanicName && r.clientName == currentClientName);
@@ -67,6 +126,8 @@ class ReviewStore extends ChangeNotifier {
     final match = _reviews.where((r) => r.id == reviewId);
     return match.isEmpty ? null : match.first;
   }
+
+  int ratingCountFor(String mechanicName) => _reviews.where((r) => r.mechanicName == mechanicName).length;
 
   double averageRatingFor(String mechanicName) {
     final list = reviewsFor(mechanicName);
@@ -95,29 +156,37 @@ class ReviewStore extends ChangeNotifier {
     if (AppSession.instance.currentRole != AppRole.client) {
       throw StateError('Only the Client UI can submit reviews. Mechanics can view reviews only.');
     }
+    if (rating < 1 || rating > 5) {
+      throw StateError('Choose a rating from 1 to 5 stars.');
+    }
+    if (mechanicName == currentClientName) {
+      throw StateError("You can't review your own profile.");
+    }
 
+    final text = comment.trim();
     final existing = reviewByCurrentClientFor(mechanicName);
     if (existing != null) {
       existing.rating = rating;
-      existing.comment = comment;
+      existing.comment = text;
       existing.date = DateTime.now();
     } else {
       _reviews.add(MechanicReview(
-        id: 'rev_${DateTime.now().millisecondsSinceEpoch}',
+        id: 'rev_${DateTime.now().microsecondsSinceEpoch}',
         clientName: currentClientName,
         mechanicName: mechanicName,
         rating: rating,
-        comment: comment,
+        comment: text,
         date: DateTime.now(),
       ));
     }
+    _save();
     // Editing an existing review counts too — the mechanic's rating changed
     // either way, and that is what they are being told about.
     MechanicNotificationStore.instance.add(
       kind: MechanicNotificationKind.rated,
       mechanicName: mechanicName,
       clientName: currentClientName,
-      detail: '$rating★${comment.trim().isEmpty ? '' : ' · ${comment.trim()}'}',
+      detail: '$rating★${text.isEmpty ? '' : ' · $text'}',
     );
     notifyListeners();
   }
@@ -132,17 +201,26 @@ class ReviewStore extends ChangeNotifier {
     final review = reviewById(reviewId);
     if (review == null) return;
 
-    if (review.likedBy.contains(viewerId)) {
-      review.likedBy.remove(viewerId);
-    } else {
-      review.likedBy.add(viewerId);
-    }
+    if (!review.likedBy.remove(viewerId)) review.likedBy.add(viewerId);
+    _save();
     notifyListeners();
   }
 
-    void _seed() {
-    // Intentionally empty — reviews only ever come from real clients via
-    // submitReview now. A hardcoded seed review here was showing up as a
-    // false "already reviewed" state whenever viewed from a fresh session.
+  void _save() => _writer.write([for (final review in _reviews) review.toJson()]);
+
+  /// Test hook: keeps reviews in [box] from now on, starting empty.
+  @visibleForTesting
+  void debugUse(RecordBox box) {
+    _writer = RecordWriter(box);
+    _reviews.clear();
+    notifyListeners();
+  }
+
+  /// Test hook: what a restart does — forget memory, read what was saved.
+  @visibleForTesting
+  Future<void> debugRestart() async {
+    await _writer.idle;
+    _reviews.clear();
+    await load();
   }
 }

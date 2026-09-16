@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:on_go_shared/on_go_shared.dart' show formatAdditionalCharge;
 import '../../../../../services/location/place_sources.dart';
 import '../../../../../widgets/location_selector.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,6 +9,7 @@ import '../../../../../theme/app_theme.dart';
 import '../../../../../widgets/common_widgets.dart';
 // Todo: adjust this path to wherever quote_store.dart lives in your project
 import '../../../../../data/quote_store.dart';
+import '../../../../../data/review_store.dart';
 
 class NeedHelpScreen extends StatefulWidget {
   /// Called after the request has been successfully uploaded.
@@ -18,14 +20,6 @@ class NeedHelpScreen extends StatefulWidget {
 
   @override
   State<NeedHelpScreen> createState() => _NeedHelpScreenState();
-}
-
-/// What picking an urgency costs. The completion promise beside it isn't
-/// stored here — it comes from [completionWindowLabel], the same windows the
-/// job's deadline runs on.
-class _UrgencyInfo {
-  final int surcharge;
-  const _UrgencyInfo(this.surcharge);
 }
 
 class _NeedHelpScreenState extends State<NeedHelpScreen> {
@@ -57,12 +51,6 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
 
   // Sampled directly from the design reference: light-blue card, deep navy text.
   static Color get _pricingCardBg => AppColors.surface;
-
-  static const Map<String, _UrgencyInfo> _urgencyInfo = {
-    'Normal': _UrgencyInfo(0),
-    'Urgent': _UrgencyInfo(50),
-    'Emergency': _UrgencyInfo(100),
-  };
 
   @override
   void dispose() {
@@ -164,7 +152,9 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
 
     setState(() => _uploading = true);
 
-    final info = _urgencyInfo[_urgency]!;
+    // What picking this urgency costs, from the admin's settings — the same
+    // ones the job's deadline is set from.
+    final charge = additionalChargeFor(_urgency);
     final request = HelpRequest(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       problem: _problemCtrl.text.trim(),
@@ -172,7 +162,10 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
       urgency: _urgency,
       photoPaths: _photos.map((f) => f.path).toList(),
       createdAt: DateTime.now(),
-      surcharge: info.surcharge,
+      surcharge: charge,
+      // Who the job belongs to — what its evaluation, points and history are
+      // recorded against.
+      clientName: ReviewStore.currentClientName,
       clientLat: _capturedLat,
       clientLng: _capturedLng,
     );
@@ -206,7 +199,9 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final info = _urgencyInfo[_urgency]!;
+    // What picking this urgency costs, from the admin's settings — the same
+    // ones the job's deadline is set from.
+    final charge = additionalChargeFor(_urgency);
     final urgencyColor = _urgency == 'Emergency'
       ? AppColors.error
       : _urgency == 'Urgent'
@@ -436,10 +431,10 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        info.surcharge > 0
-                            ? 'Additional charge applies: +₱${info.surcharge} for faster service, '
+                        charge > 0
+                            ? 'Additional charge applies: +${formatAdditionalCharge(charge)}, '
                                 'added to your total when you pay'
-                            : 'No additional charge for standard service',
+                            : 'No additional charge',
                         style: TextStyle(
                           fontSize: 12,
                           color: urgencyColor,

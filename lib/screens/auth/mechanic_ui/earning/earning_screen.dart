@@ -4,7 +4,7 @@ import '../../../../data/quote_store.dart';
 import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/common_widgets.dart';
-import '../rank/mechanic_leaderboard_screen.dart';
+import '../rank/mechanic_rankings_screen.dart';
 import 'points_offers_screen.dart';
 
 class EarningScreen extends StatefulWidget {
@@ -94,7 +94,7 @@ class _EarningScreenState extends State<EarningScreen> {
             TextButton(
               onPressed: widget.onViewAll ?? () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const MechanicLeaderboardScreen()),
+                    MaterialPageRoute(builder: (_) => const MechanicRankingsScreen()),
                   ),
               style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
               child: Text('View All',
@@ -108,7 +108,7 @@ class _EarningScreenState extends State<EarningScreen> {
           padding: const EdgeInsets.all(16),
           // Todo: there's no multi-mechanic backend yet, so this is always
           // just the current mechanic — same single-entry source as
-          // MechanicLeaderboardScreen. Capped at 5 for when that changes.
+          // the Rankings list's own mechanic. Capped at 5 for when that changes.
           child: Row(
             children: [_mechanicName]
                 .take(5)
@@ -172,14 +172,8 @@ class _EarningScreenState extends State<EarningScreen> {
                     children: [
                       Text(amount == null ? '—' : '₱${amount.toStringAsFixed(0)}',
                           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.success)),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(Icons.card_giftcard, size: 14, color: AppColors.warning),
-                          const SizedBox(width: 2),
-                          Text('+${job.pointsAwarded ?? 0}', style: TextStyle(fontSize: 12, color: AppColors.warning, fontWeight: FontWeight.w700)),
-                        ],
-                      ),
+                      // No per-job points: what a job awards is the admin's
+                      // to see. The Points total above still counts them.
                     ],
                   ),
                 ],

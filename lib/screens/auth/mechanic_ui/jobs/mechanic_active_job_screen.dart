@@ -356,7 +356,7 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Payment received — ₱${amount.toStringAsFixed(0)} · +${request.pointsAwarded ?? 0} points',
+                'Payment received — ₱${amount.toStringAsFixed(0)}',
                 style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w700, fontSize: 13),
               ),
             ),

@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../../widgets/performance_widgets.dart';
+import '../../../../widgets/rank_widgets.dart';
 import '../../../../data/app_session.dart';
 import '../../../../data/mechanic_account_store.dart';
 import '../../../../services/backend/mobile_backend.dart';
-import '../../../../data/quote_store.dart';
 import '../../../../data/mechanic_credential_store.dart';
+import '../../../../data/mechanic_rank_store.dart';
 import '../../../../data/review_store.dart';
+import '../../../../widgets/app_widgets.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/credential_widgets.dart';
@@ -158,24 +161,50 @@ class _MechanicProfileScreenState extends State<MechanicProfileScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 6),
+                        // Their current rank, profile rating and review count.
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            AnimatedBuilder(
+                              animation: MechanicRankStore.instance.changes,
+                              builder: (context, _) => TierBadge(tier: MechanicRankStore.instance.rankFor(myName).label),
+                            ),
+                            // One text, so it ellipses at large text sizes
+                            // instead of overflowing the card.
+                            Text.rich(
+                              TextSpan(children: [
+                                TextSpan(text: '★ ', style: TextStyle(color: AppColors.warning)),
+                                TextSpan(
+                                    text: reviews.isEmpty ? '—' : average.toStringAsFixed(1),
+                                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                                TextSpan(
+                                    text: ' · ${reviews.length} review${reviews.length == 1 ? '' : 's'}',
+                                    style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55))),
+                              ]),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  _StatBox(value: '${QuoteNotificationStore.instance.completedJobsFor(myName).length}', label: 'Jobs Done'),
-                  _StatBox(value: reviews.isEmpty ? '—' : average.toStringAsFixed(1), label: 'Ratings'),
-                  // Todo: no experience-tracking data source yet — left as
-                  // a static placeholder, not wired up.
-                  const _StatBox(value: '9yr', label: 'Experience'),
-                ],
-              ),
+              // Measured from recorded jobs and evaluations — no fixed text.
+              MechanicPerformanceSection(mechanicName: myName),
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        // Their rank, the multiplier it gives their points, and what the next
+        // rank asks for.
+        MechanicRankCard(mechanicName: myName),
         const SizedBox(height: 16),
         // The same card a client sees on this profile, from the signed-in
         // account rather than the directory.
@@ -200,6 +229,25 @@ class _MechanicProfileScreenState extends State<MechanicProfileScreen> {
                       padding: const EdgeInsets.only(bottom: 6),
                       child: CredentialRow(credential: c, onView: () => showCredentialPreview(context, c)),
                     )),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // The same summary a client sees on this profile — read-only here:
+        // a mechanic can't review themselves, so there is no review button.
+        AppCard(
+          padding: const EdgeInsets.all(16),
+          color: AppColors.surface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Review Summary', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              RatingSummaryBars(
+                average: average,
+                distribution: _reviews.ratingDistributionFor(myName),
+                reviewCount: reviews.length,
+              ),
             ],
           ),
         ),
@@ -259,6 +307,8 @@ class _MechanicProfileScreenState extends State<MechanicProfileScreen> {
                 ...reviews.map((r) => Padding(
                       padding: const EdgeInsets.only(bottom: 16),
                       child: _ReviewCard(
+                        // Profile reviews are signed; job evaluations, which
+                        // are anonymous, are not listed here.
                         name: r.clientName,
                         timeAgo: _timeAgo(r.date),
                         rating: r.rating,
@@ -299,33 +349,6 @@ class _MechanicProfileScreenState extends State<MechanicProfileScreen> {
     }
     if (diff.inDays >= 1) return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
     return 'today';
-  }
-}
-
-class _StatBox extends StatelessWidget {
-  final String value;
-  final String label;
-  const _StatBox({required this.value, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.textdark.withValues(alpha: 0.2)),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.primary)),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 11, color: AppColors.textdark)),
-          ],
-        ),
-      ),
-    );
   }
 }
 

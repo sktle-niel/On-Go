@@ -6,6 +6,7 @@ import '../../../../theme/app_theme.dart';
 import '../../../../widgets/chat_icon_button.dart';
 import '../../../../services/backend/mobile_backend.dart';
 import '../../../../widgets/common_widgets.dart';
+import '../../../../widgets/evaluation_widgets.dart';
 import '../../../../data/points_wallet_store.dart';
 import '../../../../data/quote_store.dart';
 import '../../../../data/review_store.dart';
@@ -211,12 +212,12 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                     label: 'Mechanic (${payload.mechanicName})', value: '₱${mechanicAmount.toStringAsFixed(0)}'),
                 const SizedBox(height: 4),
                 _PaymentBreakdownRow(
-                    label: '${currentRequest.urgency} priority fee',
+                    label: '${currentRequest.urgency} additional charge',
                     value: usePoints
                         ? formatPointsLabel(feeInPoints)
                         : '₱${platformFee.toStringAsFixed(0)}'),
                 const SizedBox(height: 6),
-                Text('The priority fee is an ONGO service charge and is not paid to the mechanic.',
+                Text('The additional charge is an ONGO service charge and is not paid to the mechanic.',
                     style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55))),
                 if (platformFee > 0) ...[
                   const Divider(height: 18),
@@ -265,7 +266,11 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
     if (earned == null) {
       _showSnack('Payment could not be completed.');
     } else {
-      _showSnack('Payment sent! You earned ${formatPointsLabel(earned)}.');
+      // What the job awarded is not the client's to see — only the admin's.
+      _showSnack('Payment sent!');
+      // The job is complete: its evaluation is now required. Closing the sheet
+      // keeps it pending — the home banner and history hold it until it is sent.
+      await evaluateJob(context, request.id);
     }
   }
 
@@ -438,7 +443,7 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                               if (request.platformFeeCharged != null) ...[
                                 const SizedBox(height: 2),
                                 Text(
-                                    'Plus a ₱${request.platformFeeCharged!.toStringAsFixed(0)} ${request.urgency} priority fee — ONGO service charge.',
+                                    'Plus a ${formatAdditionalCharge(request.platformFeeCharged!)} ${request.urgency} additional charge — ONGO service charge.',
                                     style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55), fontSize: 11)),
                               ],
                             ],

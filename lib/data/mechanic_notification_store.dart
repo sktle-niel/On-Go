@@ -94,7 +94,9 @@ class MechanicNotification {
         return '$clientName turned down your quote. The job is still open to '
             'other mechanics, but you can no longer quote it.';
       case MechanicNotificationKind.rated:
-        return '$clientName rated your service.';
+        // A job evaluation is anonymous to the mechanic and carries no name;
+        // a profile review is signed.
+        return clientName.isEmpty ? 'A client rated your service.' : '$clientName reviewed your profile.';
       case MechanicNotificationKind.paymentReceived:
         return '$clientName sent your payment.';
       case MechanicNotificationKind.emergencyPosted:

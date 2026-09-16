@@ -223,7 +223,7 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
                     ? '${widget.request.urgency} job — must be completed within '
                         '${formatEtaDuration(widget.request.completionWindow!)}, so your ETA cannot '
                         'be longer than ${formatEtaDuration(_maxEta!)}.'
-                    : 'Normal job — no fixed completion deadline. The ETA you set is the timing '
+                    : '${widget.request.urgency} job — no fixed completion deadline. The ETA you set is the timing '
                         'the client is promised.',
                 style: TextStyle(fontSize: 11, color: AppColors.textmedium, height: 1.3),
               ),

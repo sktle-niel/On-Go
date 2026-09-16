@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import '../../../../widgets/rank_widgets.dart';
 import '../../../../data/app_session.dart';
+import '../../../../data/job_evaluation_store.dart';
 import '../../../../data/mechanic_contact_store.dart';
 import '../../../../data/mechanic_credential_store.dart';
+import '../../../../data/mechanic_rank_store.dart';
 import '../../../../data/review_store.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/app_widgets.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/credential_widgets.dart';
+import '../../../../widgets/evaluation_widgets.dart';
 import '../../../../widgets/mechanic_details_card.dart';
-import '../../../../data/quote_store.dart';
+import '../../../../widgets/performance_widgets.dart';
 
 enum _ReviewFilter { all, rating, mostRelevant }
 
@@ -19,7 +23,7 @@ class MechanicProfileViewScreen extends StatefulWidget {
   /// Opens [name]'s profile on top of the current screen.
   ///
   /// The one way into this screen from anywhere in the client app — quotes,
-  /// the leaderboard, service history, a finished job. It used to be written
+  /// Mechanic Rankings, service history, a finished job. It used to be written
   /// out at each of those places; keeping it here means they cannot drift into
   /// opening it differently.
   ///
@@ -41,6 +45,8 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
   final _store = ReviewStore.instance;
   final _credentials = MechanicCredentialStore.instance;
   final _contacts = MechanicContactStore.instance;
+  final _ranks = MechanicRankStore.instance.changes;
+  final _evaluations = JobEvaluationStore.instance;
   _ReviewFilter _filter = _ReviewFilter.all;
 
   @override
@@ -49,6 +55,8 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
     _store.addListener(_onChange);
     _credentials.addListener(_onChange);
     _contacts.addListener(_onChange);
+    _ranks.addListener(_onChange);
+    _evaluations.addListener(_onChange);
   }
 
   @override
@@ -56,10 +64,14 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
     _store.removeListener(_onChange);
     _credentials.removeListener(_onChange);
     _contacts.removeListener(_onChange);
+    _ranks.removeListener(_onChange);
+    _evaluations.removeListener(_onChange);
     super.dispose();
   }
 
-  void _onChange() => setState(() {});
+  void _onChange() {
+    if (mounted) setState(() {});
+  }
 
   List<MechanicReview> _applyFilter(List<MechanicReview> reviews) {
     final list = [...reviews];
@@ -90,6 +102,10 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
     return 'today';
   }
 
+  /// Only a client, and never about themselves, writes a profile review.
+  bool get _canReview =>
+      AppSession.instance.currentRole == AppRole.client && widget.name != ReviewStore.currentClientName;
+
   /// CLIENT-ONLY write path — the dialog itself is only reachable from this
   /// client-side screen, and ReviewStore.submitReview backstops that at
   /// runtime by throwing if the active shell isn't the Client UI (see its
@@ -113,6 +129,7 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(5, (i) {
                     return IconButton(
+                      tooltip: '${i + 1} star${i == 0 ? '' : 's'}',
                       padding: const EdgeInsets.symmetric(horizontal: 2),
                       constraints: const BoxConstraints(),
                       icon: Icon(i < selected ? Icons.star : Icons.star_border, color: AppColors.warning, size: 30),
@@ -143,10 +160,12 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
       try {
         _store.submitReview(mechanicName: widget.name, rating: selected, comment: controller.text.trim());
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Review saved'), duration: AppDurations.snackBar));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Review saved'), duration: AppDurations.snackBar));
       } on StateError catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), duration: AppDurations.snackBar));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message), duration: AppDurations.snackBar));
       }
     }
   }
@@ -159,6 +178,16 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
     final average = _store.averageRatingFor(widget.name);
     final distribution = _store.ratingDistributionFor(widget.name);
     final alreadyReviewed = _store.reviewByCurrentClientFor(widget.name) != null;
+    final rank = MechanicRankStore.instance.rankFor(widget.name);
+    final muted = AppColors.textdark.withValues(alpha: 0.55);
+    // This client's own completed job with this mechanic that still owes its
+    // job evaluation, if there is one — separate from the profile review.
+    final pendingJob = _canReview
+        ? _evaluations
+            .pendingForClient(ReviewStore.currentClientName)
+            .where((evaluation) => evaluation.mechanicId == widget.name)
+            .firstOrNull
+        : null;
     final viewerId = AppSession.instance.currentViewerName;
 
     return Scaffold(
@@ -181,7 +210,7 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                     CircleAvatar(
                       radius: 40,
                       backgroundColor: AppColors.background,
-                      child: Icon(Icons.person, color: AppColors.textdark.withValues(alpha: 0.55), size: 44),
+                      child: Icon(Icons.person, color: muted, size: 44),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -194,7 +223,7 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                           const SizedBox(height: 2),
                           Row(
                             children: [
-                              Icon(Icons.location_on_outlined, size: 14, color: AppColors.textdark.withValues(alpha: 0.55)),
+                              Icon(Icons.location_on_outlined, size: 14, color: muted),
                               const SizedBox(width: 2),
                               // Takes what is left beside the pin and
                               // ellipses, rather than demanding its own width
@@ -203,7 +232,33 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                                 child: Text('Puerto Princesa City',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textdark.withValues(alpha: 0.55))),
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: muted)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          // Current rank, overall rating and review count.
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              TierBadge(tier: rank.label),
+                              // One text, so it ellipses at large text sizes
+                              // instead of overflowing the card.
+                              Text.rich(
+                                TextSpan(children: [
+                                  TextSpan(text: '★ ', style: TextStyle(color: AppColors.warning)),
+                                  TextSpan(
+                                      text: reviews.isEmpty ? '—' : average.toStringAsFixed(1),
+                                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  TextSpan(
+                                      text: ' · ${reviews.length} review${reviews.length == 1 ? '' : 's'}',
+                                      style: TextStyle(color: muted)),
+                                ]),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12),
                               ),
                             ],
                           ),
@@ -213,18 +268,14 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _StatBox(value: '${QuoteNotificationStore.instance.completedJobsFor(widget.name).length}', label: 'Jobs Done'),
-                    _StatBox(value: reviews.isEmpty ? '—' : average.toStringAsFixed(1), label: 'Ratings'),
-                    // Todo: no experience-tracking data source yet — left as
-                    // a static placeholder, not wired up.
-                    const _StatBox(value: '9yr', label: 'Experience'),
-                  ],
-                ),
+                // Measured from recorded jobs and job evaluations — no fixed text.
+                MechanicPerformanceSection(mechanicName: widget.name),
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          // The rank only — the multiplier and progress are the mechanic's.
+          MechanicRankCard(mechanicName: widget.name, showProgress: false),
           const SizedBox(height: 16),
           // How to reach this mechanic. Read from the directory, since a
           // profile opened from a job card has only their name to go on.
@@ -242,8 +293,7 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                 // registration. Their Mechanic ID is never among them —
                 // publicFor withholds it from every profile.
                 if (credentials.isEmpty)
-                  Text('No documents or certifications uploaded yet.',
-                      style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55)))
+                  Text('No documents or certifications uploaded yet.', style: TextStyle(fontSize: 12, color: muted))
                 else
                   ...credentials.map((c) => Padding(
                         padding: const EdgeInsets.only(bottom: 6),
@@ -269,15 +319,33 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                   distribution: distribution,
                   reviewCount: reviews.length,
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _openReviewDialog,
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: Text(alreadyReviewed ? 'Edit your review' : 'Write a review'),
+                if (_canReview) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _openReviewDialog,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: Text(alreadyReviewed ? 'Edit your review' : 'Write a review'),
+                    ),
                   ),
-                ),
+                ],
+                if (pendingJob != null) ...[
+                  const SizedBox(height: 12),
+                  // The job evaluation is a separate thing: about one
+                  // completed job, not this profile.
+                  Text('You also have a completed job with this mechanic to evaluate.',
+                      style: TextStyle(fontSize: 11, color: muted)),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => evaluateJob(context, pendingJob.jobId),
+                      icon: const Icon(Icons.rate_review_outlined, size: 18),
+                      label: const Text('Evaluate your job'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -298,7 +366,7 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                           Icon(Icons.star, size: 14, color: AppColors.warning),
                           const SizedBox(width: 2),
                           Text(average.toStringAsFixed(1), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                          Text(' (${reviews.length})', style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
+                          Text(' (${reviews.length})', style: TextStyle(fontSize: 12, color: muted)),
                         ],
                       ),
                   ],
@@ -322,7 +390,7 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
                 if (reviews.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text('No reviews yet.', style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55), fontSize: 13)),
+                    child: Text('No reviews yet.', style: TextStyle(color: muted, fontSize: 13)),
                   )
                 else
                   ...reviews.map((r) => Padding(
@@ -342,33 +410,6 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StatBox extends StatelessWidget {
-  final String value;
-  final String label;
-  const _StatBox({required this.value, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.textdark.withValues(alpha: 0.2)),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.primary)),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 11, color: AppColors.textdark)),
-          ],
-        ),
       ),
     );
   }
