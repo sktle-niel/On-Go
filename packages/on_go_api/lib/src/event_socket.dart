@@ -24,6 +24,24 @@ abstract final class ApiEventNames {
 
   /// Step 7. Data: a [PlatformAppearance].
   static const String platformAppearanceUpdated = 'platform_appearance.updated';
+
+  /// Step 10. Data: a [ServiceRequest]. `created` goes to every mechanic when
+  /// a job enters the pool; `updated` goes to the job's two parties.
+  static const String serviceRequestCreated = 'service_request.created';
+  static const String serviceRequestUpdated = 'service_request.updated';
+
+  /// Step 10. Data: a [JobQuote].
+  static const String quoteSubmitted = 'quote.submitted';
+  static const String quoteUpdated = 'quote.updated';
+
+  /// Step 10. Data: `{requestId, urgency, platformFee, paidAt}`. Admins only.
+  static const String paymentCompleted = 'payment.completed';
+
+  /// Step 10. Data: a review. Goes to the mechanic who was rated.
+  static const String reviewSubmitted = 'review.submitted';
+
+  /// Step 10 slice 8. Data: a chat message. Goes to the job's two parties.
+  static const String chatMessageCreated = 'chat_message.created';
 }
 
 /// One `{ "type": "event" }` frame.

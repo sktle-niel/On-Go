@@ -7,6 +7,7 @@ import 'api_session.dart';
 import 'auth_session_payload.dart';
 import 'event_socket.dart';
 import 'http_auth_api.dart';
+import 'http_jobs_api.dart';
 import 'http_pending_apis.dart';
 import 'http_platform_apis.dart';
 import 'refresh_token_store.dart';
@@ -53,7 +54,8 @@ class OnGoApi {
         appearance = HttpPlatformAppearanceApi(client, events: events),
         revenue = HttpPlatformRevenueApi(client, events: events),
         verification = HttpAccountVerificationApi(client, events: events),
-        moderators = HttpModeratorDirectoryApi(client, events: events);
+        moderators = HttpModeratorDirectoryApi(client, events: events),
+        serviceRequests = HttpServiceRequestApi(client, events: events);
 
   factory OnGoApi({
     required ApiEnvironment environment,
@@ -103,6 +105,10 @@ class OnGoApi {
   final HttpPointsPolicyApi pointsPolicy;
   final HttpPlatformAppearanceApi appearance;
   final HttpPlatformRevenueApi revenue;
+
+  /// The jobs domain: booking, quotes, the match, progress and payment. Live,
+  /// and behind no feature flag — the server has served it since Step 10.
+  final HttpServiceRequestApi serviceRequests;
 
   /// Only use when [ApiFeatures.verification] is on.
   final HttpAccountVerificationApi verification;

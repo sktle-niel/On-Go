@@ -15,6 +15,7 @@ export 'src/api_session.dart';
 export 'src/auth_session_payload.dart';
 export 'src/event_socket.dart';
 export 'src/http_auth_api.dart';
+export 'src/http_jobs_api.dart';
 export 'src/http_pending_apis.dart';
 export 'src/http_platform_apis.dart';
 export 'src/on_go_api_connection.dart';

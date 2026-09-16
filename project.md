@@ -174,10 +174,21 @@ job lifecycle on the device, and nothing in `/lib` calls a `/service-requests`
 route. Two phones therefore still cannot see the same job, which was the reason
 for a server in the first place.
 
-The first move is payment. The app settles a job by QR on the device and reports
-it to `POST /payments`, which the server books through a compatibility window it
-keeps open only for that. Moving to `POST /service-requests/:id/pay` closes the
-window and hands settlement to the server.
+The order is forced by the server, not chosen. `POST /service-requests/:id/pay`
+looks the job up by id and answers 404 for one it does not hold, so a job has to
+be **booked, quoted, accepted and marked service-complete on the server** before
+it can be paid there. Payment is the end of the sequence, not the start of it:
+
+    book → quote → accept → progress → pay
+
+So the first move is booking. Once a job is the server's from the start, the
+rest follows it, and `POST /payments` — the compatibility window the server
+keeps open for jobs it does not hold — can close.
+
+The contract and the API client are in place as of 2026-09-16:
+`ServiceRequestApi` is merged, `HttpServiceRequestApi` implements all of it over
+HTTP, and `OnGoApi.serviceRequests` exposes it. What is left is the call sites:
+`MobileBackend` does not carry it yet, and no screen reads it.
 
 ### Test coverage
 
@@ -306,6 +317,6 @@ rule.
    old shortcuts still work: `client` and `demo-mechanic` on the app, `admin` on
    the console to create the first moderator.
 3. The highest-value work, in order: **move the app onto the server's jobs
-   routes**, starting with `POST /service-requests/:id/pay` so the payment
-   compatibility window can close; then **tests for the rules table above** as
-   each rule moves to the server; then the known-issue one-liners.
+   routes, booking first** — payment can only follow a job the server already
+   holds; then **tests for the rules table above** as each rule moves to the
+   server; then the known-issue one-liners.

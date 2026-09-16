@@ -70,6 +70,10 @@ ApiException apiExceptionFromResponse(int statusCode, String body) {
               ),
           ]
         : const [],
+    // `details` is a list of field errors on validation_failed, and an object
+    // on a refusal that carries a fact — a cancel under the ETA lock carries
+    // `cancellableAt`. Dropping the object form would lose that.
+    info: rawDetails is Map ? Map<String, dynamic>.from(rawDetails) : const {},
   );
 }
 
