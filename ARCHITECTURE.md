@@ -4,9 +4,9 @@ On Go ships as **two front ends** that will meet at **one backend**. They live
 in **two repositories**: this one, and `on_go_console` beside it.
 
 ```
-                        THIS REPOSITORY (on_go)
+                        THIS REPOSITORY (On-Go)
    ┌───────────────────────────────┐  ┌───────────────────────────────┐
-   │  ../Backend/…/on_go_shared    │  │    packages/on_go_design      │
+   │   packages/on_go_shared       │  │    packages/on_go_design      │
    │  models + API contracts       │  │  palettes, theme registry,    │
    │  (pure Dart — no Flutter,     │  │  tokens, ThemeController      │
    │   no HTTP, no database)       │  │  (Flutter)                    │
@@ -15,7 +15,7 @@ in **two repositories**: this one, and `on_go_console` beside it.
           │                └────────┬────────┘              │
           │                         │                       │
    ┌──────┴────────────────────┐   ┌┴───────────────────────┴─────┐
-   │  /lib  — MOBILE APP       │   │  on_go_console — CONSOLE     │
+   │  /lib  — MOBILE APP       │   │  On-Go-Console — CONSOLE     │
    │  Flutter · Android + iOS  │   │  Flutter web                 │
    │                           │   │                              │
    │  • Client                 │   │  • Admin                     │
@@ -25,10 +25,9 @@ in **two repositories**: this one, and `on_go_console` beside it.
    └───────────────┬───────────┘   └──────────────┬───────────────┘
       this repo    │                              │  sibling repo
                    │        ┌──────────────┐      │
-                   └───────►│ ../Backend/  │◄─────┘
-                            │on_go_backend │
-                            │  NOT BUILT   │
-                            │     YET      │
+                   └───────►│  On Go API   │◄─────┘
+                            │  TypeScript  │
+                            │  on staging  │
                             └──────────────┘
 ```
 
@@ -43,20 +42,24 @@ now separate repositories too.
 
 ### Where the console lives
 
-The console is its own repository, `on_go_console`. It depends on the two
+The console is its own repository, `On-Go-Console`. It depends on the three
 shared packages in this repository by **relative path**, so the two checkouts
 have to be siblings:
 
 ```
-On Go project/
-  on_go/          this repository — the mobile app, and packages/
-  on_go_console/  the Admin + Moderator console
-  Backend/
-    on_go_backend/          the API scaffold (TypeScript) — one API for every role
-      packages/on_go_shared   the API contract (pure Dart), used by both apps
-      packages/on_go_api      the API client (pure Dart), used by both apps
-    on_go_console_backend/  the console's backend seam (ConsoleBackend, local services, ConsoleApi)
+Documents/
+  On-Go/          this repository — the mobile app, and packages/
+    packages/on_go_design   the design system, used by both front ends
+    packages/on_go_shared   the API contract (pure Dart), used by both apps
+    packages/on_go_api      the API client (pure Dart), used by both apps
+  On-Go-Console/  the Admin + Moderator console
+    packages/on_go_console_backend
+                          the console's backend seam (ConsoleBackend, local services, ConsoleApi)
 ```
+
+The On Go API itself is a third repository, in TypeScript, and is not checked
+out here. It is deployed on staging; its OpenAPI document is the contract these
+packages mirror.
 
 An edit to `packages/on_go_design` or `on_go_shared` is picked up by
 the console immediately, with no publish step — the same as when it was one
@@ -70,11 +73,11 @@ deploys are its own.
 | Path                          | What it is               | Who uses it            |
 | ----------------------------- | ------------------------ | ---------------------- |
 | `/lib`                        | Flutter mobile app       | Clients, Mechanics     |
-| `../on_go_console` (own repo) | Flutter **web** console  | Admins, Moderators     |
-| `../Backend/on_go_backend/packages/on_go_shared` | Pure-Dart API contract | Both, and the backend |
-| `../Backend/on_go_backend/packages/on_go_api`    | Pure-Dart API client   | Both front ends       |
+| `../On-Go-Console` (own repo) | Flutter **web** console  | Admins, Moderators     |
+| `/packages/on_go_shared`      | Pure-Dart API contract   | Both, and the backend  |
+| `/packages/on_go_api`         | Pure-Dart API client     | Both front ends        |
 | `/packages/on_go_design`      | The shared design system | Both front ends        |
-| `../Backend/on_go_backend`    | Backend scaffold         | Nothing yet            |
+| The On Go API (own repo)      | The deployed REST API    | Both front ends        |
 
 ### `/lib` — the mobile app
 
@@ -104,13 +107,13 @@ Admin and Moderator, rebuilt for a browser rather than ported screen-for-screen:
 Run it, from the sibling checkout:
 
 ```bash
-cd ../on_go_console && flutter run -d chrome
+cd ../On-Go-Console && flutter run -d chrome
 ```
 
 Sign in as `admin` to create the first moderator; moderators then sign in with
 the email and password the admin set.
 
-### `../Backend/on_go_backend/packages/on_go_shared` — the contract
+### `/packages/on_go_shared` — the contract
 
 What the two applications say to each other. Pure Dart on purpose — no Flutter,
 no `dart:io`, no HTTP client — so the backend can depend on it too.
@@ -153,7 +156,7 @@ needs touching.
 
 What each app still owns is its **own `ThemeData`**, built from those palettes:
 
-| | Mobile (`lib/theme/app_theme.dart`) | Console (`on_go_console/lib/src/theme/console_theme.dart`) |
+| | Mobile (`lib/theme/app_theme.dart`) | Console (`../On-Go-Console/lib/src/theme/console_theme.dart`) |
 | --- | --- | --- |
 | Colours | `AppPalette` | the same `AppPalette` |
 | Corners | `AppRadii` | the same `AppRadii` |
@@ -212,10 +215,10 @@ website instead of claiming their password is wrong.
 Each application has exactly one place where a call leaves it:
 
 - Mobile: `lib/services/backend/mobile_backend.dart`
-- Console: `Backend/on_go_console_backend/lib/console_backend.dart` (`package:on_go_console_backend`)
+- Console: `../On-Go-Console/packages/on_go_console_backend/lib/console_backend.dart`
 
 Both are a small holder of contract implementations plus a `configure()`. The
-HTTP implementations live in `../Backend/on_go_backend/packages/on_go_api`, which both apps share. Each
+HTTP implementations live in `packages/on_go_api`, which both apps share. Each
 app installs them at startup: `MobileApi` on mobile, `ConsoleApi` on the console.
 
 ```dart
@@ -248,21 +251,26 @@ now owns: passwords, registration, resets and sessions. They branch on
 | `AuthApi` | API | API (cookie session) |
 | `PointsPolicyApi` | API (read + live) | API (read, update, live) |
 | `PlatformRevenueApi` | API (`POST /payments`) | API (`GET /revenue/summary`) |
-| `PlatformAppearanceApi` | API (read) | API; publish/remove answer 501 until Step 7 |
-| `AccountVerificationApi` | local until Step 5 | local until Step 5 |
-| `ModeratorDirectoryApi` | — | local until Step 6 |
+| `PlatformAppearanceApi` | API (read) | API (publish, remove, live) |
+| `AccountVerificationApi` | API behind `ONGO_API_VERIFICATION` | API behind `ONGO_API_VERIFICATION` |
+| `ModeratorDirectoryApi` | — | API behind `ONGO_API_MODERATORS` |
 | `UrgencyPolicyApi` (additional charge, completion time) | local defaults (not in the API contract) | local, saved in the browser (not in the API contract) |
 | `RankPolicyApi` (rank requirements, points multipliers) | local defaults (not in the API contract) | local, saved in the browser (not in the API contract) |
 | `LeaderboardConfigApi` (public switch, seasons, scoring, seasonal multipliers, cap) | local defaults — disabled, no seasons (not in the API contract) | local, saved in the browser, every change audited (not in the API contract) |
 | `PerformanceReviewApi` (standings, score breakdowns, evaluations, point transactions, flags, adjustments) | — (phones calculate their own with `LeaderboardEngine`) | local and empty: phone records do not reach the console until the jobs domain is on the API |
-| `LocationApi` | local (not in the API contract) | — |
+| `LocationApi` | local — the API serves these routes, the app is not on them yet | — |
+| `ServiceRequestApi`, `PointsWalletApi`, `MechanicReviewApi`, chat | local stores — the API serves them, the app is not on them yet | — |
 
-The API-backed rows switch to local with `--dart-define=ONGO_BACKEND=local`.
-The local rows switch to the API with `ONGO_API_VERIFICATION` /
-`ONGO_API_MODERATORS` once their step is live. Their HTTP implementations are
-already written against the contract.
+Every API-backed row switches to local with `--dart-define=ONGO_BACKEND=local`.
+The two flagged rows are served and their HTTP implementations are written; the
+flags exist so a build can be pinned to the in-browser behaviour.
 
-The local implementations live under `backend/local/` on each side. They are
+The rows that say "the app is not on them yet" are the real gap: the server owns
+those domains, the phone still owns its own copy of them, and the two have to be
+reconciled one call site at a time.
+
+The local implementations live in `lib/services/backend/` here, and in
+`packages/on_go_console_backend/lib/local/` on the console. They are
 **not a fake backend**: each one does only the half of its interface that its
 own surface is entitled to, and refuses the rest.
 
@@ -276,24 +284,31 @@ own surface is entitled to, and refuses the rest.
 
 ### Honest consequences
 
-The two apps now share accounts, the points rules and the revenue ledger. They
-do not yet share what the API still answers `501` for, and neither pretends
-otherwise:
+The two apps share accounts, the points rules, the revenue ledger, the
+verification queue, the moderator directory and the Sign In background. Nothing
+the contract covers answers `501` any more. What is left is narrower, and worth
+stating plainly:
 
-- **Verification (Step 5).** A mechanic's verification request is still filed
-  on the phone that registered, so no moderator can reach it. A mechanic who
-  signs in on a later launch has no request on the device, and the Jobs banner
-  says the status isn't available rather than calling it Pending. The
-  `demo-mechanic` shortcut (local build) still unlocks the mechanic flows for
-  testing.
-- **Moderators and the audit log (Step 6).** These stay in the console's browser.
-- **The Sign In background (Step 7).** Publishing it from the console fails
-  with the server's "not implemented" message. The mobile app paints whatever
-  `GET /platform/appearance` returns.
-- **Password reset codes (Step 8).** The reset screens call the real routes,
-  but staging doesn't deliver the code yet.
-- **The jobs domain (Step 10).** Requests, quotes, ETA, chat and reviews aren't
-  in the contract, and stay in each phone's stores.
+- **The jobs domain.** The server owns requests, quotes, accept, the status
+  machine, payment, points, cancel, expiry, reviews and chat, and each phone
+  still owns its own copy of all of it. Nothing crosses between two devices yet.
+  This is the one gap that matters.
+- **Payment still settles on the device.** The app takes payment by QR and
+  reports it to `POST /payments`, which the server books through a checked
+  compatibility window. Moving the app to `POST /service-requests/:id/pay`
+  closes that window and makes the server the one that settles a job.
+- **Location.** The API keeps a last-known fix per account and answers
+  "which open jobs are near this mechanic", and the app still reports into its
+  own store. There is also no location event, so a client following a mechanic
+  would have to poll.
+- **Password reset codes.** The reset screens call the real routes, but staging
+  has no mail provider configured, so the code is logged rather than delivered
+  and the flow cannot finish there.
+- **Mechanic documents.** Registration files only the document names; the
+  route that attaches the files themselves to a verification request is not
+  wired up.
+- **Nothing reaches a closed app.** Every live update arrives on the event
+  socket, so it needs the app open. There is no push provider.
 
 ---
 
@@ -301,7 +316,7 @@ otherwise:
 
 Keep the two apps from drifting by going in this order:
 
-1. Add the DTO in `../Backend/on_go_backend/packages/on_go_shared/lib/src/models/`, with
+1. Add the DTO in `packages/on_go_shared/lib/src/models/`, with
    `toJson`/`fromJson`.
 2. Add the method to the right interface in `.../lib/src/api/`, returning a
    `Future` or `Stream`.
@@ -319,12 +334,11 @@ The On Go API is deployed on staging (Google Cloud Run and Neon PostgreSQL, in
 Singapore). Its contract is the OpenAPI document at `/docs/json` together with
 the integration guide. `ApiEndpoints` mirrors those routes; add nothing to it
 that the contract lacks. The location routes are the one marked exception: they
-are this app's proposal. `../Backend/on_go_backend` is only a partial
-TypeScript scaffold and is not the deployed service.
+are this app's proposal, and are served. The API is its own TypeScript
+repository; it is not checked out beside this one.
 
 To see what a server answers without credentials, run
-`dart run tool/smoke.dart` from `../Backend/on_go_backend/packages/on_go_api`
-(read-only).
+`dart run tool/smoke.dart` from `packages/on_go_api` (read-only).
 
 Two rules the server owns that the clients cannot be trusted with:
 

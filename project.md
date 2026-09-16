@@ -16,17 +16,19 @@ because the next person plans against it.
 
 ## In one line
 
-Two Flutter front ends and a shared contract are built and working against
-in-memory data. The backend that would connect them is scaffolded but has no
-routes, so the two applications cannot yet see each other.
+Two Flutter front ends, a shared contract and a deployed API. Accounts, the
+points rules, revenue, the verification queue, the moderator directory and the
+Sign In background cross between the two applications through the API. The jobs
+domain does not: the server owns it, and each phone still runs its own copy.
 
 | Part | State |
 | --- | --- |
-| `/lib` — mobile app (Client + Mechanic) | Working, in-memory |
-| `on_go_console` (separate repo) — console (Admin + Moderator) | Working, in-memory |
-| `../Backend/on_go_backend/packages/on_go_shared` — API contract | Complete for what exists |
+| `/lib` — mobile app (Client + Mechanic) | Working; accounts on the API, jobs on the device |
+| `On-Go-Console` (separate repo) — console (Admin + Moderator) | Working, on the API |
+| `/packages/on_go_shared` — API contract | Complete for what exists |
+| `/packages/on_go_api` — API client | Auth, points policy, revenue, appearance, verification, moderators |
 | `/packages/on_go_design` — design system | Complete, 8 themes in 4 families |
-| `../Backend/on_go_backend` — backend | Schema + infrastructure only, **no routes** |
+| The On Go API (separate repo) | Deployed on staging; the jobs routes are live but carry no traffic yet |
 
 ---
 
@@ -97,7 +99,7 @@ where a change is cheap and a duplicate is expensive.
 | `formatTimeRemaining()` | same | One countdown format app-wide: `4d 23h 59m` at or above a day, `23h 59m 59s` below it |
 | `clientCancelLockedByEta()` | same | Whether the client may cancel yet, enforced in the store rather than per screen |
 | `PointsPolicyStore.current` | `lib/data/points_policy_store.dart` | Every points rate, so an admin changing one changes all the arithmetic at once |
-| `revenueUrgencyColor()` | `on_go_console/lib/src/widgets/revenue_charts.dart` | The colour of Normal / Urgent / Emergency in every console chart, ring and key |
+| `revenueUrgencyColor()` | `On-Go-Console/lib/src/widgets/revenue_charts.dart` | The colour of Normal / Urgent / Emergency in every console chart, ring and key |
 | `PlatformRevenueSummary.yearlyTotals` | `on_go_shared/…/platform_revenue.dart` | A year's revenue, always summed from its months rather than stored beside them |
 
 **The priority fee is platform revenue, not payout.** +₱50 Urgent and +₱100
@@ -152,56 +154,68 @@ real client. See *The seam* in [ARCHITECTURE.md](ARCHITECTURE.md).
 | Console `LocalVerificationService.submit()` | Registrations are filed from the app |
 | Console `LocalRevenueService.reportCompletedPayment()` | Only a completed client payment books revenue |
 
-The visible consequences, all of which are correct for two disconnected apps:
-
-- A registration filed on a phone stays **Pending** — no moderator can reach
-  it. `demo-mechanic` is the local shortcut past that.
-- The console's queue, accounts list and revenue ledger start **empty**.
-- A background photo published in the console lives **in that browser only**.
+These refusals still stand, but they now describe an `ONGO_BACKEND=local` build.
+Against the API a registration reaches the moderator queue, a published
+background reaches every phone, and the console's lists fill from real rows —
+they look empty on staging only because little traffic has gone through it.
 
 ---
 
 ## What is missing
 
-### The backend — the one thing blocking everything else
+### The jobs domain is served, and the app is not on it
 
-`../Backend/on_go_backend` (formerly `/server`) has the parts that are hard to
-retrofit and none of the part that is merely laborious:
+This replaced "the backend has no routes", which was the entry here for a long
+time. The API now serves booking, quotes, accept, the status machine, payment
+and points, cancel and expiry, reviews, the leaderboard, locations and chat.
 
-- **Present:** Postgres schema (3 migrations), least-privilege roles, password
-  hashing, token issue/verify, connection pool, structured logging, audit
-  logging, error types, secret loading.
-- **Absent:** every route. `src/routes/` and `src/plugins/` are empty
-  directories. Nothing in the backend reads or writes a row yet.
+What has not happened is the other half: `quote_store.dart` still runs the whole
+job lifecycle on the device, and nothing in `/lib` calls a `/service-requests`
+route. Two phones therefore still cannot see the same job, which was the reason
+for a server in the first place.
 
-Until routes exist, `on_go_shared` is a contract with two clients and
-no server.
+The first move is payment. The app settles a job by QR on the device and reports
+it to `POST /payments`, which the server books through a compatibility window it
+keeps open only for that. Moving to `POST /service-requests/:id/pay` closes the
+window and hands settlement to the server.
 
 ### Test coverage
 
-- `on_go_console` (separate repo) — 30 tests (`console_layout_test.dart`, `console_theme_test.dart`)
-  covering responsive layout classification and the shared theme registry.
-- `/lib` — **none.** `test/` exists and is empty. Features here have been
-  verified with throwaway tests deleted once they passed, which proves a change
-  once and protects nothing afterwards.
-- `/packages` — no tests of their own; the design system is exercised through
-  the console's theme tests.
+- `/lib` and `/packages` — **909 tests**, run with `flutter test` from the
+  repository root. They cover the API client, the event socket, the auth and
+  platform HTTP implementations, the leaderboard engine, mechanic ranks and
+  rankings, job evaluations, urgency policy and its points awards, points
+  conversion, notification routing, location, the PSGC place directory, and
+  responsive layout across nine screen sizes.
+- `On-Go-Console` (separate repo) — 45 tests, covering responsive layout
+  classification, the shared theme registry, the admin ranks and urgency pages,
+  and the leaderboard pages and services.
 
-This is the largest gap after the backend, and it has grown: the rules in the
-table above are exactly the kind that break quietly. The stores in `lib/data/`
-are pure Dart singletons with no Flutter dependency and would be cheap to
-cover.
+This entry used to read "none", and was the largest gap after the backend. The
+rules in the table above are the ones worth keeping covered: they break
+quietly, and the stores in `lib/data/` are pure Dart singletons with no Flutter
+dependency, so they are cheap to test.
 
 ### Persistence
 
-Everything on the mobile side is in memory and dies with the process, except:
+The job stores are in memory and die with the process. What survives a restart:
 
-- `shared_preferences` — the selected theme, dark mode, dynamic themes, the
-  warm filter level, the auth background photo, the mechanic's emergency alert
-  toggle, and the mechanic registration draft.
-- The app documents directory — the **bytes** of uploaded credential files.
+- **The session**, in the Keychain (iOS) or the Keystore-backed store
+  (Android): the refresh token, through `SecureRefreshTokenStore`. The access
+  token is never written anywhere. So the app reopens signed in, and the
+  account itself lives on the server rather than on the device at all.
+- **`RecordBox`** (`lib/services/local/record_box.dart`) — records as JSON in
+  `shared_preferences`, behind an interface written so an API-backed box can
+  replace it without any store or screen changing. Used by the review, job
+  evaluation, mechanic performance, point transaction and problem report
+  stores.
+- **`shared_preferences` directly** — the selected theme, dark mode, dynamic
+  themes, the warm filter level, the auth background photo, the mechanic's
+  emergency alert toggle, the registration draft, and the urgency, rank and
+  leaderboard settings.
+- **The app documents directory** — the **bytes** of uploaded credential files.
 
-Note the asymmetry in that second one: the files survive a restart but the
+Note the asymmetry in that last one: the files survive a restart but the
 records describing them do not, so the app forgets whose they were. See below.
 
 ---
@@ -211,9 +225,10 @@ records describing them do not, so the app forgets whose they were. See below.
 **A brand-coloured "denied" state.** Two places assume the brand colour is red
 and use it to mean negative:
 
-- `on_go_console/lib/src/widgets/console_widgets.dart:460` — a withheld permission
-  draws its disc in `ConsoleColors.brand`.
-- `lib/widgets/change_password_dialog.dart:102` — error text uses
+- `On-Go-Console/lib/src/widgets/console_widgets.dart:460` — a withheld
+  permission draws its disc in `ConsoleColors.brand`. `ConsoleColors.danger`
+  already exists a few hundred lines below it.
+- `lib/widgets/change_password_dialog.dart:156` — error text uses
   `AppColors.primary`.
 
 Under any theme whose brand is not red — Calm Blue, Ember, Forest — a denied
@@ -237,7 +252,7 @@ shows; `ModerationActivity` is still written and still exposed by
 `watchActivity()`, but nothing surfaces it. Retiring it is a clean-up, not a
 fix.
 
-**`debugSeedRequest`.** `LocalVerificationService` carries a test-only method to
+**`debugSeedRequest`.** `On-Go-Console/packages/on_go_console_backend/lib/local/local_verification_service.dart:56` carries a test-only method to
 put a request in the queue, because `submit()` is refused from the console and
 there is otherwise no way to exercise `decide()` locally. It is not on the API
 interface and no screen calls it. It should go when the backend can supply real
@@ -286,9 +301,11 @@ rule.
 
 1. Read [ARCHITECTURE.md](ARCHITECTURE.md), particularly *The seam* and
    *Adding an operation*.
-2. Run both applications (see [README.md](README.md)). Sign in on the app as
-   `client` and `demo-mechanic`; sign in on the console as `admin` and create
-   the first moderator.
-3. The highest-value work, in order: **routes in `../Backend/on_go_backend`**, then **tests for
-   `lib/data/`** starting with the rules table above, then the known-issue
-   one-liners.
+2. Run both applications (see [README.md](README.md)). Against the API, sign in
+   with a registered account on each side. In an `ONGO_BACKEND=local` build the
+   old shortcuts still work: `client` and `demo-mechanic` on the app, `admin` on
+   the console to create the first moderator.
+3. The highest-value work, in order: **move the app onto the server's jobs
+   routes**, starting with `POST /service-requests/:id/pay` so the payment
+   compatibility window can close; then **tests for the rules table above** as
+   each rule moves to the server; then the known-issue one-liners.
