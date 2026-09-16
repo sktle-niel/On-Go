@@ -1,15 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:on_go_shared/on_go_shared.dart' show formatAdditionalCharge;
 import '../../../../../services/location/place_sources.dart';
 import '../../../../../widgets/location_selector.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../theme/app_theme.dart';
 import '../../../../../widgets/common_widgets.dart';
-// Todo: adjust this path to wherever quote_store.dart lives in your project
+import '../../../../../data/job_photo_store.dart';
 import '../../../../../data/quote_store.dart';
-import '../../../../../data/review_store.dart';
+import '../../../../../services/backend/mobile_backend.dart';
 
 class NeedHelpScreen extends StatefulWidget {
   /// Called after the request has been successfully uploaded.
@@ -175,27 +174,33 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
 
     setState(() => _uploading = true);
 
-    // What picking this urgency costs, from the admin's settings — the same
-    // ones the job's deadline is set from.
-    final charge = additionalChargeFor(_urgency);
-    final request = HelpRequest(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      problem: _problemCtrl.text.trim(),
-      location: _locationCtrl.text.trim(),
-      urgency: _urgency,
-      photoPaths: _photos.map((f) => f.path).toList(),
-      createdAt: DateTime.now(),
-      surcharge: charge,
-      // Who the job belongs to — what its evaluation, points and history are
-      // recorded against.
-      clientName: ReviewStore.currentClientName,
-      clientLat: _capturedLat,
-      clientLng: _capturedLng,
-    );
+    // Books through the seam, so this reads the same whether the job is the
+    // server's or this device's. Everything the booking is worth — the
+    // priority fee, the completion deadline — is set by whichever backend took
+    // it and read back off the answer, never worked out here.
+    final ServiceRequest booked;
+    try {
+      booked = await MobileBackend.instance.serviceRequests.bookRequest(NewServiceRequest(
+        problem: _problemCtrl.text.trim(),
+        location: _locationCtrl.text.trim(),
+        urgency: JobUrgency.fromWire(_urgency),
+        point: _capturedLat == null || _capturedLng == null
+            ? null
+            : GeoPoint(_capturedLat!, _capturedLng!),
+      ));
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _uploading = false);
+      // The refusal is the backend's to word: an open request already, an
+      // account that cannot book. Both say the same thing either way.
+      _showSnack(error.message);
+      return;
+    }
 
-    // Hands the request off to mechanics. Quotes will arrive asynchronously
-    // and show up as a badge on the notification bell.
-    QuoteNotificationStore.instance.submitRequest(request);
+    // The photos stay on this device, filed against the id the backend gave
+    // the job. They are not on the contract because the server has nowhere to
+    // put them yet — see JobPhotoStore.
+    JobPhotoStore.instance.attach(booked.id, _photos.map((f) => f.path).toList());
 
     if (!mounted) return;
     setState(() => _uploading = false);

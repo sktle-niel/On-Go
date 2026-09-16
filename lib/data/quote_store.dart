@@ -202,7 +202,6 @@ class HelpRequest {
   final String problem;
   final String location;
   final String urgency; // 'Normal' | 'Urgent' | 'Emergency'
-  final List<String> photoPaths;
   final DateTime createdAt;
   final String clientName;
   /// What this job's urgency promises the client, in words. Derived rather
@@ -303,7 +302,6 @@ class HelpRequest {
     required this.problem,
     required this.location,
     required this.urgency,
-    required this.photoPaths,
     required this.createdAt,
     this.clientName = 'Client',
     this.surcharge = 0,

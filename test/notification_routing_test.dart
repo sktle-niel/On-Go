@@ -27,7 +27,6 @@ HelpRequest _request(String id, {String urgency = 'Normal', String client = 'Cli
       problem: 'Flat tire: Rear left, no spare',
       location: 'Puerto Princesa City',
       urgency: urgency,
-      photoPaths: const [],
       createdAt: DateTime.now(),
       clientName: client,
     );

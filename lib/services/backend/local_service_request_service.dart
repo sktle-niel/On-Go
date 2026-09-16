@@ -54,7 +54,6 @@ class LocalServiceRequestService implements ServiceRequestApi {
       problem: request.problem,
       location: request.location,
       urgency: request.urgency.wireName,
-      photoPaths: const [],
       createdAt: DateTime.now(),
       // Who the job belongs to — what its evaluation, points and history are
       // recorded against. Without it every local booking would be filed under

@@ -28,7 +28,6 @@ HelpRequest _payJob(String id, {String client = 'Client'}) {
     problem: 'Flat tire',
     location: 'Puerto Princesa City',
     urgency: 'Urgent',
-    photoPaths: const [],
     createdAt: DateTime.now(),
     clientName: client,
   ));

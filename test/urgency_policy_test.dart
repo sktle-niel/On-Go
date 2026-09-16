@@ -8,7 +8,6 @@ HelpRequest _job(String urgency, {DateTime? matchedAt}) => HelpRequest(
       problem: 'Flat tire',
       location: 'Puerto Princesa City',
       urgency: urgency,
-      photoPaths: const [],
       createdAt: DateTime(2026, 9, 15, 8),
       status: matchedAt == null ? RequestStatus.pending : RequestStatus.matched,
       matchedAt: matchedAt,

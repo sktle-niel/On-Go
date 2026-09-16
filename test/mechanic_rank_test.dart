@@ -23,7 +23,6 @@ HelpRequest _payUrgentJob(String id) {
     problem: 'Flat tire',
     location: 'Puerto Princesa City',
     urgency: 'Urgent',
-    photoPaths: const [],
     createdAt: DateTime.now(),
     clientName: 'Client',
   ));

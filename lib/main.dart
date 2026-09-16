@@ -5,6 +5,7 @@ import 'data/mechanic_settings_store.dart';
 import 'data/points_policy_store.dart';
 import 'data/registration_draft.dart';
 import 'data/job_evaluation_store.dart';
+import 'data/job_photo_store.dart';
 import 'data/leaderboard_store.dart';
 import 'data/mechanic_performance_store.dart';
 import 'data/point_transaction_store.dart';
@@ -57,6 +58,9 @@ void main() async {
   await MechanicPerformanceStore.instance.load();
   await PointTransactionStore.instance.load();
   await ProblemReportStore.instance.load();
+  // The photos a client attached when booking. Kept beside the job rather than
+  // on it, because the contract carries none — see JobPhotoStore.
+  await JobPhotoStore.instance.load();
   await LeaderboardConfigStore.instance.load();
   // The registration draft, so a launch that is really Android restarting us
   // mid-photo-pick can put the user back on the form rather than Sign In.

@@ -39,7 +39,6 @@ void _seedTwoQuotes() {
     location: 'Puerto Princesa City',
     // Normal has no completion window, so no ETA is refused as too long.
     urgency: 'Normal',
-    photoPaths: const [],
     createdAt: DateTime.now(),
   ));
   store.mechanicSendQuote(

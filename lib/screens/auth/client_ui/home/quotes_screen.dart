@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/common_widgets.dart';
-// Todo: adjust this path to wherever quote_store.dart lives in your project
-import '../../../../data/quote_store.dart';
+import '../../../../data/quote_store.dart' show QuoteNotificationStore, formatEtaDuration;
+import '../../../../services/backend/mobile_backend.dart';
 import '../profile/mechanic_profile_view_screen.dart';
 
 class QuotesScreen extends StatefulWidget {
@@ -26,25 +28,121 @@ class QuotesScreen extends StatefulWidget {
 class _QuotesScreenState extends State<QuotesScreen> {
   final _focusKey = GlobalKey();
 
+  ServiceRequestApi get _jobs => MobileBackend.instance.serviceRequests;
+
+  List<ServiceRequest> _pending = const [];
+  Map<String, List<JobQuote>> _quotes = const {};
+  bool _loading = true;
+  String? _error;
+  StreamSubscription<ServiceRequest>? _watch;
+
   @override
   void initState() {
     super.initState();
+    // Which quotes this phone has already shown the client is this phone's
+    // business, not the server's — the badge stays on the local store.
+    //
+    // After the frame, not during it: marking them seen notifies the store,
+    // and a bell counting them somewhere above this screen would be told to
+    // rebuild while it is already building.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.requestId != null) {
         QuoteNotificationStore.instance.markRequestQuotesSeen(widget.requestId!);
       } else {
         QuoteNotificationStore.instance.markSeen();
       }
-      final focused = _focusKey.currentContext;
-      if (focused != null) {
-        Scrollable.ensureVisible(
-          focused,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-          alignment: 0.3,
-        );
-      }
     });
+    _load();
+    // A quote arriving or a job being matched elsewhere repaints this screen.
+    _watch = _jobs.watchRequests().listen((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _watch?.cancel();
+    super.dispose();
+  }
+
+  /// Reads the requests awaiting a decision and their quotes. One place, so a
+  /// refresh after accepting reads exactly what the first paint did.
+  Future<void> _load() async {
+    try {
+      final List<ServiceRequest> pending;
+      if (widget.requestId != null) {
+        final single = await _jobs.findRequest(widget.requestId!);
+        pending = (single != null && single.status == ServiceRequestStatus.pending) ? [single] : [];
+      } else {
+        pending = (await _jobs.listMyRequests())
+            .where((request) => request.status == ServiceRequestStatus.pending)
+            .toList();
+      }
+      final quotes = <String, List<JobQuote>>{
+        for (final request in pending) request.id: await _jobs.listQuotes(request.id),
+      };
+      if (!mounted) return;
+      setState(() {
+        _pending = pending;
+        _quotes = quotes;
+        _loading = false;
+        _error = null;
+      });
+      _scrollToFocused();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.message;
+      });
+    }
+  }
+
+  /// The quote a notification pointed at, brought into view once its row
+  /// exists — which is after the load, not after the first frame.
+  void _scrollToFocused() {
+    if (widget.focusQuoteId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final focused = _focusKey.currentContext;
+      if (focused == null) return;
+      Scrollable.ensureVisible(
+        focused,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        alignment: 0.3,
+      );
+    });
+  }
+
+  /// Accepting matches the job. The backend decides who wins when two taps
+  /// race; this only reports what it answered.
+  Future<void> _accept(String requestId, JobQuote quote) async {
+    try {
+      await _jobs.acceptQuote(requestId, quote.id);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message), duration: AppDurations.snackBar),
+      );
+    }
+    await _load();
+  }
+
+  Future<void> _reject(String requestId, JobQuote quote) async {
+    try {
+      await _jobs.rejectQuote(requestId, quote.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Quote rejected. ${quote.mechanicName} has been notified.'),
+          duration: AppDurations.snackBar,
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message), duration: AppDurations.snackBar),
+      );
+    }
+    await _load();
   }
 
   @override
@@ -56,19 +154,33 @@ class _QuotesScreenState extends State<QuotesScreen> {
         foregroundColor: AppColors.textmedium,
         title: const Text('Quotes'),
       ),
-      body: AnimatedBuilder(
-        animation: QuoteNotificationStore.instance,
-        builder: (context, _) {
-          final store = QuoteNotificationStore.instance;
+      body: Builder(
+        builder: (context) {
+          if (_loading) return const Center(child: CircularProgressIndicator());
 
-          List<HelpRequest> pending;
-          if (widget.requestId != null) {
-            final single = store.requestFor(widget.requestId!);
-            pending = (single != null && single.status == RequestStatus.pending) ? [single] : [];
-          } else {
-            pending = store.myPendingRequests;
+          final error = _error;
+          if (error != null) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_off, size: 48, color: AppColors.textdark.withValues(alpha: 0.55)),
+                  const SizedBox(height: 12),
+                  const Text("Couldn't load your quotes",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(error,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
+                  const SizedBox(height: 12),
+                  TextButton(onPressed: _load, child: const Text('Try again')),
+                ],
+              ),
+            );
           }
 
+          final pending = _pending;
           if (pending.isEmpty) {
             return Padding(
               padding: const EdgeInsets.all(20),
@@ -106,7 +218,9 @@ class _QuotesScreenState extends State<QuotesScreen> {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _RequestQuoteCard(
                       request: request,
-                      store: store,
+                      quotes: _quotes[request.id] ?? const [],
+                      onAccept: (quote) => _accept(request.id, quote),
+                      onReject: (quote) => _reject(request.id, quote),
                       focusQuoteId: widget.focusQuoteId,
                       focusKey: _focusKey,
                     ),
@@ -144,14 +258,18 @@ Color _urgencyColor(String urgency) {
 }
 
 class _RequestQuoteCard extends StatelessWidget {
-  final HelpRequest request;
-  final QuoteNotificationStore store;
+  final ServiceRequest request;
+  final List<JobQuote> quotes;
+  final Future<void> Function(JobQuote quote) onAccept;
+  final Future<void> Function(JobQuote quote) onReject;
   final String? focusQuoteId;
   final GlobalKey? focusKey;
 
   const _RequestQuoteCard({
     required this.request,
-    required this.store,
+    required this.quotes,
+    required this.onAccept,
+    required this.onReject,
     this.focusQuoteId,
     this.focusKey,
   });
@@ -159,13 +277,13 @@ class _RequestQuoteCard extends StatelessWidget {
   /// Turning a quote down is final for that mechanic — they are told, and they
   /// cannot re-quote this job — so it is confirmed rather than one stray tap
   /// away.
-  Future<void> _reject(BuildContext context, MechanicQuote quote) async {
+  Future<void> _confirmReject(BuildContext context, JobQuote quote) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Reject this quote?'),
         content: Text(
-          '${quote.mechanicName} will be told you turned down their ${quote.price} quote, '
+          '${quote.mechanicName} will be told you turned down their ${formatPesos(quote.price)} quote, '
           'and will not be able to quote this job again.\n\n'
           'Your request stays open, and other mechanics can still send quotes.',
           style: const TextStyle(fontSize: 13),
@@ -180,24 +298,14 @@ class _RequestQuoteCard extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed != true || !context.mounted) return;
-
-    final name = quote.mechanicName;
-    if (store.clientRejectQuote(quote.id) && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Quote rejected. $name has been notified.'),
-          duration: AppDurations.snackBar,
-        ),
-      );
-    }
+    if (confirmed != true) return;
+    await onReject(quote);
   }
 
   @override
   Widget build(BuildContext context) {
     final problem = _splitProblem(request.problem);
-    final urgencyColor = _urgencyColor(request.urgency);
-    final quotes = store.quotesForRequest(request.id);
+    final urgencyColor = _urgencyColor(request.urgency.wireName);
     final hasAccepted = quotes.any((q) => q.accepted);
 
     return AppCard(
@@ -214,7 +322,7 @@ class _RequestQuoteCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: urgencyColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20)),
-                child: Text(request.urgency, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: urgencyColor)),
+                child: Text(request.urgency.wireName, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: urgencyColor)),
               ),
             ],
           ),
@@ -225,7 +333,9 @@ class _RequestQuoteCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                request.isEmergency ? 'Waiting for a mechanic to accept this emergency.' : 'Waiting for mechanics to send quotes...',
+                request.urgency == JobUrgency.emergency
+                    ? 'Waiting for a mechanic to accept this emergency.'
+                    : 'Waiting for mechanics to send quotes...',
                 style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55)),
               ),
             )
@@ -257,8 +367,11 @@ class _RequestQuoteCard extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(flex: 3, child: _MechanicNameLink(name: q.mechanicName)),
-                      Expanded(flex: 2, child: Text(q.price, style: const TextStyle(fontSize: 13))),
-                      Expanded(flex: 2, child: Text(q.eta, style: const TextStyle(fontSize: 13))),
+                      Expanded(flex: 2, child: Text(formatPesos(q.price), style: const TextStyle(fontSize: 13))),
+                      Expanded(
+                          flex: 2,
+                          child: Text(formatEtaDuration(Duration(minutes: q.etaMinutes)),
+                              style: const TextStyle(fontSize: 13))),
                       Expanded(
                         flex: 2,
                         // On a 320-point phone this column is about 42 points
@@ -292,7 +405,7 @@ class _RequestQuoteCard extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   ElevatedButton(
-                                    onPressed: hasAccepted ? null : () => store.clientAcceptQuote(q.id),
+                                    onPressed: hasAccepted ? null : () => onAccept(q),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.primary,
                                       shape: const StadiumBorder(),
@@ -306,7 +419,7 @@ class _RequestQuoteCard extends StatelessWidget {
                                   // one mechanic and tells them so, rather than
                                   // leaving the quote sitting unanswered.
                                   TextButton(
-                                    onPressed: hasAccepted ? null : () => _reject(context, q),
+                                    onPressed: hasAccepted ? null : () => _confirmReject(context, q),
                                     style: TextButton.styleFrom(
                                       foregroundColor: AppColors.error,
                                       padding: EdgeInsets.zero,
