@@ -6,24 +6,24 @@ repositories**:
 | | | |
 | --- | --- | --- |
 | **Mobile app** | `/lib`, this repository | Client + Mechanic — Flutter, Android/iOS |
-| **Admin console** | `on_go_console`, its own repository | Admin + Moderator — Flutter web |
+| **Admin console** | `On-Go-Console`, its own repository | Admin + Moderator — Flutter web |
 
-They share no code except `on_go_shared` (in `../Backend/on_go_backend/packages`), which holds the models and
-API contracts they exchange. They will meet at a backend that implements those
-contracts; that backend is not built yet.
+They share no code except `on_go_shared` (in `packages/`, here), which holds the
+models and API contracts they exchange. They meet at the On Go API, which
+implements those contracts and is deployed on staging.
 
 **Read [ARCHITECTURE.md](ARCHITECTURE.md)** before changing anything that
 crosses between them.
 
 ## Checking out
 
-The console resolves the two shared packages in this repository by **relative
+The console resolves all three shared packages in this repository by **relative
 path**, so the two checkouts have to be siblings:
 
 ```
-Flutter/
-  on_go/          this repository
-  on_go_console/  the admin console
+Documents/
+  On-Go/          this repository — the mobile app, and packages/
+  On-Go-Console/  the admin console
 ```
 
 ## Running
@@ -34,14 +34,19 @@ The mobile app, from the repository root:
 flutter run
 ```
 
-Sign in with `client`, `mechanic`, `demo-client` or `demo-mechanic`, or with an
-account registered in that session. Admin and Moderator are not in the app —
-they sign in on the console.
+It talks to the On Go API on staging unless `ONGO_API_BASE_URL` says otherwise,
+so sign in with a registered email and password, or register in the app. Admin
+and Moderator are not in the app — they sign in on the console, and the API
+refuses a console role on the mobile surface.
+
+Built with `--dart-define=ONGO_BACKEND=local` nothing leaves the device, and the
+sign-in shortcuts `client`, `mechanic`, `demo-client` and `demo-mechanic` work
+again (see `LocalAuthService`).
 
 The admin console, from its own checkout beside this one:
 
 ```bash
-cd ../on_go_console && flutter run -d chrome
+cd ../On-Go-Console && flutter run -d chrome
 ```
 
 Sign in as `admin` to create the first moderator account. Moderators then sign
@@ -51,31 +56,28 @@ in with the email and password their admin set.
 
 ```
 lib/                      Mobile app (Client + Mechanic)
-  data/                     In-memory stores
+  data/                     On-device stores
   screens/                  Client and Mechanic UI
-  services/backend/         ← everything that will become a network call
+  services/backend/         ← the seam: every call that leaves the device
+  services/api/             ← where the API client is installed
   theme/  widgets/
 
-packages/on_go_design/    Design system shared by both
-  lib/src/                  Palettes, theme registry, tokens, ThemeController
-
-```
-
-The console is not in this tree — it is the `on_go_console` repository beside
-it, and it consumes `packages/on_go_design` above by relative path.
-
-The backend scaffold is not in this tree either: it lives in
-`../Backend/on_go_backend` (TypeScript, no routes yet). The API contract and
-client both apps use live beside it:
-
-```
-../Backend/on_go_backend/packages/
+packages/
+  on_go_design/             Design system shared by both front ends
+    lib/src/                  Palettes, theme registry, tokens, ThemeController
   on_go_shared/             API contract shared by both — pure Dart
     lib/src/models/           DTOs with toJson/fromJson
     lib/src/api/              Abstract interfaces + the agreed REST routes
   on_go_api/                The HTTP client, sessions and event socket
     tool/smoke.dart           Read-only checks against a live API
 ```
+
+The console is not in this tree — it is the `On-Go-Console` repository beside
+it, and it consumes all three packages above by relative path.
+
+Neither is the backend: it is a separate TypeScript repository
+(`sktle-niel/On-Go-WA`), deployed on staging. Its OpenAPI document is the
+contract these packages mirror.
 
 ## The rules that keep this working
 

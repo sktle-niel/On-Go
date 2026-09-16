@@ -7,6 +7,7 @@ import 'local_points_policy_service.dart';
 import 'local_rank_policy_service.dart';
 import 'local_auth_service.dart';
 import 'local_revenue_service.dart';
+import 'local_service_request_service.dart';
 import 'local_urgency_policy_service.dart';
 import 'local_verification_service.dart';
 
@@ -38,6 +39,7 @@ class MobileBackend {
     required this.rankPolicy,
     required this.leaderboardConfig,
     required this.location,
+    required this.serviceRequests,
     required this.usesApi,
   });
 
@@ -51,6 +53,7 @@ class MobileBackend {
         rankPolicy: LocalRankPolicyService(),
         leaderboardConfig: LocalLeaderboardConfigService(),
         location: LocalLocationService(),
+        serviceRequests: LocalServiceRequestService(),
         usesApi: false,
       );
 
@@ -90,6 +93,12 @@ class MobileBackend {
   /// nearby-job matching. Reading GPS is not this: that is `LocationService`.
   final LocationApi location;
 
+  /// The jobs domain: booking, quotes, the match, progress and payment. On the
+  /// API this is the server's record, which is the whole point — two phones
+  /// read one job. Locally it is the on-device store behind the same interface,
+  /// so a screen is written once either way.
+  final ServiceRequestApi serviceRequests;
+
   /// Whether accounts live on the On Go API. When true the server owns
   /// passwords, registration and resets, and the screens call [auth] for
   /// them; when false the local account stores do, as they always have.
@@ -107,6 +116,7 @@ class MobileBackend {
     RankPolicyApi? rankPolicy,
     LeaderboardConfigApi? leaderboardConfig,
     LocationApi? location,
+    ServiceRequestApi? serviceRequests,
     bool? usesApi,
   }) {
     _instance = MobileBackend._(
@@ -119,6 +129,7 @@ class MobileBackend {
       rankPolicy: rankPolicy ?? _instance.rankPolicy,
       leaderboardConfig: leaderboardConfig ?? _instance.leaderboardConfig,
       location: location ?? _instance.location,
+      serviceRequests: serviceRequests ?? _instance.serviceRequests,
       usesApi: usesApi ?? _instance.usesApi,
     );
   }

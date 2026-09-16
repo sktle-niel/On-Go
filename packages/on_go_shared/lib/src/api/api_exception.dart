@@ -95,6 +95,15 @@ class ApiException implements Exception {
   /// Field-level detail, present on `validation_failed`.
   final List<ApiFieldError> details;
 
+  /// The server's `error.details` when it is an object rather than a list of
+  /// field errors: a refusal that carries a fact the screen needs, rather than
+  /// something to print under an input.
+  ///
+  /// A cancel refused under the ETA lock carries `cancellableAt`, the moment
+  /// cancelling opens, so the screen can count down to it instead of telling
+  /// the client to keep trying.
+  final Map<String, dynamic> info;
+
   /// The server's id for this request. Log it, or show it when reporting a
   /// problem — it links to the server log.
   final String? requestId;
@@ -106,6 +115,7 @@ class ApiException implements Exception {
     this.code,
     this.statusCode,
     this.details = const [],
+    this.info = const {},
     this.requestId,
   });
 
@@ -118,6 +128,7 @@ class ApiException implements Exception {
         code = null,
         statusCode = null,
         details = const [],
+        info = const {},
         requestId = null;
 
   /// The route exists in the contract but the backend has not built it yet
