@@ -47,7 +47,7 @@ shared packages in this repository by **relative path**, so the two checkouts
 have to be siblings:
 
 ```
-Documents/
+Documents/Niel/OnGo App/
   On-Go/          this repository — the mobile app, and packages/
     packages/on_go_design   the design system, used by both front ends
     packages/on_go_shared   the API contract (pure Dart), used by both apps
@@ -55,11 +55,13 @@ Documents/
   On-Go-Console/  the Admin + Moderator console
     packages/on_go_console_backend
                           the console's backend seam (ConsoleBackend, local services, ConsoleApi)
+  On-Go backend api/      the On Go API (TypeScript), its own repository
+  On Go Documentation/    the integration guide and openapi.json
 ```
 
-The On Go API itself is a third repository, in TypeScript, and is not checked
-out here. It is deployed on staging; its OpenAPI document is the contract these
-packages mirror.
+The On Go API itself is a third repository, in TypeScript, checked out beside
+the two front ends as `On-Go backend api`. It is deployed on staging; its
+OpenAPI document is the contract these packages mirror.
 
 An edit to `packages/on_go_design` or `on_go_shared` is picked up by
 the console immediately, with no publish step — the same as when it was one

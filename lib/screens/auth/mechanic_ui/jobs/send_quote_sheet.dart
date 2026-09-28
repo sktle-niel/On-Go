@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../theme/app_theme.dart';
 // Todo: adjust this path to wherever quote_store.dart lives in your project
 import '../../../../data/quote_store.dart';
+import '../../../../services/backend/mobile_backend.dart';
 
 /// What the mechanic entered on the quote form. Returned by [SendQuoteSheet]
 /// so the caller can turn it into a real [MechanicQuote] via
@@ -27,7 +28,7 @@ class QuoteInput {
 }
 
 class SendQuoteSheet extends StatefulWidget {
-  final HelpRequest request;
+  final ServiceRequest request;
   const SendQuoteSheet({super.key, required this.request});
 
   @override
@@ -52,19 +53,19 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
   /// The ceiling this job's urgency puts on the ETA — null for a Normal job,
   /// which has no completion deadline of its own and so allows any arrival
   /// time the mechanic is willing to commit to.
-  Duration? get _maxEta => maxEtaFor(widget.request);
+  Duration? get _maxEta => maxEtaOf(widget.request);
 
   /// Why the ETA as entered can't be sent, or null when it can. Covers both
   /// "nothing entered" and "longer than the job's completion window", so one
   /// line under the field always says what is wrong.
   String? get _etaProblem {
     if (!_etaIsValid) return 'Enter how long it will take you to reach the client.';
-    return etaTooLongReason(widget.request, _eta);
+    return etaTooLongReasonOf(widget.request, _eta);
   }
 
   /// The ETA is entered but overruns the job's completion window — the state
   /// the field itself has to flag.
-  bool get _etaTooLong => _etaIsValid && etaTooLongReason(widget.request, _eta) != null;
+  bool get _etaTooLong => _etaIsValid && etaTooLongReasonOf(widget.request, _eta) != null;
 
   double get _total {
     final labor = double.tryParse(_laborCtrl.text) ?? 0;
@@ -123,8 +124,8 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
             // has no window, so the ETA is the whole of what was promised.
             Text(
               _maxEta != null
-                  ? 'This ${widget.request.urgency} job also has to be COMPLETED within '
-                      '${formatEtaDuration(widget.request.completionWindow!)} of being accepted. '
+                  ? 'This ${widget.request.urgency.wireName} job also has to be COMPLETED within '
+                      '${formatEtaDuration(_maxEta!)} of being accepted. '
                       'Arriving in $etaLabel leaves you the rest of that window to do the work.'
                   : 'This job has no fixed completion deadline — the $etaLabel you set is the '
                       'only timing the client is promised.',
@@ -224,10 +225,10 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
               // than after they get it wrong.
               Text(
                 _maxEta != null
-                    ? '${widget.request.urgency} job — must be completed within '
-                        '${formatEtaDuration(widget.request.completionWindow!)}, so your ETA cannot '
+                    ? '${widget.request.urgency.wireName} job — must be completed within '
+                        '${formatEtaDuration(_maxEta!)}, so your ETA cannot '
                         'be longer than ${formatEtaDuration(_maxEta!)}.'
-                    : '${widget.request.urgency} job — no fixed completion deadline. The ETA you set is the timing '
+                    : '${widget.request.urgency.wireName} job — no fixed completion deadline. The ETA you set is the timing '
                         'the client is promised.',
                 style: TextStyle(fontSize: 11, color: AppColors.textmedium, height: 1.3),
               ),
@@ -276,7 +277,7 @@ class _SendQuoteSheetState extends State<SendQuoteSheet> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        etaTooLongReason(widget.request, _eta)!,
+                        etaTooLongReasonOf(widget.request, _eta)!,
                         style: TextStyle(fontSize: 12, color: AppColors.error, height: 1.35),
                       ),
                     ),

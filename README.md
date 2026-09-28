@@ -21,9 +21,11 @@ The console resolves all three shared packages in this repository by **relative
 path**, so the two checkouts have to be siblings:
 
 ```
-Documents/
-  On-Go/          this repository — the mobile app, and packages/
-  On-Go-Console/  the admin console
+Documents/Niel/OnGo App/
+  On-Go/                this repository — the mobile app, and packages/
+  On-Go-Console/        the admin console
+  On-Go backend api/    the API (its own repository, sktle-niel/On-Go-WA)
+  On Go Documentation/  the integration guide and openapi.json
 ```
 
 ## Running

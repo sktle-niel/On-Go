@@ -101,7 +101,7 @@ A `501 not_implemented` is an unfinished feature, not a crash. Check
 
 ## Checking a live server
 
-From this package's folder (`Backend/on_go_backend/packages/on_go_api`).
+From this package's folder (`packages/on_go_api` in the mobile repository).
 Read-only: no credentials, no accounts, nothing written.
 
 ```bash
