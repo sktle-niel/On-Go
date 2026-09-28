@@ -368,6 +368,13 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
         _ => 'Optional, but it helps a mechanic recognise you on the road.',
       };
 
+  /// The step's one red button: on to the next step, or the account itself.
+  Widget get _cta => AuthPrimaryButton(
+        label: _lastStep ? (_isLoading ? 'Creating account…' : 'Create account') : 'Continue',
+        busy: _isLoading,
+        onPressed: _next,
+      );
+
   Widget _eye(bool obscured, VoidCallback toggle) => IconButton(
         tooltip: obscured ? 'Show password' : 'Hide password',
         icon: Icon(obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20),
@@ -408,8 +415,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
               const SizedBox(height: 8),
               AuthIntro(title: _title, subtitle: _subtitle),
               const SizedBox(height: 28),
-              // The step's fields slide in from the right; the previous
-              // ones slide out the way they came.
+              // The step's fields and its button slide in from the right; the
+              // previous ones slide out the way they came.
               AnimatedSwitcher(
                 duration: AppMotion.normal,
                 switchInCurve: AppMotion.enter,
@@ -426,14 +433,6 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                   children: [...previous, ?current],
                 ),
                 child: KeyedSubtree(key: ValueKey(_step), child: _stepBody()),
-              ),
-              const SizedBox(height: 28),
-              AuthPrimaryButton(
-                label: _lastStep
-                    ? (_isLoading ? 'Creating account…' : 'Create account')
-                    : 'Continue',
-                busy: _isLoading,
-                onPressed: _next,
               ),
             ],
           ),
@@ -461,21 +460,14 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Google first: it fills in the name and the email.
-              if (_isSocialLogin)
-                _GoogleConnected(email: _emailCtrl.text, onChange: _disconnectSocial)
-              else ...[
-                AuthSecondaryButton(
-                  label: 'Continue with Google',
-                  leading: const _GoogleMark(size: 20),
-                  onPressed: _googleBusy ? null : _continueWithGoogle,
-                ),
+              // What Google filled in, and a way to undo it.
+              if (_isSocialLogin) ...[
+                _GoogleConnected(email: _emailCtrl.text, onChange: _disconnectSocial),
                 const SizedBox(height: 20),
-                const _OrDivider('or'),
               ],
-              const SizedBox(height: 20),
               AuthTextField(
-                hint: 'Email',
+                label: 'Email',
+                hint: 'Enter your email',
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
                 autofillHints: const [AutofillHints.email],
@@ -487,7 +479,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
               if (_requiresPassword) ...[
                 const SizedBox(height: 16),
                 AuthTextField(
-                  hint: 'Password',
+                  label: 'Password',
+                  hint: 'Enter a password',
                   controller: _passCtrl,
                   obscure: _obscurePass,
                   textInputAction: TextInputAction.next,
@@ -499,7 +492,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                 PasswordStrengthMeter(password: _passCtrl.text),
                 const SizedBox(height: 16),
                 AuthTextField(
-                  hint: 'Confirm password',
+                  label: 'Confirm password',
+                  hint: 'Re-enter your password',
                   controller: _confirmPassCtrl,
                   obscure: _obscureConfirm,
                   textInputAction: TextInputAction.done,
@@ -517,6 +511,19 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                 const SizedBox(height: 16),
                 const _Note(Icons.lock_outline, 'Your password is managed by Google.'),
               ],
+              const SizedBox(height: 28),
+              _cta,
+              // Google as the other way in: it fills in the name and the email.
+              if (!_isSocialLogin) ...[
+                const SizedBox(height: 22),
+                const _OrDivider('Or with'),
+                const SizedBox(height: 22),
+                AuthSecondaryButton(
+                  label: 'Continue with Google',
+                  leading: const _GoogleMark(size: 20),
+                  onPressed: _googleBusy ? null : _continueWithGoogle,
+                ),
+              ],
             ],
           ),
         );
@@ -528,7 +535,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
             children: [
               // One name to a row, in the order a form here expects them.
               AuthTextField(
-                hint: 'First name',
+                label: 'First name',
+                hint: 'Enter your first name',
                 controller: _firstNameCtrl,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
@@ -538,7 +546,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
               const SizedBox(height: 16),
               // Not everyone has one, so it is the one name not insisted on.
               AuthTextField(
-                hint: 'Middle name',
+                label: 'Middle name',
+                hint: 'Enter your middle name',
                 controller: _middleNameCtrl,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
@@ -546,7 +555,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
               ),
               const SizedBox(height: 16),
               AuthTextField(
-                hint: 'Last name',
+                label: 'Last name',
+                hint: 'Enter your last name',
                 controller: _lastNameCtrl,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
@@ -555,7 +565,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
               ),
               const SizedBox(height: 16),
               AuthTextField(
-                hint: 'Mobile number',
+                label: 'Mobile number',
+                hint: 'Enter your mobile number',
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
                 textInputAction: TextInputAction.next,
@@ -564,7 +575,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
               ),
               const SizedBox(height: 16),
               AuthTextField(
-                hint: 'Address',
+                label: 'Address',
+                hint: 'Enter your address',
                 controller: _addressCtrl,
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.done,
@@ -572,6 +584,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                 onSubmitted: (_) => _next(),
                 errorText: _err['address'],
               ),
+              const SizedBox(height: 28),
+              _cta,
             ],
           ),
         );
@@ -592,7 +606,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
               photo == null ? 'Add a profile photo' : 'Change photo',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.primary),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 28),
+            _cta,
           ],
         );
     }

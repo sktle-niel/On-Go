@@ -887,12 +887,15 @@ class AuthIntro extends StatelessWidget {
   }
 }
 
-/// A field on the sheet: a soft well with a faint outline and its name inside,
-/// which rises onto the top edge as the field fills. The brand colour appears
-/// only while it has focus — the outline and the floated name.
+/// A field on the sheet: its name in bold above, a placeholder inside, a
+/// white well with a faint outline. The brand colour appears only while it
+/// has focus; an error turns the outline red and explains itself underneath.
 class AuthTextField extends StatelessWidget {
-  /// The field's name: "Email", "Password", "6-digit code".
-  final String hint;
+  /// The field's name, set above it: "Email", "Password", "First name".
+  final String label;
+
+  /// The prompt inside the empty field: "Enter your email".
+  final String? hint;
   final bool obscure;
   final TextEditingController? controller;
   final TextInputType keyboardType;
@@ -918,7 +921,8 @@ class AuthTextField extends StatelessWidget {
 
   const AuthTextField({
     super.key,
-    required this.hint,
+    required this.label,
+    this.hint,
     this.obscure = false,
     this.controller,
     this.keyboardType = TextInputType.text,
@@ -938,54 +942,51 @@ class AuthTextField extends StatelessWidget {
     final c = AppColors.palette;
     OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
           borderRadius: AppRadii.borderMd,
-          borderSide: width == 0 ? BorderSide.none : BorderSide(color: color, width: width),
+          borderSide: BorderSide(color: color, width: width),
         );
 
-    return TextFormField(
-      controller: controller,
-      obscureText: obscure,
-      enableSuggestions: !obscure,
-      autocorrect: !obscure,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      autofillHints: autofillHints,
-      maxLength: maxLength,
-      textCapitalization: textCapitalization,
-      inputFormatters: inputFormatters,
-      onChanged: onChanged,
-      onFieldSubmitted: onSubmitted,
-      cursorColor: c.primary,
-      style: TextStyle(color: c.textdark, fontSize: 16, fontWeight: FontWeight.w500),
-      decoration: InputDecoration(
-        labelText: hint,
-        labelStyle: TextStyle(color: c.textmedium, fontSize: 15),
-        // Drawn at three quarters of this size once it has floated.
-        floatingLabelStyle: WidgetStateTextStyle.resolveWith(
-          (states) => TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: states.contains(WidgetState.error)
-                ? c.error
-                : states.contains(WidgetState.focused)
-                    ? c.primary
-                    : c.textmedium,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.textdark),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          obscureText: obscure,
+          enableSuggestions: !obscure,
+          autocorrect: !obscure,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          autofillHints: autofillHints,
+          maxLength: maxLength,
+          textCapitalization: textCapitalization,
+          inputFormatters: inputFormatters,
+          onChanged: onChanged,
+          onFieldSubmitted: onSubmitted,
+          cursorColor: c.primary,
+          style: TextStyle(color: c.textdark, fontSize: 15, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: c.textmedium, fontSize: 15, fontWeight: FontWeight.w400),
+            filled: true,
+            fillColor: c.surface,
+            suffixIcon: suffixIcon,
+            suffixIconColor: c.textmedium,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            counterText: maxLength == null ? null : '',
+            errorText: errorText,
+            errorStyle: TextStyle(fontSize: 12, color: c.error),
+            border: border(AppHairline.outline(c.textmedium), 1),
+            enabledBorder: border(AppHairline.outline(c.textmedium), 1),
+            focusedBorder: border(c.primary, 1.5),
+            errorBorder: border(c.error, 1),
+            focusedErrorBorder: border(c.error, 1.5),
           ),
         ),
-        filled: true,
-        fillColor: c.background,
-        suffixIcon: suffixIcon,
-        suffixIconColor: c.textmedium,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        counterText: maxLength == null ? null : '',
-        errorText: errorText,
-        errorStyle: TextStyle(fontSize: 12, color: c.error),
-        // A faint outline at rest, so the floated name has a line to sit on.
-        border: border(AppHairline.outline(c.textmedium), 1),
-        enabledBorder: border(AppHairline.outline(c.textmedium), 1),
-        focusedBorder: border(c.primary, 1.5),
-        errorBorder: border(c.error, 1),
-        focusedErrorBorder: border(c.error, 1.5),
-      ),
+      ],
     );
   }
 }

@@ -124,11 +124,11 @@ void main() {
         await tester.scrollUntilVisible(find.text('Sign In'), -40, scrollable: _cardScrollable);
         expect(find.text('Sign In').hitTestable(), findsOneWidget);
 
-        // The field, not its hint. The hint is painted underneath the text
-        // input, so a tap there lands on the field and the hint itself is
-        // never the thing hit.
+        // The field, found through its placeholder: the name sits above the
+        // field, the placeholder inside it. The placeholder is painted under
+        // the text input, so a tap there lands on the field.
         final username =
-            find.ancestor(of: find.text('Username'), matching: find.byType(TextField));
+            find.ancestor(of: find.text('Enter your username'), matching: find.byType(TextField));
         await tester.scrollUntilVisible(username, -40, scrollable: _cardScrollable);
         expect(username.hitTestable(), findsOneWidget);
       });

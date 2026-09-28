@@ -347,7 +347,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       case _Stage.email:
         return [
           AuthTextField(
-            hint: 'Email address',
+            label: 'Email',
+            hint: 'Enter your email',
             controller: _emailCtrl,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.send,
@@ -365,7 +366,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             : 'No email service is connected yet, so your code is: ${_reset.visibleCode ?? '—'}';
         return [
           AuthTextField(
-            hint: '6-digit code',
+            label: 'Verification code',
+            hint: 'Enter the 6-digit code',
             controller: _codeCtrl,
             keyboardType: TextInputType.number,
             textInputAction: TextInputAction.done,
@@ -403,7 +405,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       case _Stage.newPassword:
         return [
           AuthTextField(
-            hint: 'New password',
+            label: 'New password',
+            hint: 'Enter a new password',
             controller: _passwordCtrl,
             obscure: _obscurePassword,
             textInputAction: TextInputAction.next,
@@ -421,7 +424,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           PasswordStrengthMeter(password: _passwordCtrl.text),
           const SizedBox(height: 16),
           AuthTextField(
-            hint: 'Confirm new password',
+            label: 'Confirm password',
+            hint: 'Re-enter the new password',
             controller: _confirmCtrl,
             obscure: _obscureConfirm,
             textInputAction: TextInputAction.done,

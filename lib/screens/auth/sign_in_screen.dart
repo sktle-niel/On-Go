@@ -144,7 +144,8 @@ class _SignInScreenState extends State<SignInScreen> {
               AuthTextField(
                 // The API signs in by email; the local build also takes
                 // the demo usernames.
-                hint: usesApi ? 'Email' : 'Username',
+                label: usesApi ? 'Email' : 'Username',
+                hint: usesApi ? 'Enter your email' : 'Enter your username',
                 controller: _usernameCtrl,
                 keyboardType: usesApi ? TextInputType.emailAddress : TextInputType.text,
                 textInputAction: TextInputAction.next,
@@ -152,7 +153,8 @@ class _SignInScreenState extends State<SignInScreen> {
               ),
               const SizedBox(height: 14),
               AuthTextField(
-                hint: 'Password',
+                label: 'Password',
+                hint: 'Enter your password',
                 obscure: _obscurePassword,
                 controller: _passwordCtrl,
                 // The keyboard's key signs in, so a user does not have
