@@ -301,14 +301,11 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
           ),
           child: Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: c.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(problem.icon, color: c.primary, size: 22),
+              Image.asset(
+                problem.picture,
+                width: 44,
+                height: 44,
+                errorBuilder: (_, _, _) => const SizedBox(width: 44, height: 44),
               ),
               const SizedBox(width: 12),
               Expanded(

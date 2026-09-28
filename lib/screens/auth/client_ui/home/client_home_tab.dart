@@ -34,27 +34,46 @@ class ClientHomeTab extends StatelessWidget {
     return ListView(
       padding: layout.pageInsets,
       children: [
-        // The greeting follows the account, so registering mid-session
-        // changes it without a restart.
-        AnimatedBuilder(
-          animation: ClientAccountStore.instance,
-          builder: (context, _) {
-            final first = ClientAccountStore.instance.firstName.trim();
-            return Text(
-              first.isEmpty ? 'Hi there' : 'Hi, $first',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-                color: c.textdark,
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // The greeting follows the account, so registering
+                  // mid-session changes it without a restart.
+                  AnimatedBuilder(
+                    animation: ClientAccountStore.instance,
+                    builder: (context, _) {
+                      final first = ClientAccountStore.instance.firstName.trim();
+                      return Text(
+                        first.isEmpty ? 'Hi there' : 'Hi, $first',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          color: c.textdark,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'What is wrong with your motorcycle?',
+                    style: TextStyle(fontSize: 14, color: c.textmedium),
+                  ),
+                ],
               ),
-            );
-          },
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'What is wrong with your motorcycle?',
-          style: TextStyle(fontSize: 14, color: c.textmedium),
+            ),
+            const SizedBox(width: 12),
+            // The bike itself, beside the question about it.
+            Image.asset(
+              MotorcycleProblem.motorcyclePicture,
+              width: 76,
+              height: 76,
+              errorBuilder: (_, _, _) => const SizedBox(width: 76, height: 76),
+            ),
+          ],
         ),
         const SizedBox(height: 24),
         Text(
@@ -66,7 +85,7 @@ class ClientHomeTab extends StatelessWidget {
           // As many tiles across as the width allows at about a thumb's
           // width each, every tile the same fixed height: three on a phone,
           // more on a tablet, and never a tile squeezed shorter than its
-          // glyph and name.
+          // picture and name.
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 132,
             // Room for a two-line name at the largest text size the app allows.
@@ -96,7 +115,7 @@ class ClientHomeTab extends StatelessWidget {
   }
 }
 
-/// One problem: its glyph in a soft tile, its name under it.
+/// One problem: its picture, its name under it.
 class _ProblemTile extends StatelessWidget {
   final MotorcycleProblem problem;
   final VoidCallback onTap;
@@ -124,14 +143,13 @@ class _ProblemTile extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: c.primary.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(problem.icon, color: c.primary, size: 26),
+                  // The render carries its own colour and depth; no tinted
+                  // tile behind it.
+                  Image.asset(
+                    problem.picture,
+                    width: 52,
+                    height: 52,
+                    errorBuilder: (_, _, _) => const SizedBox(width: 52, height: 52),
                   ),
                   const SizedBox(height: 8),
                   Text(
