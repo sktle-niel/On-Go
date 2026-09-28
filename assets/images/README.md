@@ -23,6 +23,9 @@ MIT licence, downloaded 2026-09-28 at 256 px:
 | `brakes.png` | Stop sign |
 | `engine.png` | Gear |
 | `electrical.png` | High voltage |
+| `overheating.png` | Fire |
+| `oil_change.png` | Oil drum |
+| `tune_up.png` | Wrench |
 | `accident.png` | Collision |
 | `something_else.png` | Hammer and wrench |
 | `motorcycle.png` | Motorcycle |

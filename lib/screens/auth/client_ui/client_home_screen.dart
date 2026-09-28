@@ -49,7 +49,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      ClientHomeTab(onBooked: (_) => _goToTab(1)),
+      // The home draws its own band, with the menu and the bell in it, and
+      // carries the evaluation notice at the top of its sheet.
+      ClientHomeTab(
+        onBooked: (_) => _goToTab(1),
+        onOpenNotifications: _openNotifications,
+        banner: const PendingEvaluationBanner(),
+      ),
       ClientJobsScreen(onBook: () => _goToTab(0)),
       const ServiceHistoryScreen(),
       // Mechanic Rankings — discovery by rank, rating and reviews. The
@@ -59,21 +65,25 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: OnGoAppBar(
-        notificationAction: AnimatedBuilder(
-          animation: QuoteNotificationStore.instance,
-          builder: (context, _) => NotificationBell(
-            count: QuoteNotificationStore.instance.clientUnreadNotificationCount,
-            onTap: _openNotifications,
-          ),
-        ),
-      ),
+      // No bar over the home: its band takes the top edge.
+      appBar: _currentIndex == 0
+          ? null
+          : OnGoAppBar(
+              notificationAction: AnimatedBuilder(
+                animation: QuoteNotificationStore.instance,
+                builder: (context, _) => NotificationBell(
+                  count: QuoteNotificationStore.instance.clientUnreadNotificationCount,
+                  onTap: _openNotifications,
+                ),
+              ),
+            ),
       drawer: const ClientMenuDrawer(),
       body: Column(
         children: [
           // Stays until every completed job is evaluated — on every tab,
-          // across restarts, without ever blocking the app.
-          const PendingEvaluationBanner(),
+          // across restarts, without ever blocking the app. The home shows
+          // it inside its own sheet.
+          if (_currentIndex != 0) const PendingEvaluationBanner(),
           Expanded(child: IndexedStack(index: _currentIndex, children: tabs)),
         ],
       ),
