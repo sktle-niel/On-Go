@@ -49,7 +49,7 @@ class _EarningScreenState extends State<EarningScreen> {
 
   _ProblemText _splitProblem(String problem) {
     final idx = problem.indexOf(':');
-    if (idx == -1 || idx > 40) return _ProblemText('Reported Issue', problem);
+    if (idx == -1 || idx > 40) return _ProblemText(problem, '');
     final rest = problem.substring(idx + 1).trim();
     return _ProblemText(problem.substring(0, idx).trim(), rest.isEmpty ? problem : rest);
   }

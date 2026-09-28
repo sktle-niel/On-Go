@@ -50,7 +50,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   Widget build(BuildContext context) {
     final tabs = [
       ClientHomeTab(onBooked: (_) => _goToTab(1)),
-      const ClientJobsScreen(),
+      ClientJobsScreen(onBook: () => _goToTab(0)),
       const ServiceHistoryScreen(),
       // Mechanic Rankings — discovery by rank, rating and reviews. The
       // competitive seasonal leaderboard is a separate, future feature.

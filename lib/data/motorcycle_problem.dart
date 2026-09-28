@@ -73,4 +73,12 @@ enum MotorcycleProblem {
 
   /// The motorcycle itself, for the home greeting.
   static const String motorcyclePicture = 'assets/images/problems/motorcycle.png';
+
+  /// The problem a request's line names, or null for one booked another way.
+  static MotorcycleProblem? forLabel(String label) {
+    for (final problem in values) {
+      if (problem.label == label) return problem;
+    }
+    return null;
+  }
 }

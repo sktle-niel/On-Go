@@ -49,9 +49,12 @@ class LocalServiceRequestService implements ServiceRequestApi {
       throw _conflict('You already have a request open. Close it before booking another.');
     }
     final point = request.point;
+    // A local job has one line for the problem and what the client added
+    // about it, in the "problem: details" form the cards read back.
+    final details = request.description?.trim() ?? '';
     final booked = HelpRequest(
       id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-      problem: request.problem,
+      problem: details.isEmpty ? request.problem : '${request.problem}: $details',
       location: request.location,
       urgency: request.urgency.wireName,
       createdAt: DateTime.now(),
