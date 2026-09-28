@@ -258,9 +258,10 @@ void main() {
     // Step 2: who they are.
     fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'Juan');
-    await tester.enterText(fields.at(1), 'Dela Cruz');
-    await tester.enterText(fields.at(2), '09170000000');
-    await tester.enterText(fields.at(3), 'Puerto Princesa City');
+    await tester.enterText(fields.at(1), 'Santos');
+    await tester.enterText(fields.at(2), 'Dela Cruz');
+    await tester.enterText(fields.at(3), '09170000000');
+    await tester.enterText(fields.at(4), 'Puerto Princesa City');
     await tapText(tester, 'Continue');
     await tester.pumpAndSettle();
 

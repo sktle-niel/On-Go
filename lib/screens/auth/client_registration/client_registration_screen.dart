@@ -38,6 +38,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
 
   final _emailCtrl = TextEditingController();
   final _firstNameCtrl = TextEditingController();
+  final _middleNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
@@ -86,6 +87,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
   void dispose() {
     _emailCtrl.dispose();
     _firstNameCtrl.dispose();
+    _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _addressCtrl.dispose();
     _phoneCtrl.dispose();
@@ -120,7 +122,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
   /// can be corrected.
   int _stepFor(Iterable<String> fields) {
     const account = {'email', 'password', 'confirmPassword'};
-    const about = {'firstName', 'lastName', 'phone', 'address'};
+    const about = {'firstName', 'middleName', 'lastName', 'phone', 'address'};
     if (fields.any(account.contains)) return 0;
     if (fields.any(about.contains)) return 1;
     return _step;
@@ -224,6 +226,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
         _socialPhotoUrl = null;
         _emailCtrl.clear();
         _firstNameCtrl.clear();
+        _middleNameCtrl.clear();
         _lastNameCtrl.clear();
         _profilePhoto = null;
         _err = {};
@@ -309,6 +312,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
 
     ClientAccountStore.instance.registerAccount(
       firstName: _firstNameCtrl.text.trim(),
+      middleName: _middleNameCtrl.text.trim(),
       lastName: _lastNameCtrl.text.trim(),
       email: _emailCtrl.text.trim(),
       address: _addressCtrl.text.trim(),
@@ -522,23 +526,32 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _TwoUp(
-                first: AuthTextField(
-                  hint: 'First name',
-                  controller: _firstNameCtrl,
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.givenName],
-                  errorText: _err['firstName'],
-                ),
-                second: AuthTextField(
-                  hint: 'Last name',
-                  controller: _lastNameCtrl,
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.familyName],
-                  errorText: _err['lastName'],
-                ),
+              // One name to a row, in the order a form here expects them.
+              AuthTextField(
+                hint: 'First name',
+                controller: _firstNameCtrl,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.givenName],
+                errorText: _err['firstName'],
+              ),
+              const SizedBox(height: 16),
+              // Not everyone has one, so it is the one name not insisted on.
+              AuthTextField(
+                hint: 'Middle name',
+                controller: _middleNameCtrl,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.middleName],
+              ),
+              const SizedBox(height: 16),
+              AuthTextField(
+                hint: 'Last name',
+                controller: _lastNameCtrl,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.familyName],
+                errorText: _err['lastName'],
               ),
               const SizedBox(height: 16),
               AuthTextField(
@@ -674,36 +687,6 @@ class _AvatarPicker extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Two fields side by side, or stacked on a small phone, where half a row
-/// is too narrow for a name to be read.
-///
-/// Decided from the device rather than measured: the sheet sizes itself
-/// through IntrinsicHeight, which a LayoutBuilder cannot take part in.
-class _TwoUp extends StatelessWidget {
-  final Widget first;
-  final Widget second;
-
-  const _TwoUp({required this.first, required this.second});
-
-  @override
-  Widget build(BuildContext context) {
-    if (context.layout.isSmallPhone) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [first, const SizedBox(height: 16), second],
-      );
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: first),
-        const SizedBox(width: 12),
-        Expanded(child: second),
-      ],
     );
   }
 }
