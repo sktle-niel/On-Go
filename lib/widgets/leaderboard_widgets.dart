@@ -4,6 +4,7 @@ import '../data/leaderboard_store.dart';
 import '../services/backend/mobile_backend.dart';
 import '../theme/app_theme.dart';
 import 'rank_widgets.dart';
+import 'glass.dart';
 
 /// The seasonal leaderboard, shared by the Client and Mechanic tabs.
 ///
@@ -88,8 +89,8 @@ class _SeasonLeaderboardViewState extends State<SeasonLeaderboardView> {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    border: Border.all(color: AppColors.textdark.withValues(alpha: 0.2)),
+                    color: Glass.card,
+                    border: Border.all(color: AppColors.isDark ? Glass.edge : AppColors.textdark.withValues(alpha: 0.2)),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(

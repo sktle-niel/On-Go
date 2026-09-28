@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../data/points_wallet_store.dart';
 import '../services/backend/mobile_backend.dart';
 import '../theme/app_theme.dart';
-import 'common_widgets.dart';
 
 /// The balance headline, used by the client's Rewards screen and the
 /// mechanic's Points screen so a balance reads the same to both.
@@ -24,9 +23,21 @@ class PointsBalanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      color: AppColors.primary,
+    final c = AppColors.palette;
+    // The brand colour lit from the top left, glowing onto the page like
+    // the chosen tab: the one card on a screen that is meant to be looked at.
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color.lerp(c.primary, Colors.white, 0.12)!, c.primarydark],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        boxShadow: [BoxShadow(color: c.primary.withValues(alpha: 0.35), blurRadius: 28, offset: const Offset(0, 10))],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -49,8 +60,9 @@ class PointsBalanceCard extends StatelessWidget {
             formatPointsLabel(points),
             style: TextStyle(
               color: AppColors.textlight,
-              fontSize: 28,
+              fontSize: 34,
               fontWeight: FontWeight.w800,
+              letterSpacing: -0.8,
             ),
           ),
           if (caption != null) ...[

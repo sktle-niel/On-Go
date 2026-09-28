@@ -50,6 +50,10 @@ class Glass {
     return [Colors.white.withValues(alpha: 0.94), Colors.white.withValues(alpha: 0.76)];
   }
 
+  /// A card's flat fill, for one drawn with a plain decoration: a pane of
+  /// glass on a dark theme, the surface on a light one.
+  static Color get card => _dark ? Colors.white.withValues(alpha: 0.06) : AppColors.surface;
+
   /// The hairline round a glass surface.
   static Color get edge =>
       _dark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.07);
@@ -148,6 +152,111 @@ class _Glow extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: RadialGradient(
           colors: [color.withValues(alpha: alpha), color.withValues(alpha: 0)],
+        ),
+      ),
+    );
+  }
+}
+
+/// A pushed screen drawn in glass: the glow behind the whole page, the bar
+/// over it see-through, and the body starting below the bar.
+///
+/// A drop-in for a `Scaffold` with an `appBar` and a `body`: change the name
+/// and the screen is glass. [backgroundColor] is accepted for that and
+/// ignored; the page is the glow.
+class GlassScaffold extends StatelessWidget {
+  final PreferredSizeWidget? appBar;
+  final Widget? body;
+  final Color? backgroundColor;
+  final Widget? bottomNavigationBar;
+  final Widget? floatingActionButton;
+
+  const GlassScaffold({
+    super.key,
+    this.appBar,
+    this.body,
+    this.backgroundColor,
+    this.bottomNavigationBar,
+    this.floatingActionButton,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = body ?? const SizedBox.shrink();
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: Glass.overlay,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        // The glow runs up under the bar; the body is held below it.
+        extendBodyBehindAppBar: appBar != null,
+        appBar: appBar,
+        body: GlassBackdrop(
+          child: appBar == null ? content : SafeArea(left: false, right: false, bottom: false, child: content),
+        ),
+        bottomNavigationBar: bottomNavigationBar,
+        floatingActionButton: floatingActionButton,
+      ),
+    );
+  }
+}
+
+/// What a glass list shows when there is nothing in it: a glyph glowing on
+/// a disc of glass, a title, a line, and optionally the way to change that.
+class GlassEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const GlassEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.text,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(32, 24, 32, MediaQuery.paddingOf(context).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: c.primary.withValues(alpha: 0.32), blurRadius: 38)],
+              ),
+              child: GlassPanel(
+                radius: 50,
+                padding: EdgeInsets.zero,
+                child: Center(child: GlassGlyph(icon, size: 46)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: c.textdark),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, height: 1.4, color: c.textmedium),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 20),
+              GlassPillButton(label: actionLabel!, onPressed: onAction, style: GlassPillStyle.brand),
+            ],
+          ],
         ),
       ),
     );

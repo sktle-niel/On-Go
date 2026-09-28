@@ -6,6 +6,7 @@ import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/evaluation_widgets.dart';
 import '../profile/mechanic_profile_view_screen.dart';
+import '../../../../widgets/glass.dart';
 
 /// The client's completed jobs, each with where its evaluation stands:
 /// "⚠ Evaluation Required" until it is sent, "✓ Evaluated" after.
@@ -56,14 +57,12 @@ class _ServiceHistoryScreenState extends State<ServiceHistoryScreen> {
         const Text('Service History', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         const SizedBox(height: 16),
         if (history.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: Text(
-                'Completed jobs will show up here once you\'ve paid a mechanic.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55), fontSize: 13),
-              ),
+          const Padding(
+            padding: EdgeInsets.only(top: 24),
+            child: GlassEmptyState(
+              icon: Icons.history_rounded,
+              title: 'No finished jobs yet',
+              text: 'Jobs you have paid for show here, with the mechanic and what it cost.',
             ),
           )
         else
@@ -108,13 +107,16 @@ class _HistoryCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surface.withValues(alpha: 0.55),
-          border: Border.all(
-            color: evaluation.evaluationRequired
-                ? AppColors.warning.withValues(alpha: 0.6)
-                : AppColors.textdark.withValues(alpha: 0.2),
+          // A pane of glass, lit from the top left.
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: Glass.fill(tint: evaluation.evaluationRequired ? AppColors.warning : null),
           ),
-          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: evaluation.evaluationRequired ? AppColors.warning.withValues(alpha: 0.6) : Glass.edge,
+          ),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

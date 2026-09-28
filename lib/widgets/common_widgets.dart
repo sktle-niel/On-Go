@@ -33,13 +33,16 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Flat on a hairline: a white surface set off from the page by a line,
-    // not a shadow. A caller can still ask for lift.
+    // not a shadow. A caller can still ask for lift. On a dark theme it is a
+    // pane of glass over the page's glow, unless the caller asked for a
+    // colour of its own rather than the plain surface.
+    final glass = AppColors.isDark && (color == null || color == AppColors.surface);
     return Card(
       elevation: elevation ?? AppElevation.flat,
-      color: color ?? AppColors.surface,
+      color: glass ? Colors.white.withValues(alpha: 0.06) : (color ?? AppColors.surface),
       shape: RoundedRectangleBorder(
         borderRadius: borderRadius ?? AppFilledContainers.surface.borderRadius,
-        side: AppHairline.side(AppColors.textmedium),
+        side: glass ? BorderSide(color: Colors.white.withValues(alpha: 0.12)) : AppHairline.side(AppColors.textmedium),
       ),
       margin: EdgeInsets.zero,
       child: Padding(padding: padding, child: child),

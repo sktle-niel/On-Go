@@ -7,6 +7,7 @@ import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/location_widgets.dart';
 import '../../../../widgets/password_strength.dart';
 import '../../../shared/theme_screen.dart';
+import '../../../../widgets/glass.dart';
 
 class ClientSettingsScreen extends StatefulWidget {
   const ClientSettingsScreen({super.key});
@@ -53,7 +54,7 @@ class _ClientSettingsScreenState extends State<ClientSettingsScreen> {
     // by the server.
     final hasLocalPassword = MobileBackend.instance.usesApi || !_store.verifyPassword('');
 
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Settings'),

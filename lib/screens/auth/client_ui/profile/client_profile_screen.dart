@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../data/client_account_store.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/common_widgets.dart';
+import '../../../../widgets/glass.dart';
 
 class ClientProfileScreen extends StatefulWidget {
   const ClientProfileScreen({super.key});
@@ -81,7 +82,7 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
     final photo = _store.photoPath;
     final canChange = _store.canChangePhoto;
 
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('My Profile'),
@@ -103,8 +104,15 @@ class _ClientProfileScreenState extends State<ClientProfileScreen> {
                         ? Container(
                             width: context.layout.scale(120),
                             height: context.layout.scale(120),
-                            color: AppColors.background,
-                            child: Icon(Icons.person, size: context.layout.scale(56), color: AppColors.textdark.withValues(alpha: 0.55)),
+                            // A disc of glass with the glyph lit from above.
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: Glass.fill(tint: AppColors.primary),
+                              ),
+                            ),
+                            child: Center(child: GlassGlyph(Icons.person_rounded, size: context.layout.scale(56))),
                           )
                         : (_store.photoIsNetwork
                             ? Image.network(photo, width: context.layout.scale(120), height: context.layout.scale(120), fit: BoxFit.cover)
@@ -173,7 +181,12 @@ class _InfoRow extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(border: Border.all(color: AppColors.textdark.withValues(alpha: 0.2)), borderRadius: BorderRadius.circular(12)),
+      // A pane of glass, lit from the top left.
+      decoration: BoxDecoration(
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: Glass.fill()),
+        border: Border.all(color: Glass.edge),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         children: [
           Icon(icon, size: 20, color: AppColors.textdark.withValues(alpha: 0.55)),

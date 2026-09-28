@@ -6,6 +6,7 @@ import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/points_widgets.dart';
+import '../../../../widgets/glass.dart';
 
 /// The client's points: what they hold, how they earned it, what it is for.
 ///
@@ -47,7 +48,7 @@ class _ClientRewardsScreenState extends State<ClientRewardsScreen> {
   Widget build(BuildContext context) {
     final balance = _wallet.balanceFor(_owner);
     final entries = _wallet.entriesFor(_owner);
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Rewards & Points'),

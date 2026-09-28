@@ -6,6 +6,7 @@ import '../../data/app_session.dart';
 import '../../data/chat_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/photo_gallery_viewer_screen.dart';
+import '../../widgets/glass.dart';
 
 class JobChatScreen extends StatefulWidget {
   final String requestId;
@@ -141,7 +142,7 @@ class _JobChatScreenState extends State<JobChatScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(widget.otherPartyName),

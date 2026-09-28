@@ -13,6 +13,7 @@ import '../../../../widgets/credential_widgets.dart';
 import '../../../../widgets/evaluation_widgets.dart';
 import '../../../../widgets/mechanic_details_card.dart';
 import '../../../../widgets/performance_widgets.dart';
+import '../../../../widgets/glass.dart';
 
 enum _ReviewFilter { all, rating, mostRelevant }
 
@@ -190,7 +191,7 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
         : null;
     final viewerId = AppSession.instance.currentViewerName;
 
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Mechanic Profile'),

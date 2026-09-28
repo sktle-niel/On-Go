@@ -6,6 +6,7 @@ import '../../../../widgets/common_widgets.dart';
 import '../../../../data/quote_store.dart' show QuoteNotificationStore, formatEtaDuration;
 import '../../../../services/backend/mobile_backend.dart';
 import '../profile/mechanic_profile_view_screen.dart';
+import '../../../../widgets/glass.dart';
 
 class QuotesScreen extends StatefulWidget {
   /// When set, only this request's quotes are shown (used by the "Quotes"
@@ -147,7 +148,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Quotes'),

@@ -14,6 +14,7 @@ import '../../../../data/review_store.dart';
 import '../../../shared/job_chat_screen.dart';
 import '../profile/mechanic_profile_view_screen.dart';
 import 'qr_scan_screen.dart';
+import '../../../../widgets/glass.dart';
 
 class ActiveRequestScreen extends StatefulWidget {
   final String requestId;
@@ -295,7 +296,7 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
     final request = _store.requestFor(widget.requestId);
     final quote = request == null ? null : _store.acceptedQuoteFor(request.id);
 
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Job Progress'),

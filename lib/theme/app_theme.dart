@@ -93,13 +93,15 @@ class AppTheme {
       fontFamily: AppTextStyles.fontFamily,
       iconTheme: IconThemeData(color: c.textdark),
       appBarTheme: AppBarTheme(
-        backgroundColor: c.surface,
+        // On a dark theme the bar is see-through, over the glow of a glass
+        // page (lib/widgets/glass.dart); on a light one, the surface.
+        backgroundColor: option.isDark ? Colors.transparent : c.surface,
         foregroundColor: c.textdark,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        shape: Border(bottom: BorderSide(color: hairline, width: AppBorders.thin)),
+        shape: option.isDark ? null : Border(bottom: BorderSide(color: hairline, width: AppBorders.thin)),
         titleTextStyle: chrome(18, FontWeight.w600, color: c.textdark, letterSpacing: -0.2),
         iconTheme: IconThemeData(color: c.textdark),
         actionsIconTheme: IconThemeData(color: c.textdark),
@@ -189,12 +191,16 @@ class AppTheme {
       // `ui_container_styles.dart` reaches every card.
       cardTheme: CardThemeData(
         elevation: AppElevation.flat,
-        color: c.surface,
+        // A pane of glass on a dark theme, the surface on a light one.
+        color: option.isDark ? Colors.white.withValues(alpha: 0.06) : c.surface,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: AppFilledContainers.surface.borderRadius,
-          side: BorderSide(color: hairline, width: AppBorders.thin),
+          side: BorderSide(
+            color: option.isDark ? Colors.white.withValues(alpha: 0.12) : hairline,
+            width: AppBorders.thin,
+          ),
         ),
         margin: EdgeInsets.zero,
       ),

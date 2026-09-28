@@ -232,7 +232,8 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
             index: _tabIndex,
             children: [
               _JobList(
-                empty: _EmptyState(
+                empty: GlassEmptyState(
+                  icon: Icons.two_wheeler_rounded,
                   title: 'Nothing booked yet',
                   text: 'Pick a service on Home. It shows here while quotes come in.',
                   actionLabel: 'Book a mechanic',
@@ -249,7 +250,8 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
                 ],
               ),
               _JobList(
-                empty: const _EmptyState(
+                empty: const GlassEmptyState(
+                  icon: Icons.two_wheeler_rounded,
                   title: 'No booked jobs',
                   text: 'Once you accept a quote, the job and your mechanic show here.',
                 ),
@@ -264,7 +266,8 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
                 ],
               ),
               _JobList(
-                empty: const _EmptyState(
+                empty: const GlassEmptyState(
+                  icon: Icons.two_wheeler_rounded,
                   title: 'Nothing under way',
                   text: 'A job moves here when your mechanic sets off.',
                 ),
@@ -301,61 +304,6 @@ class _JobList extends StatelessWidget {
       itemCount: cards.length,
       separatorBuilder: (_, _) => const SizedBox(height: 14),
       itemBuilder: (context, index) => cards[index],
-    );
-  }
-}
-
-/// What a list shows when there is nothing in it: a bike glowing on glass,
-/// a line, and on the first tab the way to change that.
-class _EmptyState extends StatelessWidget {
-  final String title;
-  final String text;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  const _EmptyState({required this.title, required this.text, this.actionLabel, this.onAction});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.palette;
-    return Center(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(32, 24, 32, MediaQuery.paddingOf(context).bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 104,
-              height: 104,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: c.primary.withValues(alpha: 0.35), blurRadius: 40)],
-              ),
-              child: const GlassPanel(
-                radius: 52,
-                padding: EdgeInsets.zero,
-                child: Center(child: GlassGlyph(Icons.two_wheeler_rounded, size: 48)),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: c.textdark),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, height: 1.4, color: c.textmedium),
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 20),
-              GlassPillButton(label: actionLabel!, onPressed: onAction, style: GlassPillStyle.brand),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }
