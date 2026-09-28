@@ -203,8 +203,6 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textmedium,
         title: const Text('Active Job'),
       ),
       body: Builder(
@@ -226,11 +224,7 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
                       height: context.layout.panelHeight(190),
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppColors.info.withValues(alpha: 0.22), AppColors.info.withValues(alpha: 0.08)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
+                        color: AppColors.info.withValues(alpha: 0.08),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,

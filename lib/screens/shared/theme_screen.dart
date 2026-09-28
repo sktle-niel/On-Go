@@ -48,8 +48,6 @@ class _ThemeScreenState extends State<ThemeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textlight,
         title: const Text('Themes'),
       ),
       body: ListView(

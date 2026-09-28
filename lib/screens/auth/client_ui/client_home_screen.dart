@@ -65,7 +65,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
           builder: (context, _) => NotificationBell(
             count: QuoteNotificationStore.instance.clientUnreadNotificationCount,
             onTap: _openNotifications,
-            badgeColor: AppColors.warning,
           ),
         ),
       ),

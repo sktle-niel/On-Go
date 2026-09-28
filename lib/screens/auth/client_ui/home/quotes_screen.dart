@@ -150,8 +150,6 @@ class _QuotesScreenState extends State<QuotesScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textmedium,
         title: const Text('Quotes'),
       ),
       body: Builder(

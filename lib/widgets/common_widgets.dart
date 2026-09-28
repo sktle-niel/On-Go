@@ -32,10 +32,15 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Flat on a hairline: a white surface set off from the page by a line,
+    // not a shadow. A caller can still ask for lift.
     return Card(
-      elevation: elevation ?? AppElevation.raised,
-      color: color ?? Theme.of(context).cardColor,
-      shape: RoundedRectangleBorder(borderRadius: borderRadius ?? AppRadii.borderLg),
+      elevation: elevation ?? AppElevation.flat,
+      color: color ?? AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: borderRadius ?? AppFilledContainers.surface.borderRadius,
+        side: AppHairline.side(AppColors.textmedium),
+      ),
       margin: EdgeInsets.zero,
       child: Padding(padding: padding, child: child),
     );

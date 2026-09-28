@@ -193,8 +193,6 @@ class _MechanicProfileViewScreenState extends State<MechanicProfileViewScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textmedium,
         title: const Text('Mechanic Profile'),
       ),
       body: ListView(

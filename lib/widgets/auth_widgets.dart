@@ -20,16 +20,14 @@ final List<TextInputFormatter> phMobileInputFormatters = [
   LengthLimitingTextInputFormatter(11),
 ];
 
-/// Red header banner (logo + subtitle)
+/// The wordmark and a line under it, set on the page rather than on a band.
 class OnGoHeader extends StatelessWidget {
   final String subtitle;
   const OnGoHeader({super.key, this.subtitle = 'Service Anywhere'});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.primary,
+    return Padding(
       // The status bar's real height rather than a fixed 48, which was too
       // little under a notch and too much on a phone without one.
       padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 16, 20, 20),
@@ -38,7 +36,7 @@ class OnGoHeader extends StatelessWidget {
           Text(
             'On Go',
             style: TextStyle(
-              color: AppColors.textmedium,
+              color: AppColors.primary,
               fontSize: 28,
               fontWeight: FontWeight.w800,
               // Large type reads best slightly tightened, not spread out.
@@ -311,18 +309,22 @@ class StepNavButtons extends StatelessWidget {
     super.key,
     this.onBack,
     this.onNext,
-    this.nextLabel = 'NEXT',
-    this.backLabel = 'BACK',
+    this.nextLabel = 'Next',
+    this.backLabel = 'Back',
     this.isLastStep = false,
     this.busy = false,
-    this.busyLabel = 'PLEASE WAIT…',
+    this.busyLabel = 'Please wait…',
   });
 
   @override
   Widget build(BuildContext context) {
-    final next = ElevatedButton(
-      onPressed: busy ? null : onNext,
-      child: Text(busy ? busyLabel : nextLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+    // The one red button on the form; Back is ink on an outline beside it.
+    final next = PressScale(
+      enabled: !busy && onNext != null,
+      child: ElevatedButton(
+        onPressed: busy ? null : onNext,
+        child: Text(busy ? busyLabel : nextLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
     );
 
     return Row(
@@ -331,12 +333,6 @@ class StepNavButtons extends StatelessWidget {
           Expanded(
             child: OutlinedButton(
               onPressed: busy ? null : onBack,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: BorderSide(color: AppColors.primary),
-                minimumSize: const Size(0, 48),
-                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.25),
-              ),
               child: Text(backLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
           ),
@@ -368,17 +364,21 @@ class RegistrationHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final canGoBack = Navigator.of(context).canPop();
 
+    // The page's own surface with a hairline under it, like every app bar.
     return Container(
       width: double.infinity,
-      color: AppColors.primary,
-      padding: EdgeInsets.fromLTRB(4, MediaQuery.paddingOf(context).top + 8, 4, 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: AppHairline.side(AppColors.textmedium)),
+      ),
+      padding: EdgeInsets.fromLTRB(4, MediaQuery.paddingOf(context).top + 8, 4, 14),
       child: Row(
         children: [
           SizedBox(
             width: 48,
             child: canGoBack
                 ? IconButton(
-                    icon: Icon(Icons.arrow_back, color: AppColors.textlight),
+                    icon: Icon(Icons.arrow_back, color: AppColors.textdark),
                     tooltip: 'Back',
                     onPressed: () => Navigator.maybePop(context),
                   )
@@ -393,17 +393,17 @@ class RegistrationHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: AppColors.textlight,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+                    color: AppColors.textdark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textlight, fontSize: 12),
+                  style: TextStyle(color: AppColors.textmedium, fontSize: 12),
                 ),
               ],
             ),
@@ -514,21 +514,19 @@ class AuthBottomCard extends StatelessWidget {
             child: Column(
               children: [
                 Expanded(child: Center(child: topContent ?? const SizedBox.shrink())),
+                // A white sheet rising from the bottom edge: no border, no
+                // shadow — the backdrop it sits on is what sets it apart.
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: AppColors.background,
-                    border: Border.all(color: AppColors.primary, width: 4),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(32),
-                      topRight: Radius.circular(32),
-                    ),
+                    color: AppColors.surface,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
                   ),
                   padding: EdgeInsets.fromLTRB(
                     context.layout.isTablet ? 32 : 24,
-                    36,
+                    28,
                     context.layout.isTablet ? 32 : 24,
-                    32,
+                    28,
                   ),
                   // The card itself still runs edge to edge — that full-bleed
                   // panel anchored to the bottom is the design. What stops at
@@ -558,7 +556,8 @@ class AuthBottomCard extends StatelessWidget {
   }
 }
 
-/// White, borderless input field for use on the red card.
+/// A filled, borderless field for the sign-in card: a soft grey well on the
+/// white sheet, with the brand colour appearing only while it has focus.
 class AuthTextField extends StatelessWidget {
   final String hint;
   final bool obscure;
@@ -595,8 +594,8 @@ class AuthTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: AppColors.textmedium.withValues(alpha: 0.2), width: 1.5),
+      borderRadius: AppRadii.borderMd,
+      borderSide: BorderSide.none,
     );
 
     return TextFormField(
@@ -613,9 +612,9 @@ class AuthTextField extends StatelessWidget {
       style: TextStyle(color: AppColors.textdark),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55)),
+        hintStyle: TextStyle(color: AppColors.textmedium),
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: AppColors.background,
         suffixIcon: suffixIcon,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -624,15 +623,16 @@ class AuthTextField extends StatelessWidget {
         counterText: maxLength == null ? null : '',
         border: border,
         enabledBorder: border,
-        // Same colour, heavier line: the field being typed into is visible at
-        // a glance without the palette changing.
-        focusedBorder: border.copyWith(borderSide: border.borderSide.copyWith(width: 2.5)),
+        // The field being typed into is the one place the brand colour shows
+        // on the card.
+        focusedBorder: border.copyWith(borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }
 }
 
-/// Solid primary button with light text.
+/// The one red button on the sign-in card. Colours come from the theme; this
+/// only makes it a touch taller and answers the press.
 class AuthWhiteButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -641,21 +641,27 @@ class AuthWhiteButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textlight,
-        minimumSize: const Size(double.infinity, 50),
-        shape: const StadiumBorder(),
-        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+    return PressScale(
+      enabled: onPressed != null,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 50),
+          textStyle: TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        child: Text(label),
       ),
-      child: Text(label),
     );
   }
 }
 
-/// Primary pill button with a light icon and label.
+/// A row that opens one registration path: an icon in a tinted tile, the
+/// label, and a chevron, on a white card. The brand colour is in the tile
+/// only, so two of these side by side read as a list, not as two alarms.
 class AuthRoleButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -670,41 +676,47 @@ class AuthRoleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.primary,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.textlight, width: 1.5),
+    return PressScale(
+      child: Material(
+        color: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.borderMd,
+          side: AppHairline.side(AppColors.textmedium),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.10),
+                    borderRadius: AppRadii.borderSm,
+                  ),
+                  child: Icon(icon, color: AppColors.primary, size: 22),
                 ),
-                child: Icon(icon, color: AppColors.textlight, size: 20),
-              ),
-              const SizedBox(width: 16),
-              // Expanded, not bare: the label takes what is left of the row
-              // after the circle rather than demanding its own full width.
-              // Without it "Register as Mechanic" runs past the right edge of
-              // the card on any phone narrower than about 430 points.
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textlight,
+                const SizedBox(width: 14),
+                // Expanded, not bare: the label takes what is left of the row
+                // after the tile rather than demanding its own full width.
+                // Without it "Register as Mechanic" runs past the right edge
+                // of the card on any phone narrower than about 430 points.
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textdark,
+                    ),
                   ),
                 ),
-              ),
-            ],
+                Icon(Icons.chevron_right, color: AppColors.textmedium, size: 22),
+              ],
+            ),
           ),
         ),
       ),
@@ -715,8 +727,8 @@ class AuthRoleButton extends StatelessWidget {
 /// The backdrop the Sign In and Welcome screens sit on.
 ///
 /// Paints the photo an admin published from the console website (Settings >
-/// Change Background), or [AppColors.surface] — the default background color
-/// — when there is none. It listens to [AuthBackgroundController], so a
+/// Change Background), or the page's grey canvas when there is none, so the
+/// white card is still a card. It listens to [AuthBackgroundController], so a
 /// published or cleared photo swaps both screens over on its own.
 class AuthBackground extends StatelessWidget {
   final Widget child;
@@ -734,7 +746,7 @@ class AuthBackground extends StatelessWidget {
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: AppColors.background,
             image: photo == null
                 ? null
                 : DecorationImage(image: FileImage(File(photo)), fit: BoxFit.cover),

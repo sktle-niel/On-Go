@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 import 'design_tokens.dart';
-import 'theme_controller.dart';
 
 /// One destination in [OnGoBottomNav].
 @immutable
@@ -16,9 +15,11 @@ class OnGoNavItem {
   const OnGoNavItem({required this.icon, this.activeIcon, required this.label});
 }
 
-/// Floating rounded navigation bar. Unselected destinations show their icon
-/// only; the selected one expands into a filled pill carrying its icon and
-/// label side by side.
+/// A flat navigation bar on the page's own surface, set off by a hairline.
+///
+/// Every destination shows its icon and its label; the selected one is drawn
+/// in the brand colour and nothing else moves. A tab is switched dozens of
+/// times a day, which is exactly the kind of action that should not animate.
 ///
 /// Drop-in replacement for [BottomNavigationBar] — same [currentIndex] /
 /// [onTap] contract, so each shell keeps its own tabs and routing.
@@ -34,112 +35,79 @@ class OnGoBottomNav extends StatelessWidget {
     required this.items,
   });
 
-  static const double _barHeight = 68;
-
-  /// Gap between the bar's edge and the row of destinations.
-  static const EdgeInsets _barPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 10);
-
-  /// Narrowest an icon-only destination is allowed to get.
-  static const double _minIconSlot = 40;
-
-  static const double _sideMargin = 16;
-  static const double _bottomMargin = 10;
-
-  static const Duration _slide = Duration(milliseconds: 260);
-
-  Color get _barColor => AppColors.surface;
+  static const double height = 60;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = ThemeController.instance.selected.isDark;
-    final barColor = _barColor;
-    final onBar = isDark ? AppColors.textlight : AppColors.textdark;
-
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(_sideMargin, 0, _sideMargin, _bottomMargin),
-        child: Container(
-          height: _barHeight,
-          padding: _barPadding,
-          decoration: BoxDecoration(
-            color: barColor,
-            borderRadius: AppRadii.borderXl,
-            border: Border.all(color: onBar.withValues(alpha: 0.14), width: AppBorders.thin),
-            boxShadow: AppShadows.raised,
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: AppHairline.side(AppColors.textmedium)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: height,
           child: Material(
             type: MaterialType.transparency,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final count = items.length;
-
-                // The selected pill takes a fixed share of the bar and the rest
-                // split what is left, so the pill has room for its label
-                // without any of the icon-only slots collapsing.
-                final maxPill = width - (count - 1) * _minIconSlot;
-                final pillWidth = maxPill <= 0
-                    ? width / count
-                    : (width * (count <= 4 ? 0.36 : 0.32)).clamp(0.0, maxPill);
-                final iconWidth = count > 1 ? (width - pillWidth) / (count - 1) : width;
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < count; i++)
-                      _slot(i, i == currentIndex ? pillWidth : iconWidth, onBar),
-                  ],
-                );
-              },
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  Expanded(
+                    child: _Destination(
+                      item: items[i],
+                      selected: i == currentIndex,
+                      onTap: () => onTap(i),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _slot(int index, double width, Color onBar) {
-    final item = items[index];
-    final selected = index == currentIndex;
+class _Destination extends StatelessWidget {
+  final OnGoNavItem item;
+  final bool selected;
+  final VoidCallback onTap;
 
-    return AnimatedContainer(
-      duration: _slide,
-      curve: Curves.easeOutCubic,
-      width: width,
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(_barHeight),
-      ),
-      child: InkWell(
-        onTap: () => onTap(index),
-        customBorder: const StadiumBorder(),
-        child: selected
-            ? Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(item.activeIcon ?? item.icon, size: 20, color: AppColors.textlight),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textlight,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            : Center(
-                child: Icon(item.icon, size: 22, color: onBar.withValues(alpha: 0.7)),
+  const _Destination({required this.item, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.primary : AppColors.textmedium;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: InkResponse(
+        onTap: onTap,
+        containedInkWell: true,
+        highlightShape: BoxShape.rectangle,
+        highlightColor: Colors.transparent,
+        splashColor: AppColors.textdark.withValues(alpha: 0.06),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(selected ? (item.activeIcon ?? item.icon) : item.icon, size: 24, color: color),
+            const SizedBox(height: 3),
+            Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                height: 1.2,
+                color: color,
               ),
+            ),
+          ],
+        ),
       ),
     );
   }

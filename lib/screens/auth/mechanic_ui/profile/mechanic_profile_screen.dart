@@ -329,8 +329,6 @@ class _MechanicProfileScreenState extends State<MechanicProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textmedium,
         title: const Text('Mechanic Profile'),
       ),
       body: content,

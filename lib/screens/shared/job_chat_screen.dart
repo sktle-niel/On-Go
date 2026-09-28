@@ -144,8 +144,6 @@ class _JobChatScreenState extends State<JobChatScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textmedium,
         title: Text(widget.otherPartyName),
       ),
       body: Column(

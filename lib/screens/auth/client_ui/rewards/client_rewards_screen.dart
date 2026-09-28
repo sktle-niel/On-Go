@@ -50,8 +50,6 @@ class _ClientRewardsScreenState extends State<ClientRewardsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textlight,
         title: const Text('Rewards & Points'),
       ),
       body: ListView(

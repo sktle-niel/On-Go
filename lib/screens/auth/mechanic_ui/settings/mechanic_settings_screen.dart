@@ -55,8 +55,6 @@ class _MechanicSettingsScreenState extends State<MechanicSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textmedium,
         title: const Text('Settings'),
       ),
       body: ListView(

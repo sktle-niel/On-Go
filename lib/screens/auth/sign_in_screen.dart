@@ -130,7 +130,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: -0.4,
                   color: AppColors.textdark,
                 ),
@@ -139,7 +139,7 @@ class _SignInScreenState extends State<SignInScreen> {
               Text(
                 'Sign in to find help or take on jobs',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textdark),
+                style: TextStyle(fontSize: 13, color: AppColors.textmedium),
               ),
               const SizedBox(height: 24),
               AutofillGroup(
@@ -219,7 +219,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 children: [
                   Text(
                     "Don't have account? ",
-                    style: TextStyle(fontSize: 13, color: AppColors.textdark),
+                    style: TextStyle(fontSize: 13, color: AppColors.textmedium),
                   ),
                   TextButton(
                     onPressed: () => Navigator.push(

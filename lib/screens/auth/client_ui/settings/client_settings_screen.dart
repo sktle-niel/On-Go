@@ -56,8 +56,6 @@ class _ClientSettingsScreenState extends State<ClientSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textmedium,
         title: const Text('Settings'),
       ),
       body: ListView(

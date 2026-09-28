@@ -66,9 +66,14 @@ class _ClientMenuDrawerState extends State<ClientMenuDrawer> {
       ),
       child: Column(
         children: [
+          // The person, on the drawer's own surface with a hairline under
+          // them; the avatar's tint is the only colour.
           Container(
             width: double.infinity,
-            color: AppColors.primary,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border(bottom: AppHairline.side(AppColors.textmedium)),
+            ),
             // Clears the status bar on every phone rather than guessing its
             // height, so the name never tucks under a notch.
             padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 24, 20, 20),
@@ -76,11 +81,11 @@ class _ClientMenuDrawerState extends State<ClientMenuDrawer> {
               children: [
                 CircleAvatar(
                   radius: 28,
-                  backgroundColor: AppColors.surface.withValues(alpha: 0.25),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.10),
                   backgroundImage: photo == null
                       ? null
                       : (_store.photoIsNetwork ? NetworkImage(photo) : FileImage(File(photo))) as ImageProvider?,
-                  child: photo == null ? Icon(Icons.person_outline, color: AppColors.textlight, size: 32) : null,
+                  child: photo == null ? Icon(Icons.person_outline, color: AppColors.primary, size: 30) : null,
                 ),
                 const SizedBox(width: 14),
                 // Expanded, so a long name ellipses inside the drawer instead
@@ -93,10 +98,10 @@ class _ClientMenuDrawerState extends State<ClientMenuDrawer> {
                         displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textlight, fontWeight: FontWeight.w700, letterSpacing: -0.2),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.textdark, fontWeight: FontWeight.w700, letterSpacing: -0.2),
                       ),
                       const SizedBox(height: 2),
-                      Text(_store.isDemo ? 'Demo Mode' : 'Client', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textlight.withValues(alpha: 0.7))),
+                      Text(_store.isDemo ? 'Demo Mode' : 'Client', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textmedium)),
                     ],
                   ),
                 ),

@@ -31,8 +31,8 @@ import 'package:flutter/material.dart';
 //  ───────────────────────────────────────────────────────────────────────────
 //  THE CATEGORIES AT A GLANCE
 //
-//    display      28  ExtraBold   ₱ figures, "Welcome!", the rating average
-//    headline     20  ExtraBold   the big title at the top of a screen
+//    display      28  Bold        ₱ figures, "Welcome!", the rating average
+//    headline     20  Bold        the big title at the top of a screen
 //    title        18  ExtraBold   app bar titles, the name on a job card
 //    sectionTitle 16  ExtraBold   "Top Mechanics", "Personal Information"
 //    subtitle     15  SemiBold    settings rows — "Themes", "Change Password"
@@ -287,11 +287,14 @@ class AppTextStyles {
   //  Used for: "₱1,240.00" available balance and the points total (Mechanic →
   //            Earnings), the amount on the payment sheet, "Welcome!" on the
   //            welcome screen, the "4.8" rating average on a mechanic profile
-  //  Size 28 · Weight ExtraBold · Font default
+  //  Size 28 · Weight Bold · Font default
   //  One per screen at most — this is the thing the eye lands on first.
+  //  Bold, not ExtraBold: on a plain white surface the heaviest weight reads
+  //  as shouting, and a big figure is already the loudest thing on the page.
   static AppTextSpec display = const AppTextSpec(
-    size: 30,
-    weight: AppFontWeight.semiBold,
+    size: 28,
+    weight: AppFontWeight.bold,
+    letterSpacing: -0.4,
     //fontFamily: 'Roboto Mono',   // ← this category only
   );
 
@@ -301,7 +304,8 @@ class AppTextStyles {
   //  Size 20 · Weight ExtraBold · Font default
   static AppTextSpec headline = const AppTextSpec(
     size: 20,
-    weight: AppFontWeight.extraBold,
+    weight: AppFontWeight.bold,
+    letterSpacing: -0.2,
     //fontFamily: 'Poppins',       // ← this category only
   );
 
@@ -471,10 +475,10 @@ class AppTextStyles {
   /// above. Useful in tests, and as a way back if an experiment goes wrong.
   static void resetToDefaults() {
     fontFamily = 'Roboto';
-    display = const AppTextSpec(size: 28, weight: AppFontWeight.extraBold);
-    headline = const AppTextSpec(size: 20, weight: AppFontWeight.extraBold);
-    title = const AppTextSpec(size: 18, weight: AppFontWeight.extraBold);
-    sectionTitle = const AppTextSpec(size: 16, weight: AppFontWeight.extraBold);
+    display = const AppTextSpec(size: 28, weight: AppFontWeight.bold, letterSpacing: -0.4);
+    headline = const AppTextSpec(size: 20, weight: AppFontWeight.bold, letterSpacing: -0.2);
+    title = const AppTextSpec(size: 18, weight: AppFontWeight.semiBold);
+    sectionTitle = const AppTextSpec(size: 16, weight: AppFontWeight.semiBold);
     subtitle = const AppTextSpec(size: 15, weight: AppFontWeight.semiBold);
     label = const AppTextSpec(size: 14, weight: AppFontWeight.semiBold);
     body = const AppTextSpec(size: 13, weight: AppFontWeight.regular);

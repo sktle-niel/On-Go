@@ -79,7 +79,7 @@ class WelcomeScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 28,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: -0.4,
                   color: AppColors.textdark,
                 ),
@@ -88,7 +88,7 @@ class WelcomeScreen extends StatelessWidget {
               Text(
                 'Please select how you want to register',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textdark),
+                style: TextStyle(fontSize: 13, color: AppColors.textmedium),
               ),
               const SizedBox(height: 24),
               AuthRoleButton(
@@ -115,7 +115,7 @@ class WelcomeScreen extends StatelessWidget {
                 children: [
                   Text(
                     'Already have an account? ',
-                    style: TextStyle(fontSize: 13, color: AppColors.textdark),
+                    style: TextStyle(fontSize: 13, color: AppColors.textmedium),
                   ),
                   TextButton(
                     onPressed: () => _backToSignIn(context),

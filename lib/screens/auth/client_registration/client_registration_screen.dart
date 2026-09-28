@@ -392,9 +392,9 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                               label: const Text('UPLOAD\nPHOTO',
                                   textAlign: TextAlign.center),
                               onPressed: _pickGallery,
+                              // Ink on an outline, like every secondary
+                              // action; the red is saved for Register.
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.primary,
-                                side: BorderSide(color: AppColors.primary),
                                 minimumSize: const Size(0, 56),
                                 shape: const StadiumBorder(),
                               ),
@@ -408,9 +408,9 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                               label: const Text('TAKE\nSELFIE',
                                   textAlign: TextAlign.center),
                               onPressed: _takeSelfie,
+                              // Ink on an outline, like every secondary
+                              // action; the red is saved for Register.
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.primary,
-                                side: BorderSide(color: AppColors.primary),
                                 minimumSize: const Size(0, 56),
                                 shape: const StadiumBorder(),
                               ),

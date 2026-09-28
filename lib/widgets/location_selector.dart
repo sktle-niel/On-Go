@@ -527,8 +527,8 @@ class _LocationSelectorState extends State<LocationSelector> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.textdark.withValues(alpha: 0.15)),
-        boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, 4))],
+        border: Border.all(color: AppHairline.of(AppColors.textmedium)),
+        boxShadow: AppShadows.raised,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),

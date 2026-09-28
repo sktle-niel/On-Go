@@ -246,12 +246,12 @@ class _NeedHelpScreenState extends State<NeedHelpScreen> {
           Text(
             'Need Help?',
             style: TextStyle(
-                fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: AppColors.textdark),
+                fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: AppColors.textdark),
           ),
           const SizedBox(height: 4),
           Text(
             'Describe your motorcycle problem to help mechanics understand your situation better. The more details you provide, the better quotes you will receive.',
-            style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.textdark),
+            style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.textmedium),
           ),
           const SizedBox(height: 20),
           const Text('Common Issues',

@@ -21,6 +21,7 @@ export 'src/app_colors.dart';
 export 'src/app_palette.dart';
 export 'src/design_tokens.dart';
 export 'src/on_go_bottom_nav.dart';
+export 'src/press_scale.dart';
 export 'src/theme_controller.dart';
 export 'src/ui_container_styles.dart';
 export 'src/ui_icon_styles.dart';

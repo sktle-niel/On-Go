@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'design_tokens.dart';
 
 /// The product's app bar: a menu button that opens the drawer, the "On Go"
 /// wordmark with a subtitle naming the shell, an optional secondary action,
 /// and a notification bell.
+///
+/// It sits on the page's own surface with a hairline under it. The brand
+/// colour appears once, in the wordmark; the icons are ink, so the bar reads
+/// as part of the page rather than a band across the top of it.
 ///
 /// Shared by the mobile app and, on a phone-sized window, the admin console —
 /// so an admin opening the console on their phone gets the same bar a client
@@ -32,47 +37,55 @@ class OnGoAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.notificationAction,
   });
 
+  static const double height = 60;
+
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => const Size.fromHeight(height);
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return AppBar(
-      backgroundColor: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
+      scrolledUnderElevation: 0,
+      toolbarHeight: height,
       centerTitle: false,
+      automaticallyImplyLeading: false,
+      shape: Border(bottom: AppHairline.side(AppColors.textmedium)),
       leading: showMenuButton
           ? IconButton(
-              icon: Icon(Icons.menu, color: AppColors.textlight),
+              icon: Icon(Icons.menu, color: AppColors.textdark),
+              tooltip: 'Menu',
               onPressed: () => Scaffold.of(context).openDrawer(),
             )
-          : const SizedBox(width: 48),
-      title: Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'On Go',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(color: AppColors.textlight),
+          : null,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'On Go',
+            style: textTheme.titleLarge?.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
+              height: 1.1,
             ),
-            Text(
-              subtitle,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.textlight),
-            ),
-          ],
-        ),
+          ),
+          Text(
+            subtitle,
+            style: textTheme.bodySmall?.copyWith(color: AppColors.textmedium, height: 1.2),
+          ),
+        ],
       ),
       actions: [
         ?secondaryAction,
         ?notificationAction,
+        const SizedBox(width: 4),
       ],
     );
   }
@@ -102,37 +115,35 @@ class NotificationBell extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         IconButton(
-          icon: Icon(Icons.notifications_none, color: iconColor ?? AppColors.textlight),
+          icon: Icon(Icons.notifications_none, color: iconColor ?? AppColors.textdark),
+          tooltip: 'Notifications',
           onPressed: onTap,
         ),
         if (count > 0)
           Positioned(
-            right: 8,
-            top: 10,
+            right: 6,
+            top: 8,
             // The badge sits over the middle of the icon, and an opaque
             // Container would swallow a tap there instead of letting the
             // IconButton behind it fire. It is decoration, not a target.
             child: IgnorePointer(
               child: Container(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                 decoration: BoxDecoration(
-                  color: badgeColor ?? AppColors.warning,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.textdark.withValues(alpha: 0.12),
-                      blurRadius: 2,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
+                  color: badgeColor ?? AppColors.primary,
+                  borderRadius: BorderRadius.circular(9),
+                  // A ring in the bar's own colour lifts the badge off the
+                  // icon without a shadow.
+                  border: Border.all(color: AppColors.surface, width: 1.5),
                 ),
                 child: Text(
-                  '$count',
+                  count > 99 ? '99+' : '$count',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
+                    height: 1.2,
                     color: AppColors.textlight,
                   ),
                 ),
