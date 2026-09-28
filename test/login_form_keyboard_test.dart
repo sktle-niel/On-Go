@@ -97,7 +97,7 @@ const _devices = <String, Size>{
 };
 
 Finder get _cardScrollable => find
-    .descendant(of: find.byType(AuthBottomCard), matching: find.byType(Scrollable))
+    .descendant(of: find.byType(AuthPage), matching: find.byType(Scrollable))
     .first;
 
 // ═══════════════════════════════════════════════════════════════════════════

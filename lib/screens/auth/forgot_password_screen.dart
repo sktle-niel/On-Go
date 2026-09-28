@@ -274,7 +274,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       });
 
   ButtonStyle get _linkStyle => TextButton.styleFrom(
-        foregroundColor: AppColors.textdark,
+        foregroundColor: AppColors.primary,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         minimumSize: const Size(48, 44),
       );
@@ -283,91 +283,62 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     final sentTo = _usesApi ? _sentTo : _reset.email;
 
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: AuthBackground(
-        child: SafeArea(
-          child: AuthBottomCard(
+    return AuthPage(
+      showBack: true,
+      footer: AuthFooterLink(
+        action: 'Back to Sign In',
+        onTap: () => Navigator.pop(context),
+      ),
+      children: [
+        AuthIntro(
+          title: switch (_stage) {
+            _Stage.email => 'Reset your password',
+            _Stage.code => 'Enter your code',
+            _Stage.newPassword => 'Create a new password',
+          },
+          subtitle: switch (_stage) {
+            _Stage.email => 'We\'ll send a one-time code to the email on your account.',
+            _Stage.code =>
+              'Enter the 6-digit code sent to ${sentTo ?? 'your email'}. It expires in ${PasswordResetStore.codeLifetime.inMinutes} minutes.',
+            _Stage.newPassword => 'Choose a password you haven\'t used before.',
+          },
+        ),
+        const SizedBox(height: 24),
+        ..._stageFields(),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Row(
+            // The icon stays beside the first line when the message wraps.
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Centred, like the headings on Welcome and Sign In, which share
-              // this card.
-              Text(
-                switch (_stage) {
-                  _Stage.email => 'Reset your password',
-                  _Stage.code => 'Enter your code',
-                  _Stage.newPassword => 'Create a new password',
-                },
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                  color: AppColors.textdark,
-                ),
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(Icons.error_outline, size: 16, color: AppColors.error),
               ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.center,
-                child: Text(
-                  textAlign: TextAlign.center,
-                  switch (_stage) {
-                    _Stage.email => 'We\'ll send a one-time code to the email on your account.',
-                    _Stage.code =>
-                      'Enter the 6-digit code sent to ${sentTo ?? 'your email'}. It expires in ${PasswordResetStore.codeLifetime.inMinutes} minutes.',
-                    _Stage.newPassword => 'Choose a password you haven\'t used before.',
-                  },
-                  style: TextStyle(fontSize: 13, color: AppColors.textdark.withValues(alpha: 0.55)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              ..._stageFields(),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Row(
-                  // The icon stays beside the first line when the message wraps.
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 1),
-                      child: Icon(Icons.error_outline, size: 16, color: AppColors.error),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(_error!, style: TextStyle(fontSize: 12, color: AppColors.error)),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 20),
-              AuthWhiteButton(
-                label: _busy
-                    ? 'Please wait…'
-                    : switch (_stage) {
-                        _Stage.email => 'Send Code',
-                        _Stage.code => 'Verify Code',
-                        _Stage.newPassword => 'Save New Password',
-                      },
-                onPressed: _busy
-                    ? null
-                    : switch (_stage) {
-                        _Stage.email => _submitEmail,
-                        _Stage.code => _submitCode,
-                        _Stage.newPassword => _submitNewPassword,
-                      },
-              ),
-              const SizedBox(height: 4),
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: _linkStyle,
-                  child: Text('Back to Sign In',
-                      style: TextStyle(fontSize: 13, color: AppColors.textdark)),
-                ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(_error!, style: TextStyle(fontSize: 12, color: AppColors.error)),
               ),
             ],
           ),
+        ],
+        const SizedBox(height: 20),
+        AuthPrimaryButton(
+          label: _busy
+              ? 'Please wait…'
+              : switch (_stage) {
+                  _Stage.email => 'Send Code',
+                  _Stage.code => 'Verify Code',
+                  _Stage.newPassword => 'Save New Password',
+                },
+          busy: _busy,
+          onPressed: switch (_stage) {
+            _Stage.email => _submitEmail,
+            _Stage.code => _submitCode,
+            _Stage.newPassword => _submitNewPassword,
+          },
         ),
-      ),
+      ],
     );
   }
 
@@ -418,12 +389,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               TextButton(
                 onPressed: _busy ? null : _resendCode,
                 style: _linkStyle,
-                child: Text('Resend code', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textdark)),
+                child: Text('Resend code', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               ),
               TextButton(
                 onPressed: _busy ? null : _changeEmail,
                 style: _linkStyle,
-                child: Text('Change email', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textdark)),
+                child: Text('Change email', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               ),
             ],
           ),

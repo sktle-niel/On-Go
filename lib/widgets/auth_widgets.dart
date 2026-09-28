@@ -480,85 +480,435 @@ class OnGoChoiceRow extends StatelessWidget {
   }
 }
 
-/// Layout used by the Sign In / Welcome screens.
-class AuthBottomCard extends StatelessWidget {
-  final List<Widget> children;
-  final Widget? topContent;
+// ═══════════════════════════════════════════════════════════════════════════
+//  The front door: Sign In, Welcome, Forgot Password, the session restore
+// ═══════════════════════════════════════════════════════════════════════════
 
-  const AuthBottomCard({super.key, required this.children, this.topContent});
+/// The page every screen outside the app proper is built on.
+///
+/// A brand hero across the top and a white sheet with rounded top corners
+/// rising over it — the front door of a ride-hailing app, with the brand
+/// colour doing the welcoming and the sheet doing the work. The hero paints
+/// the photo an admin published from the console when there is one.
+///
+/// The sheet scrolls only when it has to. With the keyboard up the hero folds
+/// to a slim band so the form keeps the room, and the field being typed into
+/// is brought above the keyboard; when everything fits, [footer] sits on the
+/// bottom edge and nothing moves.
+class AuthPage extends StatelessWidget {
+  /// The sheet's content, top down.
+  final List<Widget> children;
+
+  /// Pinned to the bottom of the sheet: the "already have an account?" line.
+  final Widget? footer;
+
+  /// A back button on the hero, for a screen reached from another one.
+  final bool showBack;
+
+  const AuthPage({
+    super.key,
+    required this.children,
+    this.footer,
+    this.showBack = false,
+  });
+
+  /// The sheet's corner radius — how much hero shows beside the corners.
+  static const double sheetRadius = 28;
+
+  /// The widest the sheet's content gets. A sign-in form a foot wide, on a
+  /// tablet or a phone on its side, looks like a mistake.
+  static const double contentMaxWidth = 480;
 
   @override
   Widget build(BuildContext context) {
-    // Scrolls when it has to, and only then.
-    //
-    // With the keyboard up, the Scaffold hands this far less height than the
-    // card needs — over half the screen with some keyboards — and a Column
-    // that cannot scroll can only overflow, painting the warning stripe over
-    // "Don't have account? Sign Up". Inside a scroll view the card has
-    // somewhere to go: the field being typed into is brought above the
-    // keyboard, and the rest of the card is a swipe away.
-    //
-    // When everything fits, nothing changes. The minimum height is the full
-    // height available, so the space above the card still expands and the
-    // card still sits on the bottom edge exactly as before, and clamping
-    // physics stop it bouncing when there is nothing to scroll.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          // What lets the Expanded below work inside a scroll view: it gives
-          // the column a definite height — the taller of the screen and the
-          // card — for the space above the card to fill.
-          child: IntrinsicHeight(
-            child: Column(
-              children: [
-                Expanded(child: Center(child: topContent ?? const SizedBox.shrink())),
-                // A white sheet rising from the bottom edge: no border, no
-                // shadow — the backdrop it sits on is what sets it apart.
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
-                  ),
-                  padding: EdgeInsets.fromLTRB(
-                    context.layout.isTablet ? 32 : 24,
-                    28,
-                    context.layout.isTablet ? 32 : 24,
-                    28,
-                  ),
-                  // The card itself still runs edge to edge — that full-bleed
-                  // panel anchored to the bottom is the design. What stops at
-                  // a sensible width is what is INSIDE it: on a tablet, a
-                  // sign-in field and a "Register as Client" button stretched
-                  // across ten inches look broken, and the buttons become a
-                  // long way from the thumb that has to reach them. Centred
-                  // inside the card, they keep a phone's proportions on any
-                  // screen.
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: context.layout.contentMaxWidth),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: children,
-                      ),
-                    ),
+    final layout = context.layout;
+    final media = MediaQuery.of(context);
+    final top = media.padding.top;
+    // The hero gives way to the form: folded whenever the keyboard is up or
+    // the window is too short to spare a third of itself.
+    final compact = media.viewInsets.bottom > 0 || layout.isShort;
+    final heroHeight = compact
+        ? top + AuthHero.compactHeight
+        : (layout.height * 0.32).clamp(top + 184, top + 280).toDouble();
+    final c = AppColors.palette;
+
+    return Scaffold(
+      // The hero colour is the page: it is what shows beside the sheet's
+      // rounded corners.
+      backgroundColor: c.primary,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        // The clock sits on the hero, so it is drawn light on every theme.
+        value: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+          systemNavigationBarColor: c.surface,
+          systemNavigationBarIconBrightness:
+              AppColors.isDark ? Brightness.light : Brightness.dark,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AuthHero(height: heroHeight, compact: compact, showBack: showBack),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(sheetRadius)),
+                child: ColoredBox(
+                  color: c.surface,
+                  child: SafeArea(
+                    top: false,
+                    child: _AuthSheet(footer: footer, children: children),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// A filled, borderless field for the sign-in card: a soft grey well on the
-/// white sheet, with the brand colour appearing only while it has focus.
+/// The white sheet: [AuthPage]'s content, scrolling only when it must.
+class _AuthSheet extends StatelessWidget {
+  final List<Widget> children;
+  final Widget? footer;
+
+  const _AuthSheet({required this.children, this.footer});
+
+  @override
+  Widget build(BuildContext context) {
+    final side = context.layout.isTablet ? 32.0 : 24.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Past the reading measure the content centres and the rest of the
+        // width becomes margin.
+        final slack = (constraints.maxWidth - AuthPage.contentMaxWidth) / 2;
+        final inset = slack > side ? slack : side;
+
+        // Inside a scroll view the sheet has somewhere to go when the
+        // keyboard takes half the screen. The minimum height is the full
+        // height available, so when everything fits the footer still sits on
+        // the bottom edge, and clamping physics stop it bouncing when there
+        // is nothing to scroll. IntrinsicHeight gives the column a definite
+        // height — the taller of the sheet and its content — for the Spacer
+        // above the footer to fill.
+        return SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: _SheetEntrance(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(inset, 28, inset, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ...children,
+                      if (footer != null) ...[
+                        const Spacer(),
+                        const SizedBox(height: 20),
+                        footer!,
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The sheet's content settling into place as the screen opens: a short
+/// rise and fade, once. Skipped when the reader has asked for no animation.
+class _SheetEntrance extends StatelessWidget {
+  final Widget child;
+
+  const _SheetEntrance({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppMotion.slow,
+      curve: AppMotion.enter,
+      child: child,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, 16 * (1 - t)),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// The brand hero across the top of every [AuthPage]: the wordmark on the
+/// brand colour, or on the photo an admin published from the console.
+///
+/// [height] includes the status bar, which the hero runs under. While
+/// [compact] it is a slim band with the wordmark alone, so the form keeps the
+/// room when the keyboard is up.
+class AuthHero extends StatelessWidget {
+  final double height;
+  final bool compact;
+  final bool showBack;
+
+  const AuthHero({
+    super.key,
+    required this.height,
+    this.compact = false,
+    this.showBack = false,
+  });
+
+  /// The band the hero folds to, below the status bar.
+  static const double compactHeight = 64;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    final top = MediaQuery.paddingOf(context).top;
+
+    return AnimatedContainer(
+      duration: AppMotion.slow,
+      curve: AppMotion.move,
+      height: height,
+      child: AnimatedBuilder(
+        animation: AuthBackgroundController.instance,
+        builder: (context, _) {
+          final photo = AuthBackgroundController.instance.photoPath;
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [c.primary, c.primarydark],
+                  ),
+                  image: photo == null
+                      ? null
+                      : DecorationImage(image: FileImage(File(photo)), fit: BoxFit.cover),
+                ),
+              ),
+              if (photo != null)
+                // Whatever was published, the wordmark sits on a shade that
+                // deepens towards it.
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.10),
+                        Colors.black.withValues(alpha: 0.55),
+                      ],
+                    ),
+                  ),
+                )
+              else ...[
+                // Two soft discs and a watermark of the trade: enough to keep
+                // a flat colour from reading as a blank, not enough to
+                // compete with the words.
+                const Positioned(right: -70, top: -60, child: _HeroDisc(220, 0.08)),
+                const Positioned(left: -40, bottom: -90, child: _HeroDisc(180, 0.06)),
+                if (!compact)
+                  Positioned(
+                    right: -12,
+                    bottom: -8,
+                    child: Icon(
+                      Icons.car_repair_rounded,
+                      size: 168,
+                      color: c.textlight.withValues(alpha: 0.10),
+                    ),
+                  ),
+              ],
+              Positioned.fill(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(24, top, 24, 0),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Decided by the room there is right now, not by
+                      // [compact]: the band animates between its two heights,
+                      // and the full block must never be asked to fit a
+                      // height it cannot.
+                      final full = constraints.maxHeight >= 172;
+                      if (!full) {
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            // Clear of the back button beside it.
+                            padding: EdgeInsets.only(left: showBack ? 48 : 0),
+                            child: const _Brand(compact: true),
+                          ),
+                        );
+                      }
+                      return const Padding(
+                        padding: EdgeInsets.only(top: 8, bottom: 24),
+                        child: Align(
+                          alignment: Alignment.bottomLeft,
+                          // Scales down rather than overflowing at the largest
+                          // text sizes.
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.bottomLeft,
+                            child: _Brand(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              if (showBack)
+                Positioned(
+                  top: top + 6,
+                  left: 12,
+                  child: IconButton(
+                    onPressed: () => Navigator.maybePop(context),
+                    tooltip: 'Back',
+                    icon: const Icon(Icons.arrow_back_rounded, size: 22),
+                    style: IconButton.styleFrom(
+                      backgroundColor: c.textlight.withValues(alpha: 0.18),
+                      foregroundColor: c.textlight,
+                      minimumSize: const Size(44, 44),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A soft disc on the hero.
+class _HeroDisc extends StatelessWidget {
+  final double size;
+  final double alpha;
+
+  const _HeroDisc(this.size, this.alpha);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.textlight.withValues(alpha: alpha),
+      ),
+    );
+  }
+}
+
+/// The mark and the wordmark, on the hero. Full: the mark over "On Go" and
+/// the tagline. Compact: the mark beside "On Go", one line.
+class _Brand extends StatelessWidget {
+  final bool compact;
+
+  const _Brand({this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    final mark = Container(
+      width: compact ? 28 : 44,
+      height: compact ? 28 : 44,
+      decoration: BoxDecoration(
+        color: c.textlight,
+        borderRadius: BorderRadius.circular(compact ? 8 : 14),
+      ),
+      child: Icon(Icons.car_repair_rounded, color: c.primary, size: compact ? 18 : 26),
+    );
+    final wordmark = Text(
+      'On Go',
+      style: TextStyle(
+        color: c.textlight,
+        fontSize: compact ? 20 : 30,
+        fontWeight: FontWeight.w800,
+        letterSpacing: compact ? -0.4 : -0.8,
+        height: 1.1,
+      ),
+    );
+
+    if (compact) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [mark, const SizedBox(width: 10), wordmark],
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        mark,
+        const SizedBox(height: 12),
+        wordmark,
+        const SizedBox(height: 2),
+        Text(
+          'Service Anywhere',
+          style: TextStyle(
+            color: c.textlight.withValues(alpha: 0.82),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The headline at the top of the sheet and the line under it. Set left,
+/// like a page rather than a dialog.
+class AuthIntro extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+
+  const AuthIntro({super.key, required this.title, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.6,
+            height: 1.15,
+            color: c.textdark,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            subtitle!,
+            style: TextStyle(fontSize: 14, height: 1.4, color: c.textmedium),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// A field on the sheet: a soft well with a faint outline and its name inside,
+/// which rises onto the top edge as the field fills. The brand colour appears
+/// only while it has focus — the outline and the floated name.
 class AuthTextField extends StatelessWidget {
+  /// The field's name: "Email", "Password", "6-digit code".
   final String hint;
   final bool obscure;
   final TextEditingController? controller;
@@ -593,10 +943,11 @@ class AuthTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = OutlineInputBorder(
-      borderRadius: AppRadii.borderMd,
-      borderSide: BorderSide.none,
-    );
+    final c = AppColors.palette;
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
+          borderRadius: AppRadii.borderMd,
+          borderSide: width == 0 ? BorderSide.none : BorderSide(color: color, width: width),
+        );
 
     return TextFormField(
       controller: controller,
@@ -609,62 +960,147 @@ class AuthTextField extends StatelessWidget {
       maxLength: maxLength,
       onChanged: onChanged,
       onFieldSubmitted: onSubmitted,
-      style: TextStyle(color: AppColors.textdark),
+      cursorColor: c.primary,
+      style: TextStyle(color: c.textdark, fontSize: 16, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: AppColors.textmedium),
-        filled: true,
-        fillColor: AppColors.background,
-        suffixIcon: suffixIcon,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+        labelText: hint,
+        labelStyle: TextStyle(color: c.textmedium, fontSize: 15),
+        // Drawn at three quarters of this size once it has floated.
+        floatingLabelStyle: WidgetStateTextStyle.resolveWith(
+          (states) => TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: states.contains(WidgetState.error)
+                ? c.error
+                : states.contains(WidgetState.focused)
+                    ? c.primary
+                    : c.textmedium,
+          ),
         ),
+        filled: true,
+        fillColor: c.background,
+        suffixIcon: suffixIcon,
+        suffixIconColor: c.textmedium,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         counterText: maxLength == null ? null : '',
-        border: border,
-        enabledBorder: border,
-        // The field being typed into is the one place the brand colour shows
-        // on the card.
-        focusedBorder: border.copyWith(borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
+        // A faint outline at rest, so the floated name has a line to sit on.
+        border: border(AppHairline.outline(c.textmedium), 1),
+        enabledBorder: border(AppHairline.outline(c.textmedium), 1),
+        focusedBorder: border(c.primary, 1.5),
+        errorBorder: border(c.error, 1),
+        focusedErrorBorder: border(c.error, 1.5),
       ),
     );
   }
 }
 
-/// The one red button on the sign-in card. Colours come from the theme; this
-/// only makes it a touch taller and answers the press.
-class AuthWhiteButton extends StatelessWidget {
+/// The one brand-coloured button on the sheet: full width, tall enough for a
+/// thumb, and answering the press. While [busy] it keeps its colour and shows
+/// it is working, rather than going grey as if it had been switched off.
+class AuthPrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
+  final bool busy;
 
-  const AuthWhiteButton({super.key, required this.label, this.onPressed});
+  const AuthPrimaryButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.busy = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    final text = Text(label, maxLines: 1, overflow: TextOverflow.ellipsis);
+
     return PressScale(
-      enabled: onPressed != null,
+      enabled: onPressed != null && !busy,
       child: ElevatedButton(
-        onPressed: onPressed,
+        onPressed: busy ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 50),
+          minimumSize: const Size(double.infinity, 54),
+          shape: RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
+          disabledBackgroundColor: busy ? c.primary.withValues(alpha: 0.72) : null,
+          disabledForegroundColor: busy ? c.textlight : null,
           textStyle: TextStyle(
             fontFamily: AppTextStyles.fontFamily,
             fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
           ),
         ),
-        child: Text(label),
+        child: busy
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: c.textlight),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(child: text),
+                ],
+              )
+            : text,
       ),
     );
   }
 }
 
-/// A row that opens one registration path: an icon in a tinted tile, the
-/// label, and a chevron, on a white card. The brand colour is in the tile
-/// only, so two of these side by side read as a list, not as two alarms.
+/// The line at the foot of the sheet: a prompt and the one link that answers
+/// it — "Don't have an account? Sign Up".
+///
+/// Wrap, not Row: at a large system text scale the prompt and the link no
+/// longer fit side by side, and the link drops to its own line instead of
+/// overflowing. Identical to a centred Row when it does fit.
+class AuthFooterLink extends StatelessWidget {
+  final String? prompt;
+  final String action;
+  final VoidCallback onTap;
+
+  const AuthFooterLink({
+    super.key,
+    this.prompt,
+    required this.action,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (prompt != null) Text(prompt!, style: TextStyle(fontSize: 14, color: c.textmedium)),
+        TextButton(
+          onPressed: onTap,
+          // A real tap area; with zero padding and no minimum size the link
+          // was only as big as its letters.
+          style: TextButton.styleFrom(
+            foregroundColor: c.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            minimumSize: const Size(48, 44),
+          ),
+          child: Text(
+            action,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A card that opens one registration path: an icon in a tinted tile, the
+/// role, a line on what it is for, and a chevron. The brand colour is in the
+/// tile only, so two of these in a column read as a choice, not as two alarms.
 class AuthRoleButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? description;
   final VoidCallback onTap;
 
   const AuthRoleButton({
@@ -672,88 +1108,69 @@ class AuthRoleButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.description,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.palette;
     return PressScale(
       child: Material(
-        color: AppColors.surface,
+        color: c.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: AppRadii.borderMd,
-          side: AppHairline.side(AppColors.textmedium),
+          borderRadius: AppRadii.borderLg,
+          side: AppHairline.side(c.textmedium),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.10),
-                    borderRadius: AppRadii.borderSm,
+                    color: c.primary.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(icon, color: AppColors.primary, size: 22),
+                  child: Icon(icon, color: c.primary, size: 24),
                 ),
                 const SizedBox(width: 14),
-                // Expanded, not bare: the label takes what is left of the row
+                // Expanded, not bare: the text takes what is left of the row
                 // after the tile rather than demanding its own full width.
-                // Without it "Register as Mechanic" runs past the right edge
-                // of the card on any phone narrower than about 430 points.
                 Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textdark,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                          color: c.textdark,
+                        ),
+                      ),
+                      if (description != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          description!,
+                          style: TextStyle(fontSize: 13, height: 1.35, color: c.textmedium),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                Icon(Icons.chevron_right, color: AppColors.textmedium, size: 22),
+                const SizedBox(width: 8),
+                Icon(Icons.chevron_right_rounded, color: c.textmedium, size: 24),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-/// The backdrop the Sign In and Welcome screens sit on.
-///
-/// Paints the photo an admin published from the console website (Settings >
-/// Change Background), or the page's grey canvas when there is none, so the
-/// white card is still a card. It listens to [AuthBackgroundController], so a
-/// published or cleared photo swaps both screens over on its own.
-class AuthBackground extends StatelessWidget {
-  final Widget child;
-
-  const AuthBackground({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: AuthBackgroundController.instance,
-      child: child,
-      builder: (context, child) {
-        final photo = AuthBackgroundController.instance.photoPath;
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            image: photo == null
-                ? null
-                : DecorationImage(image: FileImage(File(photo)), fit: BoxFit.cover),
-          ),
-          child: child,
-        );
-      },
     );
   }
 }

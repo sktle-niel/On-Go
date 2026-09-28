@@ -5,6 +5,7 @@ import 'auth/client_registration/client_registration_screen.dart';
 import 'auth/mechanic_registration/mechanic_step1_account.dart';
 import 'auth/sign_in_screen.dart';
 
+/// The first step of registration: which side of On Go the account is for.
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
@@ -68,77 +69,41 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: AuthBackground(
-        child: SafeArea(
-          child: AuthBottomCard(
-            children: [
-              Text(
-                'Welcome!',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.4,
-                  color: AppColors.textdark,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Please select how you want to register',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textmedium),
-              ),
-              const SizedBox(height: 24),
-              AuthRoleButton(
-                icon: Icons.person_outline,
-                label: 'Register as Client',
-                onTap: () => _startClientRegistration(context),
-              ),
-              const SizedBox(height: 12),
-              AuthRoleButton(
-                icon: Icons.work_outline,
-                label: 'Register as Mechanic',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MechanicStep1Account(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // A way back for someone who already has an account.
-              Wrap(
-                alignment: WrapAlignment.center,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    'Already have an account? ',
-                    style: TextStyle(fontSize: 13, color: AppColors.textmedium),
-                  ),
-                  TextButton(
-                    onPressed: () => _backToSignIn(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textdark,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                      minimumSize: const Size(48, 44),
-                    ),
-                    child: Text(
-                      'Sign In',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textdark,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+    return AuthPage(
+      // A way back on the hero when Sign In is underneath; when this screen
+      // was opened on its own, the footer link is the way there.
+      showBack: Navigator.of(context).canPop(),
+      // A way back for someone who already has an account.
+      footer: AuthFooterLink(
+        prompt: 'Already have an account? ',
+        action: 'Sign In',
+        onTap: () => _backToSignIn(context),
+      ),
+      children: [
+        const AuthIntro(
+          title: 'Create your account',
+          subtitle: "Tell us how you'll use On Go.",
+        ),
+        const SizedBox(height: 24),
+        AuthRoleButton(
+          icon: Icons.person_rounded,
+          label: 'I need a mechanic',
+          description: 'Book help for your vehicle, wherever you are.',
+          onTap: () => _startClientRegistration(context),
+        ),
+        const SizedBox(height: 12),
+        AuthRoleButton(
+          icon: Icons.handyman_rounded,
+          label: "I'm a mechanic",
+          description: 'Take on jobs near you and earn.',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MechanicStep1Account(),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

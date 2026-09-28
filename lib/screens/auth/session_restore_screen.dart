@@ -50,18 +50,29 @@ class _SessionRestoreScreenState extends State<SessionRestoreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: AuthBackground(
-        child: SafeArea(
-          child: Center(
-            child: Semantics(
-              label: 'Signing you in',
-              child: CircularProgressIndicator(color: AppColors.primary),
+    final c = AppColors.palette;
+    // The same page Sign In is drawn on, so the hand-over to it is a change
+    // of sheet, not a change of scene.
+    return AuthPage(
+      children: [
+        const SizedBox(height: 32),
+        Center(
+          child: Semantics(
+            label: 'Signing you in',
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(color: c.primary, strokeWidth: 3),
             ),
           ),
         ),
-      ),
+        const SizedBox(height: 16),
+        Text(
+          'Signing you in…',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 14, color: c.textmedium),
+        ),
+      ],
     );
   }
 }
