@@ -11,6 +11,7 @@ import '../../../../services/location/place_sources.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/auth_widgets.dart';
 import '../../../../widgets/common_widgets.dart';
+import '../../../../widgets/glass.dart';
 import '../../../../widgets/location_selector.dart';
 
 /// Booking a mechanic for one problem, in two steps: a few words and a photo
@@ -27,7 +28,11 @@ class BookHelpScreen extends StatefulWidget {
   /// or a deep link; a client always starts at the details.
   final int initialStep;
 
-  const BookHelpScreen({super.key, required this.problem, this.initialStep = 0});
+  /// The urgency to start on: 'Normal', or 'Emergency' from the home's
+  /// emergency card.
+  final String initialUrgency;
+
+  const BookHelpScreen({super.key, required this.problem, this.initialStep = 0, this.initialUrgency = 'Normal'});
 
   @override
   State<BookHelpScreen> createState() => _BookHelpScreenState();
@@ -42,7 +47,7 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
   final List<XFile> _photos = [];
 
   final _locationCtrl = TextEditingController();
-  String _urgency = 'Normal';
+  late String _urgency = widget.initialUrgency;
 
   // Only set when the device located the client — cleared the moment the
   // field is edited by hand, so stale coordinates never go out with a place
@@ -162,13 +167,15 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
     final details = _detailsCtrl.text.trim();
     final ServiceRequest booked;
     try {
-      booked = await MobileBackend.instance.serviceRequests.bookRequest(NewServiceRequest(
-        problem: widget.problem.label,
-        description: details.isEmpty ? null : details,
-        location: _locationCtrl.text.trim(),
-        urgency: JobUrgency.fromWire(_urgency),
-        point: _capturedLat == null || _capturedLng == null ? null : GeoPoint(_capturedLat!, _capturedLng!),
-      ));
+      booked = await MobileBackend.instance.serviceRequests.bookRequest(
+        NewServiceRequest(
+          problem: widget.problem.label,
+          description: details.isEmpty ? null : details,
+          location: _locationCtrl.text.trim(),
+          urgency: JobUrgency.fromWire(_urgency),
+          point: _capturedLat == null || _capturedLng == null ? null : GeoPoint(_capturedLat!, _capturedLng!),
+        ),
+      );
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() => _booking = false);
@@ -210,74 +217,88 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
         if (!didPop) _back();
       },
       child: Scaffold(
-        backgroundColor: c.surface,
+        backgroundColor: AppColors.background,
+        // The glow runs up under the bar, which is glass rather than a band.
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
           leading: BackButton(onPressed: _back),
           title: const Text('Book a mechanic'),
+          backgroundColor: Colors.transparent,
+          shape: const Border(),
+          systemOverlayStyle: Glass.overlay,
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: layout.pageInsets.copyWith(top: 24, bottom: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    StepProgressBar(step: _step, count: _stepCount),
-                    const SizedBox(height: 12),
-                    Text(
-                      'STEP ${_step + 1} OF $_stepCount',
-                      style: AppText.overline(context).copyWith(color: c.textmedium),
+        body: GlassBackdrop(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  // Under the see-through bar: the status bar, the bar itself, a gap.
+                  padding: layout.pageInsets.copyWith(
+                    top: MediaQuery.paddingOf(context).top + kToolbarHeight + 12,
+                    bottom: 24,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      StepProgressBar(step: _step, count: _stepCount),
+                      const SizedBox(height: 12),
+                      Text(
+                        'STEP ${_step + 1} OF $_stepCount',
+                        style: AppText.overline(context).copyWith(color: c.textmedium),
+                      ),
+                      const SizedBox(height: 8),
+                      AuthIntro(
+                        title: _step == 0 ? 'Tell us about it' : 'Where are you?',
+                        subtitle: _step == 0
+                            ? 'A few words and a photo help mechanics quote right the first time.'
+                            : 'So a mechanic can reach you, and how soon you need them.',
+                      ),
+                      const SizedBox(height: 24),
+                      AnimatedSwitcher(
+                        duration: AppMotion.normal,
+                        switchInCurve: AppMotion.enter,
+                        switchOutCurve: AppMotion.enter,
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween(begin: const Offset(0.06, 0), end: Offset.zero).animate(animation),
+                            child: child,
+                          ),
+                        ),
+                        layoutBuilder: (current, previous) =>
+                            Stack(alignment: Alignment.topCenter, children: [...previous, ?current]),
+                        child: KeyedSubtree(key: ValueKey(_step), child: _step == 0 ? _detailsStep() : _placeStep()),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // The button stays put under the thumb while the step scrolls,
+              // on a strip of frosted glass the page shows through.
+              ClipRect(
+                child: BackdropFilter(
+                  filter: Glass.blur,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Glass.floating,
+                      border: Border(top: BorderSide(color: Glass.edge)),
                     ),
-                    const SizedBox(height: 8),
-                    AuthIntro(
-                      title: _step == 0 ? 'Tell us about it' : 'Where are you?',
-                      subtitle: _step == 0
-                          ? 'A few words and a photo help mechanics quote right the first time.'
-                          : 'So a mechanic can reach you, and how soon you need them.',
-                    ),
-                    const SizedBox(height: 24),
-                    AnimatedSwitcher(
-                      duration: AppMotion.normal,
-                      switchInCurve: AppMotion.enter,
-                      switchOutCurve: AppMotion.enter,
-                      transitionBuilder: (child, animation) => FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position: Tween(begin: const Offset(0.06, 0), end: Offset.zero).animate(animation),
-                          child: child,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(layout.gutter, 12, layout.gutter, 12),
+                      child: SafeArea(
+                        top: false,
+                        child: AuthPrimaryButton(
+                          label: _lastStep ? (_booking ? 'Booking…' : 'Book now') : 'Continue',
+                          busy: _booking,
+                          onPressed: _next,
                         ),
                       ),
-                      layoutBuilder: (current, previous) => Stack(
-                        alignment: Alignment.topCenter,
-                        children: [...previous, ?current],
-                      ),
-                      child: KeyedSubtree(
-                        key: ValueKey(_step),
-                        child: _step == 0 ? _detailsStep() : _placeStep(),
-                      ),
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-            // The button stays put under the thumb while the step scrolls.
-            Container(
-              decoration: BoxDecoration(
-                color: c.surface,
-                border: Border(top: AppHairline.side(c.textmedium)),
-              ),
-              padding: EdgeInsets.fromLTRB(layout.gutter, 12, layout.gutter, 12),
-              child: SafeArea(
-                top: false,
-                child: AuthPrimaryButton(
-                  label: _lastStep ? (_booking ? 'Booking…' : 'Book now') : 'Continue',
-                  busy: _booking,
-                  onPressed: _next,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -292,20 +313,15 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // What was picked on the home screen, and the way to pick again.
-        Container(
-          padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-          decoration: BoxDecoration(
-            color: c.primary.withValues(alpha: 0.06),
-            borderRadius: AppRadii.borderLg,
-            border: Border.all(color: c.primary.withValues(alpha: 0.25)),
-          ),
+        GlassPanel(
+          padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
           child: Row(
             children: [
-              Image.asset(
-                problem.picture,
-                width: 44,
-                height: 44,
-                errorBuilder: (_, _, _) => const SizedBox(width: 44, height: 44),
+              GlassPanel(
+                radius: 14,
+                padding: EdgeInsets.zero,
+                tint: c.primary,
+                child: SizedBox(width: 46, height: 46, child: Center(child: GlassGlyph(problem.icon, size: 24))),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -497,10 +513,7 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
         // What the choice means and costs, from the admin's settings.
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: urgencyColor.withValues(alpha: 0.10),
-            borderRadius: AppRadii.borderMd,
-          ),
+          decoration: BoxDecoration(color: urgencyColor.withValues(alpha: 0.10), borderRadius: AppRadii.borderMd),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -562,12 +575,7 @@ class _UrgencyChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _UrgencyChip({
-    required this.label,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
+  const _UrgencyChip({required this.label, required this.color, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

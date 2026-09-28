@@ -51,8 +51,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Bundled pictures: the photo behind the Sign In hero, and the 3D
-  # renders on the client's home tiles.
+  # Bundled pictures: the photo behind the Sign In hero and the home's
+  # emergency card.
   assets:
     - assets/images/
-    - assets/images/problems/

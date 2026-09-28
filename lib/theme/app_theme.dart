@@ -159,7 +159,9 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: c.surface,
+        // On a dark theme a field is a pane of glass over whatever it sits
+        // on, the way the client screens are drawn; on a light one, white.
+        fillColor: option.isDark ? Colors.white.withValues(alpha: 0.06) : c.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: fieldBorder(outline, AppBorders.thin),
         enabledBorder: fieldBorder(outline, AppBorders.thin),

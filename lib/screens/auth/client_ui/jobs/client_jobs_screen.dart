@@ -2,26 +2,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../data/app_session.dart';
+import '../../../../data/chat_store.dart';
 import '../../../../data/job_photo_store.dart';
 import '../../../../data/mechanic_contact_store.dart';
 import '../../../../data/motorcycle_problem.dart';
 import '../../../../data/quote_store.dart';
 import '../../../../theme/app_theme.dart';
-import '../../../../widgets/auth_widgets.dart';
-import '../../../../widgets/chat_icon_button.dart';
 import '../../../../widgets/common_widgets.dart';
-import '../../../../widgets/job_photo_preview.dart';
+import '../../../../widgets/glass.dart';
 import '../../../shared/job_chat_screen.dart';
 import '../active/active_request_screen.dart';
 import '../home/quotes_screen.dart';
 
-/// The client's bookings, in the three states one passes through: waiting
-/// for quotes, booked with a mechanic, and under way.
+/// The client's bookings, drawn in glass, in the three states one passes
+/// through: waiting for quotes, booked with a mechanic, and under way.
 ///
-/// Each is a card with the problem's picture, what was booked and when, a
-/// status chip, the place, the mechanic once there is one, and the one or
-/// two things the client can do about it — the shape of a ride-hailing
-/// app's activity list rather than a form's summary.
+/// A glass segmented control picks the state; each booking is a glass card
+/// with its words on the left — the state in its colour, the problem, when,
+/// the mechanic, the amount, the one or two things to do — and the problem's
+/// glyph glowing on the right.
 class ClientJobsScreen extends StatefulWidget {
   /// Where "Book a mechanic" on an empty list goes: the home tab.
   final VoidCallback? onBook;
@@ -219,8 +219,8 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
     return Column(
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(layout.gutter, 16, layout.gutter, 4),
-          child: _SegmentBar(
+          padding: EdgeInsets.fromLTRB(layout.gutter, 8, layout.gutter, 4),
+          child: GlassSegmented(
             index: _tabIndex,
             labels: const ['Quotes', 'Booked', 'Ongoing'],
             counts: [uploaded.length, pending.length, active.length],
@@ -234,7 +234,7 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
               _JobList(
                 empty: _EmptyState(
                   title: 'Nothing booked yet',
-                  text: 'Book a mechanic from Home. It shows here while quotes come in.',
+                  text: 'Pick a service on Home. It shows here while quotes come in.',
                   actionLabel: 'Book a mechanic',
                   onAction: widget.onBook,
                 ),
@@ -282,113 +282,6 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  The segment bar
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// The three states as one rounded bar, the chosen one filled in the brand
-/// colour, each with its count.
-class _SegmentBar extends StatelessWidget {
-  final int index;
-  final List<String> labels;
-  final List<int> counts;
-  final ValueChanged<int> onChanged;
-
-  const _SegmentBar({
-    required this.index,
-    required this.labels,
-    required this.counts,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.palette;
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppHairline.of(c.textmedium)),
-      ),
-      child: Row(
-        children: [
-          for (var i = 0; i < labels.length; i++)
-            Expanded(
-              child: _Segment(
-                label: labels[i],
-                count: counts[i],
-                selected: i == index,
-                onTap: () => onChanged(i),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Segment extends StatelessWidget {
-  final String label;
-  final int count;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _Segment({required this.label, required this.count, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.palette;
-    final ink = selected ? c.textlight : c.textmedium;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: '$label, $count',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: AnimatedContainer(
-          duration: AppMotion.fast,
-          curve: AppMotion.enter,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? c.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: ink),
-                ),
-              ),
-              if (count > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: selected ? c.textlight.withValues(alpha: 0.22) : c.primary.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: selected ? c.textlight : c.primary),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 //  Lists and the empty state
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -401,17 +294,19 @@ class _JobList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (cards.isEmpty) return empty;
+    final layout = context.layout;
     return ListView.separated(
-      padding: context.layout.listInsets(top: 12),
+      // The last card stays clear of the floating tab bar.
+      padding: EdgeInsets.fromLTRB(layout.gutter, 12, layout.gutter, MediaQuery.paddingOf(context).bottom + 16),
       itemCount: cards.length,
-      separatorBuilder: (_, _) => const SizedBox(height: jobCardSpacing),
+      separatorBuilder: (_, _) => const SizedBox(height: 14),
       itemBuilder: (context, index) => cards[index],
     );
   }
 }
 
-/// What a list shows when there is nothing in it: the bike, a line, and on
-/// the first tab the way to change that.
+/// What a list shows when there is nothing in it: a bike glowing on glass,
+/// a line, and on the first tab the way to change that.
 class _EmptyState extends StatelessWidget {
   final String title;
   final String text;
@@ -425,21 +320,28 @@ class _EmptyState extends StatelessWidget {
     final c = AppColors.palette;
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+        padding: EdgeInsets.fromLTRB(32, 24, 32, MediaQuery.paddingOf(context).bottom + 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset(
-              MotorcycleProblem.motorcyclePicture,
-              width: 96,
-              height: 96,
-              errorBuilder: (_, _, _) => const SizedBox(width: 96, height: 96),
+            Container(
+              width: 104,
+              height: 104,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: c.primary.withValues(alpha: 0.35), blurRadius: 40)],
+              ),
+              child: const GlassPanel(
+                radius: 52,
+                padding: EdgeInsets.zero,
+                child: Center(child: GlassGlyph(Icons.two_wheeler_rounded, size: 48)),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: c.textdark),
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: c.textdark),
             ),
             const SizedBox(height: 6),
             Text(
@@ -449,10 +351,7 @@ class _EmptyState extends StatelessWidget {
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 20),
-              SizedBox(
-                width: 220,
-                child: AuthPrimaryButton(label: actionLabel!, onPressed: onAction),
-              ),
+              GlassPillButton(label: actionLabel!, onPressed: onAction, style: GlassPillStyle.brand),
             ],
           ],
         ),
@@ -505,176 +404,188 @@ String _paymentDisplay(HelpRequest request, MechanicQuote? quote) {
   // Emergency price or the accepted quote. Never a fixed fallback figure.
   final amount = settledPaymentAmount(request, quote);
   if (amount != null) return '₱${amount.toStringAsFixed(0)}';
-  return request.isEmergency ? 'To be agreed' : 'To be quoted';
+  return request.isEmergency ? 'PRICE TO BE AGREED' : 'PRICE TO BE QUOTED';
 }
 
-/// The card every state shares: the problem's picture and name, when it was
-/// booked, a status chip, the place, and whatever the state adds.
+/// The card every state shares: the words on the left, the problem's glyph
+/// glowing in the state's colour on the right.
 class _JobCard extends StatelessWidget {
   final HelpRequest request;
   final String status;
-  final Color statusColor;
-  final String? amount;
+  final Color accent;
 
-  /// The mechanic's row, once there is one.
+  /// A line in the state's colour under the details: the amount, a fee.
+  final String? accentLine;
+
+  /// Who is doing the job, once someone is.
   final Widget? mechanic;
 
-  /// Notices between the place and the actions: a lock, a cancellation.
+  /// Notices under the buttons: a lock, a cancellation, a missed deadline.
   final List<Widget> notes;
-  final Widget actions;
+  final List<Widget> actions;
+
+  /// Round buttons at the foot of the glowing panel: call and chat.
+  final List<Widget> contact;
   final VoidCallback? onTap;
 
   const _JobCard({
     required this.request,
     required this.status,
-    required this.statusColor,
+    required this.accent,
     required this.actions,
-    this.amount,
+    this.accentLine,
     this.mechanic,
     this.notes = const [],
+    this.contact = const [],
     this.onTap,
   });
+
+  static const double _artWidth = 100;
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
     final problem = _splitProblem(request.problem);
-    final picture =
-        (MotorcycleProblem.forLabel(problem.issue) ?? MotorcycleProblem.somethingElse).picture;
-    final urgencyColor = _urgencyColor(request.urgency);
-    final photos = JobPhotoStore.instance.pathsFor(request.id);
+    final glyph = (MotorcycleProblem.forLabel(problem.issue) ?? MotorcycleProblem.somethingElse).icon;
+    final photos = JobPhotoStore.instance.pathsFor(request.id).length;
 
-    return Material(
-      color: c.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppRadii.borderLg,
-        side: AppHairline.side(c.textmedium),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: jobCardPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Image.asset(
-                    picture,
-                    width: 44,
-                    height: 44,
-                    errorBuilder: (_, _, _) => const SizedBox(width: 44, height: 44),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                problem.issue,
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textdark),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _StatusChip(label: status, color: statusColor),
-                          ],
-                        ),
-                        const SizedBox(height: 3),
-                        Text.rich(
-                          TextSpan(
-                            text: _bookedLabel(request.createdAt),
-                            children: [
-                              const TextSpan(text: '  ·  '),
-                              TextSpan(
-                                text: request.urgency,
-                                style: TextStyle(fontWeight: FontWeight.w600, color: urgencyColor),
-                              ),
-                            ],
-                          ),
-                          style: TextStyle(fontSize: 12, color: c.textmedium),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (problem.description.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  problem.description,
-                  style: TextStyle(fontSize: 13, height: 1.35, color: c.textmedium),
-                ),
-              ],
-              if (photos.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                JobPhotoPreview(photoPaths: photos, maxHeight: 150),
-              ],
-              if (mechanic != null) ...[
-                const SizedBox(height: 12),
-                Divider(height: 1, color: AppHairline.of(c.textmedium)),
-                const SizedBox(height: 12),
-                mechanic!,
-              ],
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: Icon(Icons.location_on_outlined, size: 16, color: c.textmedium),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(request.location, style: TextStyle(fontSize: 13, height: 1.3, color: c.textdark)),
-                  ),
-                  if (amount != null) ...[
-                    const SizedBox(width: 12),
-                    Text(amount!, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.textdark)),
-                  ],
-                ],
-              ),
-              for (final note in notes) ...[const SizedBox(height: 10), note],
-              const SizedBox(height: 14),
-              actions,
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A small pill naming the state, with a dot in its colour.
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _StatusChip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    return GlassPanel(
+      onTap: onTap,
+      padding: EdgeInsets.zero,
+      child: Stack(
         children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+          // The glowing panel on the right runs the card's full height.
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: _artWidth,
+            child: _CardArt(icon: glyph, color: accent, contact: contact),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, _artWidth + 8, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  status.toUpperCase(),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: accent),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  problem.issue,
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.2, color: c.textdark),
+                ),
+                const SizedBox(height: 3),
+                Text.rich(
+                  TextSpan(
+                    text: _bookedLabel(request.createdAt),
+                    children: [
+                      const TextSpan(text: '  ·  '),
+                      TextSpan(
+                        text: request.urgency,
+                        style: TextStyle(fontWeight: FontWeight.w700, color: _urgencyColor(request.urgency)),
+                      ),
+                    ],
+                  ),
+                  style: TextStyle(fontSize: 12, color: c.textmedium),
+                ),
+                if (problem.description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    problem.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12.5, height: 1.35, color: c.textmedium),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.location_on_outlined, size: 14, color: c.textmedium),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        request.location,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: c.textmedium),
+                      ),
+                    ),
+                  ],
+                ),
+                if (photos > 0) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.photo_camera_outlined, size: 14, color: c.textmedium),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$photos photo${photos == 1 ? '' : 's'}',
+                        style: TextStyle(fontSize: 12, color: c.textmedium),
+                      ),
+                    ],
+                  ),
+                ],
+                if (mechanic != null) ...[const SizedBox(height: 10), mechanic!],
+                if (accentLine != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    accentLine!,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.4, color: accent),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Wrap(spacing: 8, runSpacing: 8, children: actions),
+                for (final note in notes) ...[const SizedBox(height: 10), note],
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// A notice on a card: a line of explanation in the state's colour.
+/// The right-hand panel of a card: the problem's glyph lit by a glow in the
+/// state's colour, and the call and chat buttons at its foot.
+class _CardArt extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final List<Widget> contact;
+
+  const _CardArt({required this.icon, required this.color, required this.contact});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.horizontal(right: Radius.circular(21)),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0.1, -0.35),
+            radius: 0.95,
+            colors: [color.withValues(alpha: 0.42), color.withValues(alpha: 0)],
+          ),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 18),
+            GlassGlyph(icon, size: 46),
+            const Spacer(),
+            if (contact.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: contact),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A notice on a card: a line of explanation with its glyph.
 class _CardNote extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -684,154 +595,128 @@ class _CardNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: AppRadii.borderMd),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Icon(icon, size: 16, color: color),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text, style: TextStyle(fontSize: 12, height: 1.35, fontWeight: FontWeight.w500, color: color)),
-          ),
-        ],
-      ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 15, color: color),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(text, style: TextStyle(fontSize: 12, height: 1.35, fontWeight: FontWeight.w500, color: color)),
+        ),
+      ],
     );
   }
 }
 
-/// The mechanic on a booked or ongoing job: who, how far off, how rated,
-/// and the call and chat buttons.
-class _MechanicRow extends StatelessWidget {
-  final String requestId;
-  final String mechanicName;
+/// Who is doing the job: initials, the name, how soon and how rated.
+class _MechanicLine extends StatelessWidget {
+  final String name;
   final MechanicQuote? quote;
 
-  const _MechanicRow({required this.requestId, required this.mechanicName, this.quote});
-
-  void _openChat(BuildContext context) => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => JobChatScreen(requestId: requestId, otherPartyName: mechanicName)),
-      );
+  const _MechanicLine({required this.name, this.quote});
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
-    final initials = mechanicName.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join();
-    final detail = quote == null ? 'Your mechanic' : 'ETA ${quote!.eta}  ·  ${quote!.rating.toStringAsFixed(1)} ★';
-
+    final initials =
+        name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join();
+    final detail = quote == null ? null : 'ETA ${quote!.eta}  ·  ${quote!.rating.toStringAsFixed(1)} ★';
     return Row(
       children: [
         Container(
-          width: 40,
-          height: 40,
+          width: 30,
+          height: 30,
           alignment: Alignment.center,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: c.primary.withValues(alpha: 0.10)),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color.lerp(c.primary, Colors.white, 0.2)!, c.primarydark],
+            ),
+          ),
           child: Text(
             initials.isEmpty ? 'M' : initials,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: c.primary),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c.textlight),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                mechanicName,
+                name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c.textdark),
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: c.textdark),
               ),
-              const SizedBox(height: 2),
-              Text(detail, style: TextStyle(fontSize: 12, color: c.textmedium)),
+              if (detail != null) Text(detail, style: TextStyle(fontSize: 11.5, color: c.textmedium)),
             ],
           ),
         ),
-        CircleIconButton(
-          icon: Icons.call,
-          color: c.success,
-          tooltip: 'Call $mechanicName',
-          onTap: () => showContactSheet(
-            context,
-            name: mechanicName,
-            phone: MechanicContactStore.instance.contactFor(mechanicName).phone,
-            onMessage: () => _openChat(context),
-          ),
-        ),
-        ChatIconButton(requestId: requestId, onTap: () => _openChat(context)),
       ],
     );
   }
 }
 
-/// A card's button: filled in the brand colour for the main thing to do,
-/// an outline for the other. Both 44 tall, so a pair always lines up.
-class _CardButton extends StatelessWidget {
-  final String label;
-  final bool filled;
-  final VoidCallback? onTap;
-  final int badge;
-
-  const _CardButton({required this.label, required this.onTap, this.filled = true, this.badge = 0});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.palette;
-    final shape = RoundedRectangleBorder(borderRadius: AppRadii.borderMd);
-    final textStyle = TextStyle(fontFamily: AppTextStyles.fontFamily, fontSize: 14, fontWeight: FontWeight.w600);
-    final Widget button = SizedBox(
-      height: 44,
-      width: double.infinity,
-      child: filled
-          ? ElevatedButton(
-              onPressed: onTap,
-              style: ElevatedButton.styleFrom(shape: shape, padding: EdgeInsets.zero, textStyle: textStyle),
-              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            )
-          : OutlinedButton(
-              onPressed: onTap,
-              style: OutlinedButton.styleFrom(
-                shape: shape,
-                padding: EdgeInsets.zero,
-                side: BorderSide(color: AppHairline.outline(c.textmedium)),
-                foregroundColor: c.textdark,
-                textStyle: textStyle,
+/// Call and chat for a job with a mechanic, as round glass buttons; chat
+/// carries the unread count.
+List<Widget> _contactButtons(BuildContext context, HelpRequest request, String mechanicName) {
+  void openChat() => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: mechanicName)),
+      );
+  return [
+    GlassIconButton(
+      icon: Icons.call_rounded,
+      tooltip: 'Call $mechanicName',
+      size: 36,
+      onPressed: () => showContactSheet(
+        context,
+        name: mechanicName,
+        phone: MechanicContactStore.instance.contactFor(mechanicName).phone,
+        onMessage: openChat,
+      ),
+    ),
+    AnimatedBuilder(
+      animation: ChatStore.instance,
+      builder: (context, _) {
+        final unread = ChatStore.instance.unreadCountFor(request.id, AppSession.instance.currentRole);
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            GlassIconButton(
+              icon: Icons.chat_bubble_outline_rounded,
+              tooltip: unread > 0 ? 'Messages, $unread unread' : 'Messages',
+              size: 36,
+              onPressed: openChat,
+            ),
+            if (unread > 0)
+              Positioned(
+                right: 2,
+                top: 2,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    constraints: const BoxConstraints(minWidth: 16),
+                    decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(999)),
+                    child: Text(
+                      unread > 9 ? '9+' : '$unread',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.textlight),
+                    ),
+                  ),
+                ),
               ),
-              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-    );
-    if (badge <= 0) return button;
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        button,
-        Positioned(
-          right: -4,
-          top: -6,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            constraints: const BoxConstraints(minWidth: 20),
-            decoration: BoxDecoration(
-              color: c.textdark,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: c.surface, width: 2),
-            ),
-            child: Text(
-              '$badge',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c.textlight),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+          ],
+        );
+      },
+    ),
+  ];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -855,22 +740,23 @@ class _QuotesStageCard extends StatelessWidget {
 
     // Emergencies skip quoting: a mechanic claims them directly.
     final String status;
-    final Color statusColor;
+    final Color accent;
     if (request.isEmergency) {
       status = 'Finding a mechanic';
-      statusColor = c.error;
+      accent = c.error;
     } else if (quoteCount == 0) {
       status = 'Waiting for quotes';
-      statusColor = c.warning;
+      accent = c.warning;
     } else {
-      status = '$quoteCount quote${quoteCount == 1 ? '' : 's'}';
-      statusColor = c.info;
+      status = '$quoteCount quote${quoteCount == 1 ? '' : 's'} in';
+      accent = c.info;
     }
 
     return _JobCard(
       request: request,
       status: status,
-      statusColor: statusColor,
+      accent: accent,
+      accentLine: request.surcharge > 0 ? 'PRIORITY FEE ₱${request.surcharge.toStringAsFixed(0)}' : null,
       onTap: onQuotes,
       notes: [
         if (request.expiredAt != null)
@@ -881,19 +767,13 @@ class _QuotesStageCard extends StatelessWidget {
                 'It is open to mechanics again.',
           ),
       ],
-      actions: Row(
-        children: [
-          Expanded(child: _CardButton(label: 'Cancel', filled: false, onTap: onCancel)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _CardButton(
-              label: request.isEmergency ? 'Details' : 'View quotes',
-              onTap: onQuotes,
-              badge: unseen,
-            ),
-          ),
-        ],
-      ),
+      actions: [
+        GlassPillButton(
+          label: request.isEmergency ? 'Details' : (unseen > 0 ? 'View quotes ($unseen new)' : 'View quotes'),
+          onPressed: onQuotes,
+        ),
+        GlassPillButton(label: 'Cancel', onPressed: onCancel, style: GlassPillStyle.ghost),
+      ],
     );
   }
 }
@@ -911,15 +791,17 @@ class _BookedStageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.palette;
     final quote = store.acceptedQuoteFor(request.id);
+    final name = quote?.mechanicName ?? 'Mechanic';
     final locked = clientCancelLockedByEta(request, quote);
 
     return _JobCard(
       request: request,
       status: 'Booked',
-      statusColor: c.success,
-      amount: _paymentDisplay(request, quote),
+      accent: c.success,
+      accentLine: _paymentDisplay(request, quote),
       onTap: onOpen,
-      mechanic: _MechanicRow(requestId: request.id, mechanicName: quote?.mechanicName ?? 'Mechanic', quote: quote),
+      mechanic: _MechanicLine(name: name, quote: quote),
+      contact: _contactButtons(context, request, name),
       notes: [
         if (request.lastCancelReason != null)
           _CardNote(
@@ -934,16 +816,13 @@ class _BookedStageCard extends StatelessWidget {
             icon: Icons.lock_clock,
             color: c.textmedium,
             text: 'Cancelling unlocks in ${formatTimeRemaining(timeUntilArrival(request, quote)!)}: '
-                '${quote?.mechanicName ?? 'your mechanic'} is still within their ${quote?.eta ?? 'ETA'}.',
+                '$name is still within their ${quote?.eta ?? 'ETA'}.',
           ),
       ],
-      actions: Row(
-        children: [
-          Expanded(child: _CardButton(label: 'Cancel', filled: false, onTap: onCancel)),
-          const SizedBox(width: 10),
-          Expanded(child: _CardButton(label: 'Details', onTap: onOpen)),
-        ],
-      ),
+      actions: [
+        GlassPillButton(label: 'Details', onPressed: onOpen),
+        GlassPillButton(label: 'Cancel', onPressed: onCancel, style: GlassPillStyle.ghost),
+      ],
     );
   }
 }
@@ -960,36 +839,30 @@ class _OngoingStageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.palette;
     final quote = store.acceptedQuoteFor(request.id);
+    final name = quote?.mechanicName ?? 'Mechanic';
 
-    final String status;
-    final Color statusColor;
-    final String action;
-    if (!request.arrived) {
-      status = 'On the way';
-      statusColor = c.info;
-      action = 'Track mechanic';
-    } else if (!request.workStarted) {
-      status = 'Arrived';
-      statusColor = c.success;
-      action = 'Mechanic arrived';
-    } else if (!request.serviceCompleted) {
-      status = 'Working';
-      statusColor = c.success;
-      action = 'Work in progress';
-    } else {
-      status = 'Pay now';
-      statusColor = c.primary;
-      action = 'Pay now';
-    }
+    final (String status, Color accent, String action) = switch (request) {
+      _ when !request.arrived => ('On the way', c.info, 'Track mechanic'),
+      _ when !request.workStarted => ('Arrived', c.success, 'See job'),
+      _ when !request.serviceCompleted => ('Working', c.success, 'See job'),
+      _ => ('Pay now', c.primary, 'Pay now'),
+    };
 
     return _JobCard(
       request: request,
       status: status,
-      statusColor: statusColor,
-      amount: _paymentDisplay(request, quote),
+      accent: accent,
+      accentLine: _paymentDisplay(request, quote),
       onTap: onOpen,
-      mechanic: _MechanicRow(requestId: request.id, mechanicName: quote?.mechanicName ?? 'Mechanic', quote: quote),
-      actions: _CardButton(label: action, onTap: onOpen),
+      mechanic: _MechanicLine(name: name, quote: quote),
+      contact: _contactButtons(context, request, name),
+      actions: [
+        GlassPillButton(
+          label: action,
+          onPressed: onOpen,
+          style: action == 'Pay now' ? GlassPillStyle.brand : GlassPillStyle.contrast,
+        ),
+      ],
     );
   }
 }

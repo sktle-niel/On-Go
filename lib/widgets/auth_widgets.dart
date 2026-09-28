@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
+import 'glass.dart';
 
 // The registration screens reach the photo badge through this file, as before.
 export 'common_widgets.dart' show PhotoRemoveButton;
@@ -486,10 +487,11 @@ class OnGoChoiceRow extends StatelessWidget {
 
 /// The page every screen outside the app proper is built on.
 ///
-/// A brand hero across the top and a white sheet with rounded top corners
-/// rising over it — the front door of a ride-hailing app, with the brand
-/// colour doing the welcoming and the sheet doing the work. The hero paints
-/// the photo an admin published from the console when there is one.
+/// The glowing glass page with a photo of the trade across the top, and a
+/// sheet of frosted glass with rounded top corners rising over both — the
+/// front door of a ride-hailing app drawn the way the rest of the client app
+/// is (lib/widgets/glass.dart). The photo is the one an admin published from
+/// the console when there is one.
 ///
 /// The sheet scrolls only when it has to. With the keyboard up the hero folds
 /// to a slim band so the form keeps the room, and the field being typed into
@@ -542,11 +544,10 @@ class AuthPage extends StatelessWidget {
         ? top + AuthHero.compactHeight
         : (layout.height * 0.32).clamp(top + 184, top + 280).toDouble();
     final c = AppColors.palette;
+    final dark = AppColors.isDark;
 
     return Scaffold(
-      // The hero colour is the page: it is what shows beside the sheet's
-      // rounded corners.
-      backgroundColor: c.primary,
+      backgroundColor: c.background,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         // The clock sits on the hero, so it is drawn light on every theme.
         value: SystemUiOverlayStyle(
@@ -557,25 +558,125 @@ class AuthPage extends StatelessWidget {
           systemNavigationBarIconBrightness:
               AppColors.isDark ? Brightness.light : Brightness.dark,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            AuthHero(height: heroHeight, compact: compact, showBack: showBack, onBack: onBack),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(sheetRadius)),
-                child: ColoredBox(
-                  color: c.surface,
-                  child: SafeArea(
-                    top: false,
-                    child: _AuthSheet(footer: footer, children: children),
+            // The glow the page is laid on, and the photo across the top of
+            // it, fading into the glow; the sheet is glass, so both show
+            // through it.
+            const Positioned.fill(child: GlassBackdrop()),
+            AnimatedPositioned(
+              duration: AppMotion.slow,
+              curve: AppMotion.move,
+              top: 0,
+              left: 0,
+              right: 0,
+              height: heroHeight + 180,
+              child: const _AuthScene(),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AuthHero(height: heroHeight, compact: compact, showBack: showBack, onBack: onBack),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(sheetRadius)),
+                    child: BackdropFilter(
+                      filter: Glass.blur,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: dark ? c.background.withValues(alpha: 0.64) : Colors.white.withValues(alpha: 0.86),
+                          // A lit top edge; the clip rounds its ends.
+                          border: Border(top: BorderSide(color: Glass.edge)),
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: _AuthSheet(footer: footer, children: children),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The photo behind the top of an [AuthPage]: the trade, multiplied by the
+/// brand colour, fading out towards the sheet so the glow takes over.
+class _AuthScene extends StatelessWidget {
+  const _AuthScene();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return AnimatedBuilder(
+      animation: AuthBackgroundController.instance,
+      builder: (context, _) {
+        final photo = AuthBackgroundController.instance.photoPath;
+        final ImageProvider scene =
+            photo == null ? const AssetImage(AuthHero.defaultPhoto) : FileImage(File(photo));
+        return ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (bounds) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.black, Colors.black, Colors.transparent],
+            stops: [0, 0.55, 1],
+          ).createShader(bounds),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // The colour first, so there is never a blank while the photo
+              // decodes or if it cannot be read.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [c.primary, c.primarydark],
+                  ),
+                ),
+              ),
+              // The scene, multiplied by the brand colour: it reads in red and
+              // stays a backdrop for the words rather than competing with them.
+              Image(
+                image: scene,
+                fit: BoxFit.cover,
+                color: c.primary,
+                colorBlendMode: BlendMode.multiply,
+                // Fades in once decoded rather than popping over the colour.
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded) return child;
+                  return AnimatedOpacity(
+                    opacity: frame == null ? 0 : 1,
+                    duration: AppMotion.normal,
+                    curve: AppMotion.enter,
+                    child: child,
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+              ),
+              // A shade that deepens towards the wordmark, for legibility.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      c.primarydark.withValues(alpha: 0.05),
+                      c.primarydark.withValues(alpha: 0.70),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -660,9 +761,9 @@ class _SheetEntrance extends StatelessWidget {
   }
 }
 
-/// The brand hero across the top of every [AuthPage]: the wordmark over a
-/// photo of the trade, tinted the brand colour — the one the app ships with,
-/// or the one an admin published from the console.
+/// The brand hero across the top of every [AuthPage]: the wordmark, and the
+/// back button. It is see-through; the photo of the trade behind it belongs
+/// to the page, so it can run on under the glass sheet.
 ///
 /// [height] includes the status bar, which the hero runs under. While
 /// [compact] it is a slim band with the wordmark alone, so the form keeps the
@@ -699,58 +800,11 @@ class AuthHero extends StatelessWidget {
       duration: AppMotion.slow,
       curve: AppMotion.move,
       height: height,
-      child: AnimatedBuilder(
-        animation: AuthBackgroundController.instance,
-        builder: (context, _) {
-          final photo = AuthBackgroundController.instance.photoPath;
-          final ImageProvider scene =
-              photo == null ? const AssetImage(AuthHero.defaultPhoto) : FileImage(File(photo));
+      child: Builder(
+        builder: (context) {
           return Stack(
             fit: StackFit.expand,
             children: [
-              // The colour first, so there is never a blank while the photo
-              // decodes or if it cannot be read.
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [c.primary, c.primarydark],
-                  ),
-                ),
-              ),
-              // The scene, multiplied by the brand colour: it reads in red and
-              // stays a backdrop for the words rather than competing with them.
-              Image(
-                image: scene,
-                fit: BoxFit.cover,
-                color: c.primary,
-                colorBlendMode: BlendMode.multiply,
-                // Fades in once decoded rather than popping over the colour.
-                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                  if (wasSynchronouslyLoaded) return child;
-                  return AnimatedOpacity(
-                    opacity: frame == null ? 0 : 1,
-                    duration: AppMotion.normal,
-                    curve: AppMotion.enter,
-                    child: child,
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-              ),
-              // A shade that deepens towards the wordmark, for legibility.
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      c.primarydark.withValues(alpha: 0.05),
-                      c.primarydark.withValues(alpha: 0.70),
-                    ],
-                  ),
-                ),
-              ),
               Positioned.fill(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(24, top, 24, 0),
@@ -972,7 +1026,7 @@ class AuthTextField extends StatelessWidget {
             hintText: hint,
             hintStyle: TextStyle(color: c.textmedium, fontSize: 15, fontWeight: FontWeight.w400),
             filled: true,
-            fillColor: c.surface,
+            fillColor: AppColors.isDark ? Colors.white.withValues(alpha: 0.06) : c.surface,
             suffixIcon: suffixIcon,
             suffixIconColor: c.textmedium,
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
