@@ -50,3 +50,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Bundled pictures: the photo behind the Sign In hero.
+  assets:
+    - assets/images/

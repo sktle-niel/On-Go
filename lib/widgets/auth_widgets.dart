@@ -649,8 +649,9 @@ class _SheetEntrance extends StatelessWidget {
   }
 }
 
-/// The brand hero across the top of every [AuthPage]: the wordmark on the
-/// brand colour, or on the photo an admin published from the console.
+/// The brand hero across the top of every [AuthPage]: the wordmark over a
+/// photo of the trade, tinted the brand colour — the one the app ships with,
+/// or the one an admin published from the console.
 ///
 /// [height] includes the status bar, which the hero runs under. While
 /// [compact] it is a slim band with the wordmark alone, so the form keeps the
@@ -670,6 +671,10 @@ class AuthHero extends StatelessWidget {
   /// The band the hero folds to, below the status bar.
   static const double compactHeight = 64;
 
+  /// The photo the app ships with: a mechanic leaning into an engine bay in
+  /// daylight (Pexels, free licence; see assets/images/README.md).
+  static const String defaultPhoto = 'assets/images/auth_hero.jpg';
+
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
@@ -683,9 +688,13 @@ class AuthHero extends StatelessWidget {
         animation: AuthBackgroundController.instance,
         builder: (context, _) {
           final photo = AuthBackgroundController.instance.photoPath;
+          final ImageProvider scene =
+              photo == null ? const AssetImage(AuthHero.defaultPhoto) : FileImage(File(photo));
           return Stack(
             fit: StackFit.expand,
             children: [
+              // The colour first, so there is never a blank while the photo
+              // decodes or if it cannot be read.
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -693,43 +702,40 @@ class AuthHero extends StatelessWidget {
                     end: Alignment.bottomRight,
                     colors: [c.primary, c.primarydark],
                   ),
-                  image: photo == null
-                      ? null
-                      : DecorationImage(image: FileImage(File(photo)), fit: BoxFit.cover),
                 ),
               ),
-              if (photo != null)
-                // Whatever was published, the wordmark sits on a shade that
-                // deepens towards it.
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.10),
-                        Colors.black.withValues(alpha: 0.55),
-                      ],
-                    ),
+              // The scene, multiplied by the brand colour: it reads in red and
+              // stays a backdrop for the words rather than competing with them.
+              Image(
+                image: scene,
+                fit: BoxFit.cover,
+                color: c.primary,
+                colorBlendMode: BlendMode.multiply,
+                // Fades in once decoded rather than popping over the colour.
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded) return child;
+                  return AnimatedOpacity(
+                    opacity: frame == null ? 0 : 1,
+                    duration: AppMotion.normal,
+                    curve: AppMotion.enter,
+                    child: child,
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+              ),
+              // A shade that deepens towards the wordmark, for legibility.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      c.primarydark.withValues(alpha: 0.05),
+                      c.primarydark.withValues(alpha: 0.70),
+                    ],
                   ),
-                )
-              else ...[
-                // Two soft discs and a watermark of the trade: enough to keep
-                // a flat colour from reading as a blank, not enough to
-                // compete with the words.
-                const Positioned(right: -70, top: -60, child: _HeroDisc(220, 0.08)),
-                const Positioned(left: -40, bottom: -90, child: _HeroDisc(180, 0.06)),
-                if (!compact)
-                  Positioned(
-                    right: -12,
-                    bottom: -8,
-                    child: Icon(
-                      Icons.car_repair_rounded,
-                      size: 168,
-                      color: c.textlight.withValues(alpha: 0.10),
-                    ),
-                  ),
-              ],
+                ),
+              ),
               Positioned.fill(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(24, top, 24, 0),
@@ -790,28 +796,7 @@ class AuthHero extends StatelessWidget {
   }
 }
 
-/// A soft disc on the hero.
-class _HeroDisc extends StatelessWidget {
-  final double size;
-  final double alpha;
-
-  const _HeroDisc(this.size, this.alpha);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppColors.textlight.withValues(alpha: alpha),
-      ),
-    );
-  }
-}
-
-/// The mark and the wordmark, on the hero. Full: the mark over "On Go" and
-/// the tagline. Compact: the mark beside "On Go", one line.
+/// The wordmark on the hero, with the tagline under it when there is room.
 class _Brand extends StatelessWidget {
   final bool compact;
 
@@ -820,45 +805,28 @@ class _Brand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
-    final mark = Container(
-      width: compact ? 28 : 44,
-      height: compact ? 28 : 44,
-      decoration: BoxDecoration(
-        color: c.textlight,
-        borderRadius: BorderRadius.circular(compact ? 8 : 14),
-      ),
-      child: Icon(Icons.car_repair_rounded, color: c.primary, size: compact ? 18 : 26),
-    );
     final wordmark = Text(
       'On Go',
       style: TextStyle(
         color: c.textlight,
-        fontSize: compact ? 20 : 30,
+        fontSize: compact ? 20 : 34,
         fontWeight: FontWeight.w800,
-        letterSpacing: compact ? -0.4 : -0.8,
+        letterSpacing: compact ? -0.4 : -1.0,
         height: 1.1,
       ),
     );
-
-    if (compact) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [mark, const SizedBox(width: 10), wordmark],
-      );
-    }
+    if (compact) return wordmark;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        mark,
-        const SizedBox(height: 12),
         wordmark,
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
         Text(
           'Service Anywhere',
           style: TextStyle(
-            color: c.textlight.withValues(alpha: 0.82),
-            fontSize: 14,
+            color: c.textlight.withValues(alpha: 0.88),
+            fontSize: 15,
             fontWeight: FontWeight.w500,
             letterSpacing: 0.1,
           ),
