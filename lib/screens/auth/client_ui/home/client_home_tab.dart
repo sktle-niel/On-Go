@@ -100,15 +100,6 @@ class ClientHomeTab extends StatelessWidget {
               _ProblemTile(problem: problem, onTap: () => _book(context, problem)),
           ],
         ),
-        const SizedBox(height: 28),
-        Text(
-          'How it works',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textdark),
-        ),
-        const SizedBox(height: 12),
-        const _HowRow(1, 'Tell us the problem', 'Pick what is wrong, add a few words or a photo.'),
-        const _HowRow(2, 'Get quotes', 'Mechanics near you send their price and how soon they can come.'),
-        const _HowRow(3, 'Pay after the job', 'Choose the best offer and pay the mechanic when the work is done.'),
         const SizedBox(height: 16),
       ],
     );
@@ -169,52 +160,6 @@ class _ProblemTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// A numbered line of the "how it works" strip.
-class _HowRow extends StatelessWidget {
-  final int number;
-  final String title;
-  final String text;
-
-  const _HowRow(this.number, this.title, this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.palette;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: c.primary.withValues(alpha: 0.10),
-            ),
-            child: Text(
-              '$number',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c.primary),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.textdark)),
-                const SizedBox(height: 2),
-                Text(text, style: TextStyle(fontSize: 13, height: 1.35, color: c.textmedium)),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
