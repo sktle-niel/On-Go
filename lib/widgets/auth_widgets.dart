@@ -505,11 +505,16 @@ class AuthPage extends StatelessWidget {
   /// A back button on the hero, for a screen reached from another one.
   final bool showBack;
 
+  /// The slim hero from the start, for a page that is mostly form and needs
+  /// the room more than the picture.
+  final bool compactHero;
+
   const AuthPage({
     super.key,
     required this.children,
     this.footer,
     this.showBack = false,
+    this.compactHero = false,
   });
 
   /// The sheet's corner radius — how much hero shows beside the corners.
@@ -524,9 +529,10 @@ class AuthPage extends StatelessWidget {
     final layout = context.layout;
     final media = MediaQuery.of(context);
     final top = media.padding.top;
-    // The hero gives way to the form: folded whenever the keyboard is up or
-    // the window is too short to spare a third of itself.
-    final compact = media.viewInsets.bottom > 0 || layout.isShort;
+    // The hero gives way to the form: folded when the page asks for it,
+    // whenever the keyboard is up, or when the window is too short to spare
+    // a third of itself.
+    final compact = compactHero || media.viewInsets.bottom > 0 || layout.isShort;
     final heroHeight = compact
         ? top + AuthHero.compactHeight
         : (layout.height * 0.32).clamp(top + 184, top + 280).toDouble();
@@ -895,6 +901,12 @@ class AuthTextField extends StatelessWidget {
   /// Caps the length and hides the counter — for a fixed-length code.
   final int? maxLength;
 
+  /// What is wrong with the value, under the field in the error colour.
+  final String? errorText;
+
+  final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
+
   const AuthTextField({
     super.key,
     required this.hint,
@@ -907,6 +919,9 @@ class AuthTextField extends StatelessWidget {
     this.onSubmitted,
     this.autofillHints,
     this.maxLength,
+    this.errorText,
+    this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
   });
 
   @override
@@ -926,6 +941,8 @@ class AuthTextField extends StatelessWidget {
       textInputAction: textInputAction,
       autofillHints: autofillHints,
       maxLength: maxLength,
+      textCapitalization: textCapitalization,
+      inputFormatters: inputFormatters,
       onChanged: onChanged,
       onFieldSubmitted: onSubmitted,
       cursorColor: c.primary,
@@ -951,6 +968,8 @@ class AuthTextField extends StatelessWidget {
         suffixIconColor: c.textmedium,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         counterText: maxLength == null ? null : '',
+        errorText: errorText,
+        errorStyle: TextStyle(fontSize: 12, color: c.error),
         // A faint outline at rest, so the floated name has a line to sit on.
         border: border(AppHairline.outline(c.textmedium), 1),
         enabledBorder: border(AppHairline.outline(c.textmedium), 1),
@@ -1062,81 +1081,47 @@ class AuthFooterLink extends StatelessWidget {
   }
 }
 
-/// A card that opens one registration path: an icon in a tinted tile, the
-/// role, a line on what it is for, and a chevron. The brand colour is in the
-/// tile only, so two of these in a column read as a choice, not as two alarms.
-class AuthRoleButton extends StatelessWidget {
-  final IconData icon;
+/// The other button on the sheet: ink on an outline, the same size and shape
+/// as [AuthPrimaryButton], for the path that is offered but not urged —
+/// "Continue with Google" above the form.
+class AuthSecondaryButton extends StatelessWidget {
   final String label;
-  final String? description;
-  final VoidCallback onTap;
+  final VoidCallback? onPressed;
 
-  const AuthRoleButton({
+  /// A mark to the left of the label.
+  final Widget? leading;
+
+  const AuthSecondaryButton({
     super.key,
-    required this.icon,
     required this.label,
-    required this.onTap,
-    this.description,
+    this.onPressed,
+    this.leading,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
     return PressScale(
-      child: Material(
-        color: c.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadii.borderLg,
-          side: AppHairline.side(c.textmedium),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: c.primary.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: c.primary, size: 24),
-                ),
-                const SizedBox(width: 14),
-                // Expanded, not bare: the text takes what is left of the row
-                // after the tile rather than demanding its own full width.
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.2,
-                          color: c.textdark,
-                        ),
-                      ),
-                      if (description != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          description!,
-                          style: TextStyle(fontSize: 13, height: 1.35, color: c.textmedium),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded, color: c.textmedium, size: 24),
-              ],
-            ),
+      enabled: onPressed != null,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 54),
+          shape: RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
+          side: BorderSide(color: AppHairline.outline(c.textmedium)),
+          foregroundColor: c.textdark,
+          textStyle: TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
           ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (leading != null) ...[leading!, const SizedBox(width: 10)],
+            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ],
         ),
       ),
     );

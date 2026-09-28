@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../../services/backend/mobile_backend.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_widgets.dart';
-import '../welcome_screen.dart';
 import 'auth_routing.dart';
+import 'client_registration/client_registration_screen.dart';
 import 'forgot_password_screen.dart';
 
 /// Sign In for the mobile app, which serves Clients and Mechanics.
@@ -124,9 +124,11 @@ class _SignInScreenState extends State<SignInScreen> {
       footer: AuthFooterLink(
         prompt: "Don't have an account? ",
         action: 'Sign Up',
+        // Straight to the form: a client's account is the only one opened
+        // from the app.
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+          MaterialPageRoute(builder: (_) => const ClientRegistrationScreen()),
         ),
       ),
       children: [

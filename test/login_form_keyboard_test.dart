@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:on_go/screens/auth/forgot_password_screen.dart';
 import 'package:on_go/screens/auth/sign_in_screen.dart';
-import 'package:on_go/screens/welcome_screen.dart';
+import 'package:on_go/screens/auth/client_registration/client_registration_screen.dart';
 import 'package:on_go/theme/app_theme.dart';
 import 'package:on_go/widgets/auth_widgets.dart';
 
@@ -185,7 +185,7 @@ void main() {
       await tester.scrollUntilVisible(find.text('Sign Up'), 40, scrollable: _cardScrollable);
       await tester.tap(find.text('Sign Up'));
       await tester.pumpAndSettle();
-      expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(ClientRegistrationScreen), findsOneWidget);
     });
 
     testWidgets('Forgot Password? still opens the reset flow from under the keyboard',
@@ -204,7 +204,7 @@ void main() {
     for (final device in _devices.entries) {
       for (final screen in <String, Widget>{
         'Forgot Password': const ForgotPasswordScreen(),
-        'Welcome': const WelcomeScreen(),
+        'Registration': const ClientRegistrationScreen(),
       }.entries) {
         testWidgets('${screen.key} does not overflow with the keyboard open @ ${device.key}',
             (tester) async {
