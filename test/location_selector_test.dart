@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:on_go/screens/auth/client_ui/home/need_help_screen.dart';
+import 'package:on_go/data/vehicle_type.dart';
+import 'package:on_go/screens/auth/client_ui/home/book_help_screen.dart';
 import 'package:on_go/services/location/device_location_provider.dart';
 import 'package:on_go/services/location/location_service.dart';
 import 'package:on_go/services/location/place_directory.dart';
@@ -406,7 +407,7 @@ void main() {
     });
   });
 
-  group('on the Client Home screen', () {
+  group('on the booking screen', () {
     testWidgets('GPS captures precise coordinates; picking a named place does not', (tester) async {
       final device = FakeDevice()
         ..permission = DevicePermission.whileInUse
@@ -425,7 +426,8 @@ void main() {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(app(size, const NeedHelpScreen()));
+      // The place step of a booking, where the selector lives.
+      await tester.pumpWidget(app(size, const BookHelpScreen(vehicle: VehicleType.car, initialStep: 1)));
       await tester.pumpAndSettle();
 
       final useCurrent = find.text('Use Current Location');

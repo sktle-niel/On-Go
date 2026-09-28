@@ -5,7 +5,7 @@ import '../../../data/review_store.dart';
 import '../../../services/location/location_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/evaluation_widgets.dart';
-import 'home/need_help_screen.dart';
+import 'home/client_home_tab.dart';
 import 'notifications/client_notifications_screen.dart';
 import 'jobs/client_jobs_screen.dart';
 import 'history/service_history_screen.dart';
@@ -49,7 +49,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      NeedHelpScreen(onRequestUploaded: () => _goToTab(1)),
+      ClientHomeTab(onBooked: (_) => _goToTab(1)),
       const ClientJobsScreen(),
       const ServiceHistoryScreen(),
       // Mechanic Rankings — discovery by rank, rating and reviews. The

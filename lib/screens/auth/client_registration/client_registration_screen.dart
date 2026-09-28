@@ -9,6 +9,7 @@ import '../../../data/client_account_store.dart';
 import '../../../services/backend/mobile_backend.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/auth_widgets.dart';
+import '../../../widgets/common_widgets.dart';
 import '../../../widgets/password_strength.dart';
 import '../client_ui/client_home_screen.dart';
 
@@ -406,7 +407,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                   )
                 : null,
             children: [
-              _StepBar(step: _step, count: _stepCount),
+              StepProgressBar(step: _step, count: _stepCount),
               const SizedBox(height: 12),
               Text(
                 'STEP ${_step + 1} OF $_stepCount',
@@ -611,38 +612,6 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
           ],
         );
     }
-  }
-}
-
-/// Where the user is in the form: one segment per step, filled up to the
-/// current one.
-class _StepBar extends StatelessWidget {
-  final int step;
-  final int count;
-
-  const _StepBar({required this.step, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.palette;
-    return Row(
-      children: [
-        for (var i = 0; i < count; i++) ...[
-          if (i > 0) const SizedBox(width: 6),
-          Expanded(
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              curve: AppMotion.enter,
-              height: 4,
-              decoration: BoxDecoration(
-                color: i <= step ? c.primary : AppHairline.of(c.textmedium),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
   }
 }
 

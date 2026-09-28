@@ -254,3 +254,35 @@ Future<void> showContactSheet(
     ),
   );
 }
+
+/// Where the user is in a stepped form: one segment per step, filled up to
+/// the current one.
+class StepProgressBar extends StatelessWidget {
+  final int step;
+  final int count;
+
+  const StepProgressBar({super.key, required this.step, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return Row(
+      children: [
+        for (var i = 0; i < count; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.enter,
+              height: 4,
+              decoration: BoxDecoration(
+                color: i <= step ? c.primary : AppHairline.of(c.textmedium),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
