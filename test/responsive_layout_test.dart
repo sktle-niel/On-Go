@@ -8,7 +8,7 @@ import 'package:on_go/screens/auth/forgot_password_screen.dart';
 import 'package:on_go/screens/auth/client_registration/client_registration_screen.dart';
 import 'package:on_go/screens/auth/client_ui/client_home_screen.dart';
 import 'package:on_go/screens/auth/client_ui/history/service_history_screen.dart';
-import 'package:on_go/data/vehicle_type.dart';
+import 'package:on_go/data/motorcycle_problem.dart';
 import 'package:on_go/screens/auth/client_ui/home/book_help_screen.dart';
 import 'package:on_go/screens/auth/client_ui/home/client_home_tab.dart';
 import 'package:on_go/screens/auth/client_ui/home/quotes_screen.dart';
@@ -60,8 +60,8 @@ final screens = <String, Widget Function()>{
   'ClientHomeScreen': () => const ClientHomeScreen(),
   'ServiceHistoryScreen': () => const ServiceHistoryScreen(),
   'ClientHomeTab': () => const ClientHomeTab(),
-  'BookHelpScreen problem': () => const BookHelpScreen(vehicle: VehicleType.car),
-  'BookHelpScreen place': () => const BookHelpScreen(vehicle: VehicleType.motorcycle, initialStep: 1),
+  'BookHelpScreen details': () => const BookHelpScreen(problem: MotorcycleProblem.flatTire),
+  'BookHelpScreen place': () => const BookHelpScreen(problem: MotorcycleProblem.somethingElse, initialStep: 1),
   'QuotesScreen': () => const QuotesScreen(),
   'ClientJobsScreen': () => const ClientJobsScreen(),
   'ClientNotificationsScreen': () => const ClientNotificationsScreen(),

@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../data/job_photo_store.dart';
+import '../../../../data/motorcycle_problem.dart';
 import '../../../../data/quote_store.dart';
-import '../../../../data/vehicle_type.dart';
 import '../../../../services/backend/mobile_backend.dart';
 import '../../../../services/location/place_sources.dart';
 import '../../../../theme/app_theme.dart';
@@ -13,20 +13,21 @@ import '../../../../widgets/auth_widgets.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/location_selector.dart';
 
-/// Booking help for one vehicle, in two steps: what is wrong, then where
-/// and how urgently. One screen keeps everything typed while the client
-/// walks back and forth.
+/// Booking a mechanic for one problem, in two steps: a few words and a photo
+/// about it, then where the client is and how urgently. The problem itself
+/// was chosen on the home screen, so the first step is about it, not a menu.
 ///
-/// Pops with the [ServiceRequest] the backend took, or nothing if the
-/// client left.
+/// One screen keeps everything typed while the client walks back and forth.
+/// Pops with the [ServiceRequest] the backend took, or nothing if the client
+/// left.
 class BookHelpScreen extends StatefulWidget {
-  final VehicleType vehicle;
+  final MotorcycleProblem problem;
 
-  /// The step to open on: 0 the problem, 1 the place and urgency. For a
-  /// test or a deep link; a client always starts at the problem.
+  /// The step to open on: 0 the details, 1 the place and urgency. For a test
+  /// or a deep link; a client always starts at the details.
   final int initialStep;
 
-  const BookHelpScreen({super.key, required this.vehicle, this.initialStep = 0});
+  const BookHelpScreen({super.key, required this.problem, this.initialStep = 0});
 
   @override
   State<BookHelpScreen> createState() => _BookHelpScreenState();
@@ -37,7 +38,6 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
 
   late int _step = widget.initialStep;
 
-  String? _problem;
   final _detailsCtrl = TextEditingController();
   final List<XFile> _photos = [];
 
@@ -50,7 +50,7 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
   double? _capturedLat;
   double? _capturedLng;
 
-  String? _problemError;
+  String? _detailsError;
   String? _locationError;
   bool _booking = false;
 
@@ -87,8 +87,8 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
 
   void _next() {
     if (_step == 0) {
-      if (_problem == null) {
-        setState(() => _problemError = 'Choose what is wrong, so mechanics know what to quote.');
+      if (widget.problem.requiresDetails && _detailsCtrl.text.trim().isEmpty) {
+        setState(() => _detailsError = 'Say what is happening, so mechanics know what to quote.');
         return;
       }
       setState(() => _step = 1);
@@ -159,11 +159,12 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
     // Through the seam, so this reads the same whether the job is the
     // server's or this device's. The priority fee and the deadline are set
     // by whichever backend took it and read back off the answer.
+    final details = _detailsCtrl.text.trim();
     final ServiceRequest booked;
     try {
       booked = await MobileBackend.instance.serviceRequests.bookRequest(NewServiceRequest(
-        problem: '${widget.vehicle.label} · $_problem',
-        description: _detailsCtrl.text.trim().isEmpty ? null : _detailsCtrl.text.trim(),
+        problem: widget.problem.label,
+        description: details.isEmpty ? null : details,
         location: _locationCtrl.text.trim(),
         urgency: JobUrgency.fromWire(_urgency),
         point: _capturedLat == null || _capturedLng == null ? null : GeoPoint(_capturedLat!, _capturedLng!),
@@ -230,9 +231,9 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
                     ),
                     const SizedBox(height: 8),
                     AuthIntro(
-                      title: _step == 0 ? 'What is wrong with ${widget.vehicle.inSentence}?' : 'Where are you?',
+                      title: _step == 0 ? 'Tell us about it' : 'Where are you?',
                       subtitle: _step == 0
-                          ? 'Pick the closest one. You can say more below.'
+                          ? 'A few words and a photo help mechanics quote right the first time.'
                           : 'So a mechanic can reach you, and how soon you need them.',
                     ),
                     const SizedBox(height: 24),
@@ -253,7 +254,7 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
                       ),
                       child: KeyedSubtree(
                         key: ValueKey(_step),
-                        child: _step == 0 ? _problemStep() : _placeStep(),
+                        child: _step == 0 ? _detailsStep() : _placeStep(),
                       ),
                     ),
                   ],
@@ -282,46 +283,61 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
     );
   }
 
-  /// Step 1: the problem as a list to tap, then room to say more.
-  Widget _problemStep() {
+  /// Step 1: the problem as chosen, then room to say more and show it.
+  Widget _detailsStep() {
     final c = AppColors.palette;
-    final problems = widget.vehicle.commonProblems;
+    final problem = widget.problem;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // One tap each, in a single rounded list rather than a wall of
-        // tiles: the rows read top to bottom and the chosen one is marked.
+        // What was picked on the home screen, and the way to pick again.
         Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
           decoration: BoxDecoration(
-            color: c.surface,
+            color: c.primary.withValues(alpha: 0.06),
             borderRadius: AppRadii.borderLg,
-            border: Border.all(color: _problemError != null ? c.error : AppHairline.outline(c.textmedium)),
+            border: Border.all(color: c.primary.withValues(alpha: 0.25)),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
+          child: Row(
             children: [
-              for (var i = 0; i < problems.length; i++) ...[
-                if (i > 0) Divider(height: 1, color: AppHairline.of(c.textmedium)),
-                _ProblemRow(
-                  label: problems[i],
-                  selected: _problem == problems[i],
-                  onTap: () => setState(() {
-                    _problem = problems[i];
-                    _problemError = null;
-                  }),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: c.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
+                child: Icon(problem.icon, color: c.primary, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Problem',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c.textmedium),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      problem.label,
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textdark),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.maybePop(context),
+                style: TextButton.styleFrom(foregroundColor: c.primary),
+                child: const Text('Change'),
+              ),
             ],
           ),
         ),
-        if (_problemError != null) ...[
-          const SizedBox(height: 8),
-          Text(_problemError!, style: TextStyle(fontSize: 12, color: c.error)),
-        ],
         const SizedBox(height: 24),
         Text(
-          'Tell us more (optional)',
+          problem.requiresDetails ? 'What is happening?' : 'Tell us more (optional)',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.textdark),
         ),
         const SizedBox(height: 8),
@@ -330,10 +346,15 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
           maxLines: 4,
           maxLength: 500,
           textCapitalization: TextCapitalization.sentences,
+          onChanged: (_) {
+            if (_detailsError != null) setState(() => _detailsError = null);
+          },
           style: TextStyle(color: c.textdark, fontSize: 15),
           decoration: InputDecoration(
-            hintText: 'E.g. it started after I hit a pothole. The more you say, the better the quotes.',
+            hintText: problem.detailsHint,
             hintStyle: TextStyle(color: c.textmedium, fontSize: 15),
+            errorText: _detailsError,
+            errorStyle: TextStyle(fontSize: 12, color: c.error),
             border: OutlineInputBorder(
               borderRadius: AppRadii.borderMd,
               borderSide: BorderSide(color: AppHairline.outline(c.textmedium)),
@@ -345,6 +366,14 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
             focusedBorder: OutlineInputBorder(
               borderRadius: AppRadii.borderMd,
               borderSide: BorderSide(color: c.primary, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: AppRadii.borderMd,
+              borderSide: BorderSide(color: c.error),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: AppRadii.borderMd,
+              borderSide: BorderSide(color: c.error, width: 1.5),
             ),
           ),
         ),
@@ -525,52 +554,6 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
           ],
         ),
       ],
-    );
-  }
-}
-
-/// One problem in the list: its name, and a mark when it is the one chosen.
-class _ProblemRow extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _ProblemRow({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = AppColors.palette;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: InkWell(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: AppMotion.fast,
-          color: selected ? c.primary.withValues(alpha: 0.06) : Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                    color: c.textdark,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Icon(
-                selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                size: 22,
-                color: selected ? c.primary : AppHairline.outline(c.textmedium),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

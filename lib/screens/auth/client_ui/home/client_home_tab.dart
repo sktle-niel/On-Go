@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../../../data/client_account_store.dart';
-import '../../../../data/vehicle_type.dart';
+import '../../../../data/motorcycle_problem.dart';
 import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
 import 'book_help_screen.dart';
 
-/// The client's home: a greeting, and the one thing to do here — pick what
-/// they drive and book help for it. The details of the problem, the place
-/// and the urgency come afterwards, one screen at a time, in
-/// [BookHelpScreen].
+/// The client's home: a greeting, and the one thing to do here — say what is
+/// wrong with the motorcycle and book help for it. The details, the place and
+/// the urgency come afterwards, one screen at a time, in [BookHelpScreen].
 ///
 /// Modelled on a ride-hailing home: the services are tiles, and a tile is
 /// the start of a booking, not a form.
@@ -19,10 +18,10 @@ class ClientHomeTab extends StatelessWidget {
 
   const ClientHomeTab({super.key, this.onBooked});
 
-  Future<void> _book(BuildContext context, VehicleType vehicle) async {
+  Future<void> _book(BuildContext context, MotorcycleProblem problem) async {
     final booked = await Navigator.push<ServiceRequest>(
       context,
-      MaterialPageRoute(builder: (_) => BookHelpScreen(vehicle: vehicle)),
+      MaterialPageRoute(builder: (_) => BookHelpScreen(problem: problem)),
     );
     if (booked != null) onBooked?.call(booked);
   }
@@ -54,12 +53,12 @@ class ClientHomeTab extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'What needs a mechanic today?',
+          'What is wrong with your motorcycle?',
           style: TextStyle(fontSize: 14, color: c.textmedium),
         ),
         const SizedBox(height: 24),
         Text(
-          'Book help for your',
+          'Book a mechanic for',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textdark),
         ),
         const SizedBox(height: 12),
@@ -70,15 +69,16 @@ class ClientHomeTab extends StatelessWidget {
           // glyph and name.
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 132,
-            mainAxisExtent: 104,
+            // Room for a two-line name at the largest text size the app allows.
+            mainAxisExtent: 118,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
           ),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            for (final vehicle in VehicleType.values)
-              _VehicleTile(vehicle: vehicle, onTap: () => _book(context, vehicle)),
+            for (final problem in MotorcycleProblem.values)
+              _ProblemTile(problem: problem, onTap: () => _book(context, problem)),
           ],
         ),
         const SizedBox(height: 28),
@@ -87,7 +87,7 @@ class ClientHomeTab extends StatelessWidget {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.textdark),
         ),
         const SizedBox(height: 12),
-        const _HowRow(1, 'Tell us the problem', 'Pick your vehicle, then what is wrong with it.'),
+        const _HowRow(1, 'Tell us the problem', 'Pick what is wrong, add a few words or a photo.'),
         const _HowRow(2, 'Get quotes', 'Mechanics near you send their price and how soon they can come.'),
         const _HowRow(3, 'Pay after the job', 'Choose the best offer and pay the mechanic when the work is done.'),
         const SizedBox(height: 16),
@@ -96,12 +96,12 @@ class ClientHomeTab extends StatelessWidget {
   }
 }
 
-/// One vehicle: its glyph in a soft tile, its name under it.
-class _VehicleTile extends StatelessWidget {
-  final VehicleType vehicle;
+/// One problem: its glyph in a soft tile, its name under it.
+class _ProblemTile extends StatelessWidget {
+  final MotorcycleProblem problem;
   final VoidCallback onTap;
 
-  const _VehicleTile({required this.vehicle, required this.onTap});
+  const _ProblemTile({required this.problem, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +118,7 @@ class _VehicleTile extends StatelessWidget {
           onTap: onTap,
           child: Semantics(
             button: true,
-            label: 'Book help for ${vehicle.inSentence}',
+            label: 'Book a mechanic: ${problem.label}',
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: Column(
@@ -131,15 +131,20 @@ class _VehicleTile extends StatelessWidget {
                       color: c.primary.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(vehicle.icon, color: c.primary, size: 26),
+                    child: Icon(problem.icon, color: c.primary, size: 26),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Text(
-                    vehicle.label,
+                    problem.label,
                     textAlign: TextAlign.center,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.textdark),
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.15,
+                      fontWeight: FontWeight.w600,
+                      color: c.textdark,
+                    ),
                   ),
                 ],
               ),

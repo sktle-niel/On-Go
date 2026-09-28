@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:on_go/data/vehicle_type.dart';
+import 'package:on_go/data/motorcycle_problem.dart';
 import 'package:on_go/screens/auth/client_ui/home/book_help_screen.dart';
 import 'package:on_go/services/location/device_location_provider.dart';
 import 'package:on_go/services/location/location_service.dart';
@@ -427,7 +427,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
       // The place step of a booking, where the selector lives.
-      await tester.pumpWidget(app(size, const BookHelpScreen(vehicle: VehicleType.car, initialStep: 1)));
+      await tester.pumpWidget(app(size, const BookHelpScreen(problem: MotorcycleProblem.flatTire, initialStep: 1)));
       await tester.pumpAndSettle();
 
       final useCurrent = find.text('Use Current Location');
