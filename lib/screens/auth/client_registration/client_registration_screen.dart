@@ -12,8 +12,13 @@ import '../../../widgets/auth_widgets.dart';
 import '../../../widgets/password_strength.dart';
 import '../client_ui/client_home_screen.dart';
 
-/// Registration: the one form a new account fills in. Clients only — a
-/// mechanic's account is not opened from the app.
+/// Registration, in three short steps on one screen: the account, who they
+/// are, a photo. Clients only — a mechanic's account is not opened from the
+/// app.
+///
+/// One screen rather than three routes, so every field keeps its value while
+/// the user walks back and forth, and a refusal from the server can put the
+/// form back on the step that holds the field it names.
 ///
 /// Google can fill in the name and email first. The On Go API has no Google
 /// sign-in, so an API account always sets a password as well; the local
@@ -29,6 +34,8 @@ class ClientRegistrationScreen extends StatefulWidget {
 }
 
 class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
+  static const int _stepCount = 3;
+
   final _emailCtrl = TextEditingController();
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
@@ -36,6 +43,9 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmPassCtrl = TextEditingController();
+
+  /// Which step is showing: 0 the account, 1 who they are, 2 the photo.
+  int _step = 0;
 
   bool _obscurePass = true;
   bool _obscureConfirm = true;
@@ -61,6 +71,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
   /// so Google only fills in the name and email.
   bool get _requiresPassword => !_isSocialLogin || MobileBackend.instance.usesApi;
 
+  bool get _lastStep => _step == _stepCount - 1;
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +92,38 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
     _passCtrl.dispose();
     _confirmPassCtrl.dispose();
     super.dispose();
+  }
+
+  // ----------------------------------------------------------------- steps ---
+
+  /// Back through the steps first; off the screen only from the first one.
+  void _back() {
+    if (_step > 0) {
+      setState(() => _step--);
+    } else {
+      Navigator.maybePop(context);
+    }
+  }
+
+  /// On to the next step once this one is complete; from the last, the
+  /// account is created.
+  void _next() {
+    if (!_validateStep(_step)) return;
+    if (_lastStep) {
+      _submit();
+    } else {
+      setState(() => _step++);
+    }
+  }
+
+  /// The step that holds the first of [fields], so a refusal lands where it
+  /// can be corrected.
+  int _stepFor(Iterable<String> fields) {
+    const account = {'email', 'password', 'confirmPassword'};
+    const about = {'firstName', 'lastName', 'phone', 'address'};
+    if (fields.any(account.contains)) return 0;
+    if (fields.any(about.contains)) return 1;
+    return _step;
   }
 
   // ----------------------------------------------------------------- photo ---
@@ -187,38 +231,42 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
 
   // ------------------------------------------------------------ validation ---
 
-  bool _validate() {
+  /// Checks only what [step] asks for, so an untouched later step is never
+  /// marked wrong before the user has reached it.
+  bool _validateStep(int step) {
     final e = <String, String?>{};
 
-    final email = _emailCtrl.text.trim();
-    if (email.isEmpty) {
-      e['email'] = 'Email is required';
-    } else if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
-      e['email'] = 'Enter a valid email address';
-    }
-
-    if (_firstNameCtrl.text.trim().isEmpty) e['firstName'] = 'First name is required';
-    if (_lastNameCtrl.text.trim().isEmpty) e['lastName'] = 'Last name is required';
-    if (_addressCtrl.text.trim().isEmpty) e['address'] = 'Address is required';
-
-    final digits = _phoneCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) {
-      e['phone'] = 'Mobile number is required';
-    } else if (digits.length < 10) {
-      e['phone'] = 'Enter a valid mobile number';
-    }
-
-    if (_requiresPassword) {
-      if (_passCtrl.text.isEmpty) {
-        e['password'] = 'Password is required';
-      } else if (_passCtrl.text.length < 8) {
-        e['password'] = 'Password must be at least 8 characters';
+    if (step == 0) {
+      final email = _emailCtrl.text.trim();
+      if (email.isEmpty) {
+        e['email'] = 'Email is required';
+      } else if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
+        e['email'] = 'Enter a valid email address';
       }
 
-      if (_confirmPassCtrl.text.isEmpty) {
-        e['confirmPassword'] = 'Please confirm your password';
-      } else if (_passCtrl.text != _confirmPassCtrl.text) {
-        e['confirmPassword'] = 'Passwords do not match';
+      if (_requiresPassword) {
+        if (_passCtrl.text.isEmpty) {
+          e['password'] = 'Password is required';
+        } else if (_passCtrl.text.length < 8) {
+          e['password'] = 'Password must be at least 8 characters';
+        }
+
+        if (_confirmPassCtrl.text.isEmpty) {
+          e['confirmPassword'] = 'Please confirm your password';
+        } else if (_passCtrl.text != _confirmPassCtrl.text) {
+          e['confirmPassword'] = 'Passwords do not match';
+        }
+      }
+    } else if (step == 1) {
+      if (_firstNameCtrl.text.trim().isEmpty) e['firstName'] = 'First name is required';
+      if (_lastNameCtrl.text.trim().isEmpty) e['lastName'] = 'Last name is required';
+      if (_addressCtrl.text.trim().isEmpty) e['address'] = 'Address is required';
+
+      final digits = _phoneCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.isEmpty) {
+        e['phone'] = 'Mobile number is required';
+      } else if (digits.length < 10) {
+        e['phone'] = 'Enter a valid mobile number';
       }
     }
 
@@ -227,7 +275,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
   }
 
   Future<void> _submit() async {
-    if (_isLoading || !_validate()) return;
+    if (_isLoading) return;
 
     // With the On Go API the account is created there first; nothing is kept
     // on the device unless the server accepted it.
@@ -249,6 +297,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
         setState(() {
           _isLoading = false;
           _err = fieldErrors;
+          // Back to the step that holds the field the server refused.
+          _step = _stepFor(fieldErrors.keys);
         });
         if (fieldErrors.isEmpty) _snack(error.message, error: true);
         return;
@@ -298,6 +348,22 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
 
   // ----------------------------------------------------------------- build ---
 
+  String get _title => switch (_step) {
+        0 => 'Your account',
+        1 => 'About you',
+        _ => 'Add a photo',
+      };
+
+  String get _subtitle => switch (_step) {
+        0 => !_isSocialLogin
+            ? "The email and password you'll sign in with."
+            : _requiresPassword
+                ? 'Google filled in your email. Set a password to sign in with.'
+                : 'Google will sign you in from now on.',
+        1 => 'So a mechanic knows who they are helping, and how to reach you.',
+        _ => 'Optional, but it helps a mechanic recognise you on the road.',
+      };
+
   Widget _eye(bool obscured, VoidCallback toggle) => IconButton(
         tooltip: obscured ? 'Show password' : 'Hide password',
         icon: Icon(obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20),
@@ -307,161 +373,246 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
-    final ImageProvider? photo = _profilePhoto != null
-        ? FileImage(_profilePhoto!)
-        : _socialPhotoUrl != null
-            ? NetworkImage(_socialPhotoUrl!)
-            : null;
 
-    return Stack(
-      children: [
-        AuthPage(
-          showBack: true,
-          compactHero: true,
-          footer: AuthFooterLink(
-            prompt: 'Already have an account? ',
-            action: 'Sign In',
-            onTap: () => Navigator.maybePop(context),
-          ),
-          children: [
-            const AuthIntro(
-              title: 'Create your account',
-              subtitle: 'A few details, and you can book help wherever you are.',
-            ),
-            const SizedBox(height: 24),
-
-            // Google first: it fills in the name and the email.
-            if (_isSocialLogin)
-              _GoogleConnected(email: _emailCtrl.text, onChange: _disconnectSocial)
-            else ...[
-              AuthSecondaryButton(
-                label: 'Continue with Google',
-                leading: const _GoogleMark(size: 20),
-                onPressed: _googleBusy ? null : _continueWithGoogle,
+    return PopScope(
+      // The system back walks the steps too.
+      canPop: _step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: Stack(
+        children: [
+          AuthPage(
+            showBack: true,
+            onBack: _back,
+            compactHero: true,
+            // A way back to Sign In, offered before anything has been typed.
+            footer: _step == 0
+                ? AuthFooterLink(
+                    prompt: 'Already have an account? ',
+                    action: 'Sign In',
+                    onTap: () => Navigator.maybePop(context),
+                  )
+                : null,
+            children: [
+              _StepBar(step: _step, count: _stepCount),
+              const SizedBox(height: 12),
+              Text(
+                'STEP ${_step + 1} OF $_stepCount',
+                style: AppText.overline(context).copyWith(color: c.textmedium),
               ),
-              const SizedBox(height: 20),
-              const _OrDivider('or'),
+              const SizedBox(height: 8),
+              AuthIntro(title: _title, subtitle: _subtitle),
+              const SizedBox(height: 28),
+              // The step's fields slide in from the right; the previous
+              // ones slide out the way they came.
+              AnimatedSwitcher(
+                duration: AppMotion.normal,
+                switchInCurve: AppMotion.enter,
+                switchOutCurve: AppMotion.enter,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween(begin: const Offset(0.06, 0), end: Offset.zero).animate(animation),
+                    child: child,
+                  ),
+                ),
+                layoutBuilder: (current, previous) => Stack(
+                  alignment: Alignment.topCenter,
+                  children: [...previous, ?current],
+                ),
+                child: KeyedSubtree(key: ValueKey(_step), child: _stepBody()),
+              ),
+              const SizedBox(height: 28),
+              AuthPrimaryButton(
+                label: _lastStep
+                    ? (_isLoading ? 'Creating account…' : 'Create account')
+                    : 'Continue',
+                busy: _isLoading,
+                onPressed: _next,
+              ),
             ],
-            const SizedBox(height: 24),
+          ),
 
-            // The photo: one tap on the avatar.
-            Center(child: _AvatarPicker(image: photo, onTap: _choosePhoto)),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                photo == null ? 'Add a profile photo' : 'Change photo',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.primary),
+          // Google's own sheet is in front while it is being asked; this
+          // keeps the form from being tapped underneath it.
+          if (_googleBusy)
+            Positioned.fill(
+              child: AbsorbPointer(
+                child: ColoredBox(
+                  color: c.surface.withValues(alpha: 0.6),
+                  child: Center(child: CircularProgressIndicator(color: c.primary)),
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
 
-            AutofillGroup(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AuthTextField(
-                    hint: 'Email',
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    errorText: _err['email'],
-                  ),
-                  const SizedBox(height: 14),
-                  _TwoUp(
-                    first: AuthTextField(
-                      hint: 'First name',
-                      controller: _firstNameCtrl,
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.givenName],
-                      errorText: _err['firstName'],
-                    ),
-                    second: AuthTextField(
-                      hint: 'Last name',
-                      controller: _lastNameCtrl,
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.familyName],
-                      errorText: _err['lastName'],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  AuthTextField(
-                    hint: 'Address',
-                    controller: _addressCtrl,
-                    textCapitalization: TextCapitalization.words,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.fullStreetAddress],
-                    errorText: _err['address'],
-                  ),
-                  const SizedBox(height: 14),
-                  AuthTextField(
-                    hint: 'Mobile number',
-                    controller: _phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    autofillHints: const [AutofillHints.telephoneNumber],
-                    // The last field when Google manages the password.
-                    textInputAction: _requiresPassword ? TextInputAction.next : TextInputAction.done,
-                    onSubmitted: _requiresPassword ? null : (_) => _submit(),
-                    errorText: _err['phone'],
-                  ),
-                  if (_requiresPassword) ...[
-                    const SizedBox(height: 14),
-                    AuthTextField(
-                      hint: 'Password',
-                      controller: _passCtrl,
-                      obscure: _obscurePass,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.newPassword],
-                      onChanged: (_) => setState(() {}),
-                      suffixIcon: _eye(_obscurePass, () => setState(() => _obscurePass = !_obscurePass)),
-                      errorText: _err['password'],
-                    ),
-                    PasswordStrengthMeter(password: _passCtrl.text),
-                    const SizedBox(height: 14),
-                    AuthTextField(
-                      hint: 'Confirm password',
-                      controller: _confirmPassCtrl,
-                      obscure: _obscureConfirm,
-                      textInputAction: TextInputAction.done,
-                      autofillHints: const [AutofillHints.newPassword],
-                      onSubmitted: (_) => _submit(),
-                      onChanged: (_) => setState(() {}),
-                      suffixIcon: _eye(_obscureConfirm, () => setState(() => _obscureConfirm = !_obscureConfirm)),
-                      errorText: _err['confirmPassword'],
-                    ),
-                    PasswordMatchIndicator(
-                      password: _passCtrl.text,
-                      confirmPassword: _confirmPassCtrl.text,
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 14),
-                    const _Note(Icons.lock_outline, 'Your password is managed by Google.'),
-                  ],
-                ],
+  Widget _stepBody() {
+    switch (_step) {
+      case 0:
+        return AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Google first: it fills in the name and the email.
+              if (_isSocialLogin)
+                _GoogleConnected(email: _emailCtrl.text, onChange: _disconnectSocial)
+              else ...[
+                AuthSecondaryButton(
+                  label: 'Continue with Google',
+                  leading: const _GoogleMark(size: 20),
+                  onPressed: _googleBusy ? null : _continueWithGoogle,
+                ),
+                const SizedBox(height: 20),
+                const _OrDivider('or'),
+              ],
+              const SizedBox(height: 20),
+              AuthTextField(
+                hint: 'Email',
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                // The only field on this step when Google holds the password.
+                textInputAction: _requiresPassword ? TextInputAction.next : TextInputAction.done,
+                onSubmitted: _requiresPassword ? null : (_) => _next(),
+                errorText: _err['email'],
               ),
+              if (_requiresPassword) ...[
+                const SizedBox(height: 16),
+                AuthTextField(
+                  hint: 'Password',
+                  controller: _passCtrl,
+                  obscure: _obscurePass,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.newPassword],
+                  onChanged: (_) => setState(() {}),
+                  suffixIcon: _eye(_obscurePass, () => setState(() => _obscurePass = !_obscurePass)),
+                  errorText: _err['password'],
+                ),
+                PasswordStrengthMeter(password: _passCtrl.text),
+                const SizedBox(height: 16),
+                AuthTextField(
+                  hint: 'Confirm password',
+                  controller: _confirmPassCtrl,
+                  obscure: _obscureConfirm,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.newPassword],
+                  onSubmitted: (_) => _next(),
+                  onChanged: (_) => setState(() {}),
+                  suffixIcon: _eye(_obscureConfirm, () => setState(() => _obscureConfirm = !_obscureConfirm)),
+                  errorText: _err['confirmPassword'],
+                ),
+                PasswordMatchIndicator(
+                  password: _passCtrl.text,
+                  confirmPassword: _confirmPassCtrl.text,
+                ),
+              ] else ...[
+                const SizedBox(height: 16),
+                const _Note(Icons.lock_outline, 'Your password is managed by Google.'),
+              ],
+            ],
+          ),
+        );
+
+      case 1:
+        return AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _TwoUp(
+                first: AuthTextField(
+                  hint: 'First name',
+                  controller: _firstNameCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.givenName],
+                  errorText: _err['firstName'],
+                ),
+                second: AuthTextField(
+                  hint: 'Last name',
+                  controller: _lastNameCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.familyName],
+                  errorText: _err['lastName'],
+                ),
+              ),
+              const SizedBox(height: 16),
+              AuthTextField(
+                hint: 'Mobile number',
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.telephoneNumber],
+                errorText: _err['phone'],
+              ),
+              const SizedBox(height: 16),
+              AuthTextField(
+                hint: 'Address',
+                controller: _addressCtrl,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.fullStreetAddress],
+                onSubmitted: (_) => _next(),
+                errorText: _err['address'],
+              ),
+            ],
+          ),
+        );
+
+      default:
+        final c = AppColors.palette;
+        final ImageProvider? photo = _profilePhoto != null
+            ? FileImage(_profilePhoto!)
+            : _socialPhotoUrl != null
+                ? NetworkImage(_socialPhotoUrl!)
+                : null;
+        return Column(
+          children: [
+            const SizedBox(height: 8),
+            _AvatarPicker(image: photo, onTap: _choosePhoto),
+            const SizedBox(height: 14),
+            Text(
+              photo == null ? 'Add a profile photo' : 'Change photo',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.primary),
             ),
-            const SizedBox(height: 28),
-            AuthPrimaryButton(
-              label: _isLoading ? 'Creating account…' : 'Create account',
-              busy: _isLoading,
-              onPressed: _submit,
-            ),
+            const SizedBox(height: 8),
           ],
-        ),
+        );
+    }
+  }
+}
 
-        // Google's own sheet is in front while it is being asked; this keeps
-        // the form from being tapped underneath it.
-        if (_googleBusy)
-          Positioned.fill(
-            child: AbsorbPointer(
-              child: ColoredBox(
-                color: c.surface.withValues(alpha: 0.6),
-                child: Center(child: CircularProgressIndicator(color: c.primary)),
+/// Where the user is in the form: one segment per step, filled up to the
+/// current one.
+class _StepBar extends StatelessWidget {
+  final int step;
+  final int count;
+
+  const _StepBar({required this.step, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return Row(
+      children: [
+        for (var i = 0; i < count; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.enter,
+              height: 4,
+              decoration: BoxDecoration(
+                color: i <= step ? c.primary : AppHairline.of(c.textmedium),
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
+        ],
       ],
     );
   }
@@ -475,7 +626,7 @@ class _AvatarPicker extends StatelessWidget {
 
   const _AvatarPicker({required this.image, required this.onTap});
 
-  static const double size = 96;
+  static const double size = 120;
 
   @override
   Widget build(BuildContext context) {
@@ -501,21 +652,21 @@ class _AvatarPicker extends StatelessWidget {
                     image: image == null ? null : DecorationImage(image: image!, fit: BoxFit.cover),
                   ),
                   child: image == null
-                      ? Icon(Icons.person_rounded, size: 44, color: c.textmedium.withValues(alpha: 0.7))
+                      ? Icon(Icons.person_rounded, size: 56, color: c.textmedium.withValues(alpha: 0.7))
                       : null,
                 ),
                 Positioned(
                   right: 0,
                   bottom: 0,
                   child: Container(
-                    width: 34,
-                    height: 34,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: c.primary,
-                      border: Border.all(color: c.surface, width: 2.5),
+                      border: Border.all(color: c.surface, width: 3),
                     ),
-                    child: Icon(Icons.photo_camera_rounded, size: 16, color: c.textlight),
+                    child: Icon(Icons.photo_camera_rounded, size: 18, color: c.textlight),
                   ),
                 ),
               ],
@@ -543,7 +694,7 @@ class _TwoUp extends StatelessWidget {
     if (context.layout.isSmallPhone) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [first, const SizedBox(height: 14), second],
+        children: [first, const SizedBox(height: 16), second],
       );
     }
     return Row(

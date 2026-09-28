@@ -509,12 +509,17 @@ class AuthPage extends StatelessWidget {
   /// the room more than the picture.
   final bool compactHero;
 
+  /// What the back button does. Null pops the route; a stepped form passes
+  /// something that first walks back through its steps.
+  final VoidCallback? onBack;
+
   const AuthPage({
     super.key,
     required this.children,
     this.footer,
     this.showBack = false,
     this.compactHero = false,
+    this.onBack,
   });
 
   /// The sheet's corner radius — how much hero shows beside the corners.
@@ -555,7 +560,7 @@ class AuthPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AuthHero(height: heroHeight, compact: compact, showBack: showBack),
+            AuthHero(height: heroHeight, compact: compact, showBack: showBack, onBack: onBack),
             Expanded(
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(sheetRadius)),
@@ -667,11 +672,15 @@ class AuthHero extends StatelessWidget {
   final bool compact;
   final bool showBack;
 
+  /// What the back button does; null pops the route.
+  final VoidCallback? onBack;
+
   const AuthHero({
     super.key,
     required this.height,
     this.compact = false,
     this.showBack = false,
+    this.onBack,
   });
 
   /// The band the hero folds to, below the status bar.
@@ -784,7 +793,7 @@ class AuthHero extends StatelessWidget {
                   top: top + 6,
                   left: 12,
                   child: IconButton(
-                    onPressed: () => Navigator.maybePop(context),
+                    onPressed: onBack ?? () => Navigator.maybePop(context),
                     tooltip: 'Back',
                     icon: const Icon(Icons.arrow_back_rounded, size: 22),
                     style: IconButton.styleFrom(
