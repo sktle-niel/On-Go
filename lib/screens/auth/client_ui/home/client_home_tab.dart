@@ -9,7 +9,6 @@ import '../../../../services/backend/mobile_backend.dart';
 import '../../../../services/location/location_service.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../utils/coalesced_load.dart';
-import '../../../../widgets/auth_widgets.dart' show AuthHero;
 import '../../../../widgets/glass.dart';
 import 'book_help_screen.dart';
 
@@ -416,11 +415,16 @@ class _KindChip extends StatelessWidget {
 }
 
 /// The card for when the bike has stopped on the road: in the brand tint,
-/// with a line, a dark button, and the photo of the trade on the right.
+/// with a line, a dark button, and a picture of a mobile mechanic on the
+/// right.
 class _EmergencyCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _EmergencyCard({required this.onTap});
+
+  /// The mechanic and the "Mobile Mechanic" top box from the Sign In picture,
+  /// cropped clear of the words painted into it (see assets/images/README.md).
+  static const String _emergencyPhoto = 'assets/images/emergency_card.jpg';
 
   @override
   Widget build(BuildContext context) {
@@ -492,9 +496,8 @@ class _EmergencyCard extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
                         child: Image.asset(
-                          AuthHero.defaultPhoto,
+                          _emergencyPhoto,
                           fit: BoxFit.cover,
-                          alignment: const Alignment(0.3, 0),
                           errorBuilder: (_, _, _) => ColoredBox(color: c.primary.withValues(alpha: 0.2)),
                         ),
                       ),
