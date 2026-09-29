@@ -1012,6 +1012,21 @@ class QuoteNotificationStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// How many of [quoteIds] this phone has not shown the client yet. The ids
+  /// come from whichever backend holds the job, so this answers for a
+  /// server's quotes too, which [unseenQuoteCountForRequest] cannot: this store
+  /// holds none of them. Which ones were shown is still this phone's memory.
+  int unseenQuoteCount(Iterable<String> quoteIds) =>
+      quoteIds.where((id) => !_seenClientQuoteIds.contains(id)).length;
+
+  /// Marks [quoteIds] as shown to the client, clearing their "new" badge.
+  void markQuotesSeen(Iterable<String> quoteIds) {
+    final fresh = quoteIds.where((id) => !_seenClientQuoteIds.contains(id)).toList();
+    if (fresh.isEmpty) return;
+    _seenClientQuoteIds.addAll(fresh);
+    notifyListeners();
+  }
+
   HelpRequest? requestFor(String requestId) {
     try {
       return _requests.firstWhere((r) => r.id == requestId);

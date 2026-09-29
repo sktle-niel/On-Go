@@ -1,9 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:on_go/data/app_session.dart';
+import 'package:on_go/data/mechanic_account_store.dart';
 import 'package:on_go/data/quote_store.dart';
 import 'package:on_go/data/review_store.dart';
 import 'package:on_go/services/backend/local_service_request_service.dart';
 import 'package:on_go_shared/on_go_shared.dart';
+
+import 'performance_test_support.dart';
 
 /// `LocalServiceRequestService` — the on-device store behind `ServiceRequestApi`.
 ///
@@ -208,6 +211,29 @@ void main() {
       expect(await jobs.findRequest(booked.id), isNull);
       // And the client can book again.
       await jobs.bookRequest(booking);
+    });
+  });
+
+  group('the completion clock', () {
+    test('a list read returns an overdue job to the pool, as the server sweeps before it answers', () async {
+      resetPerformanceStores();
+      MechanicAccountStore.instance.enterDemoMode();
+      final store = QuoteNotificationStore.instance;
+      final booked = await jobs.bookRequest(booking);
+      store.mechanicSendQuote(booked.id,
+          mechanicName: 'Mang Kanor', price: '₱450', eta: const Duration(hours: 1), rating: 4.8);
+      store.clientAcceptQuote(store.quotesForRequest(booked.id).first.id);
+      // Matched four days ago: past an Urgent job's three, and never under way.
+      store.requestFor(booked.id)!.matchedAt = DateTime.now().subtract(const Duration(days: 4));
+
+      final job = (await jobs.listMyRequests()).singleWhere((request) => request.id == booked.id);
+
+      // No screen asked for the sweep. The Jobs tab used to run it itself; now
+      // it only reads the list, as it would from the server.
+      expect(job.status, ServiceRequestStatus.pending);
+      expect(job.expiredAt, isNotNull);
+      expect(job.expiredByMechanic, 'Mang Kanor');
+      resetPerformanceStores();
     });
   });
 

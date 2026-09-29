@@ -19,11 +19,12 @@ because the next person plans against it.
 Two Flutter front ends, a shared contract and a deployed API. Accounts, the
 points rules, revenue, the verification queue, the moderator directory and the
 Sign In background cross between the two applications through the API. The jobs
-domain does not: the server owns it, and each phone still runs its own copy.
+domain only partly does: the server owns it, and the app reaches it for booking,
+quotes and the job lists, while the rest of the job still runs on each phone.
 
 | Part | State |
 | --- | --- |
-| `/lib` — mobile app (Client + Mechanic) | Working; accounts on the API, jobs on the device |
+| `/lib` — mobile app (Client + Mechanic) | Working; accounts on the API, jobs partly (see *What is missing*) |
 | `On-Go-Console` (separate repo) — console (Admin + Moderator) | Working, on the API |
 | `/packages/on_go_shared` — API contract | Complete for what exists |
 | `/packages/on_go_api` — API client | Auth, points policy, revenue, appearance, verification, moderators |
@@ -163,16 +164,29 @@ they look empty on staging only because little traffic has gone through it.
 
 ## What is missing
 
-### The jobs domain is served, and the app is not on it
+### The jobs domain is served, and the app is halfway onto it
 
 This replaced "the backend has no routes", which was the entry here for a long
 time. The API now serves booking, quotes, accept, the status machine, payment
 and points, cancel and expiry, reviews, the leaderboard, locations and chat.
 
-What has not happened is the other half: `quote_store.dart` still runs the whole
-job lifecycle on the device, and nothing in `/lib` calls a `/service-requests`
-route. Two phones therefore still cannot see the same job, which was the reason
-for a server in the first place.
+The app is moving onto it one screen at a time, through
+`MobileBackend.instance.serviceRequests`. That is the API in a normal build,
+and `LocalServiceRequestService` over `quote_store.dart` in an
+`ONGO_BACKEND=local` one.
+
+| Goes through the seam | Still reads `quote_store.dart` directly |
+| --- | --- |
+| Booking (`book_help_screen.dart`) | The client's job details (`active_request_screen.dart`) |
+| The client's quotes: accept, reject (`quotes_screen.dart`) | The mechanic's active job: progress steps, agreed amount (`mechanic_active_job_screen.dart`) |
+| The client's Jobs tab: the list, cancel, reopen (`client_jobs_screen.dart`) | QR payment, earnings, and both notification screens |
+| The mechanic's job list: quote, withdraw, accept an Emergency, cancel (`jobs_screen.dart`) | |
+
+So in a normal build, a job can be booked, quoted, accepted and cancelled
+against the server, and it shows on the client's Jobs tab. It stops at the
+screens in the right-hand column: opening a server job there finds nothing,
+because they look the id up in the device's store. Until they move, two phones
+can see the same job but not work it to the end.
 
 The order is forced by the server, not chosen. `POST /service-requests/:id/pay`
 looks the job up by id and answers 404 for one it does not hold, so a job has to
@@ -181,14 +195,10 @@ it can be paid there. Payment is the end of the sequence, not the start of it:
 
     book → quote → accept → progress → pay
 
-So the first move is booking. Once a job is the server's from the start, the
-rest follows it, and `POST /payments` — the compatibility window the server
-keeps open for jobs it does not hold — can close.
-
-The contract and the API client are in place as of 2026-09-16:
-`ServiceRequestApi` is merged, `HttpServiceRequestApi` implements all of it over
-HTTP, and `OnGoApi.serviceRequests` exposes it. What is left is the call sites:
-`MobileBackend` does not carry it yet, and no screen reads it.
+Booking, quoting and accepting are on the server now, so what is left runs in
+this order: the job details and the mechanic's active job (progress), then
+payment through `/pay`. Once payment is there, `POST /payments` can close. It
+is the compatibility window the server keeps open for jobs it does not hold.
 
 ### Test coverage
 

@@ -64,7 +64,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     final tabs = <Widget>[
       // Drawn for glass: they keep their own last row clear of the tab bar.
       ClientHomeTab(onBooked: (_) => _goToTab(1), onOpenJobs: () => _goToTab(1)),
-      ClientJobsScreen(onBook: () => _goToTab(0)),
+      ClientJobsScreen(onBook: () => _goToTab(0), visible: _currentIndex == 1),
       // Not redrawn yet: held above the tab bar instead.
       const _ClearOfTabBar(child: ServiceHistoryScreen()),
       // Mechanic Rankings — discovery by rank, rating and reviews. The

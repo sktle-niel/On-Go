@@ -261,7 +261,8 @@ now owns: passwords, registration, resets and sessions. They branch on
 | `LeaderboardConfigApi` (public switch, seasons, scoring, seasonal multipliers, cap) | local defaults — disabled, no seasons (not in the API contract) | local, saved in the browser, every change audited (not in the API contract) |
 | `PerformanceReviewApi` (standings, score breakdowns, evaluations, point transactions, flags, adjustments) | — (phones calculate their own with `LeaderboardEngine`) | local and empty: phone records do not reach the console until the jobs domain is on the API |
 | `LocationApi` | local — the API serves these routes, the app is not on them yet | — |
-| `ServiceRequestApi`, `PointsWalletApi`, `MechanicReviewApi`, chat | local stores — the API serves them, the app is not on them yet | — |
+| `ServiceRequestApi` | API for booking, the client's quotes and Jobs tab, and the mechanic's job list; the job details, progress and payment screens still read the local store | — |
+| `PointsWalletApi`, `MechanicReviewApi`, chat | local stores — the API serves them, the app is not on them yet | — |
 
 Every API-backed row switches to local with `--dart-define=ONGO_BACKEND=local`.
 The two flagged rows are served and their HTTP implementations are written; the

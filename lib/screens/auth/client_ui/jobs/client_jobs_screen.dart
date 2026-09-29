@@ -7,7 +7,8 @@ import '../../../../data/chat_store.dart';
 import '../../../../data/job_photo_store.dart';
 import '../../../../data/mechanic_contact_store.dart';
 import '../../../../data/motorcycle_problem.dart';
-import '../../../../data/quote_store.dart';
+import '../../../../data/quote_store.dart' show QuoteNotificationStore, formatEtaDuration, formatTimeRemaining;
+import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/glass.dart';
@@ -22,70 +23,160 @@ import '../home/quotes_screen.dart';
 /// with its words on the left — the state in its colour, the problem, when,
 /// the mechanic, the amount, the one or two things to do — and the problem's
 /// glyph glowing on the right.
+///
+/// Every job here is read through [MobileBackend.serviceRequests], so the list
+/// is the server's in an API build and the device's in a local one. The
+/// backend owns every rule behind the buttons: the ETA lock, the cancel and
+/// reopen refusals, the expiry sweep. This screen only mirrors the lock so it
+/// can explain it before the client taps into a refusal.
 class ClientJobsScreen extends StatefulWidget {
   /// Where "Book a mechanic" on an empty list goes: the home tab.
   final VoidCallback? onBook;
 
-  const ClientJobsScreen({super.key, this.onBook});
+  /// Whether this is the tab on screen. The shell keeps every tab alive, and
+  /// the event socket does not replay what it missed while it was down, so
+  /// turning to this tab is when the jobs are read afresh.
+  final bool visible;
+
+  const ClientJobsScreen({super.key, this.onBook, this.visible = true});
 
   @override
   State<ClientJobsScreen> createState() => _ClientJobsScreenState();
 }
 
 class _ClientJobsScreenState extends State<ClientJobsScreen> {
-  final _store = QuoteNotificationStore.instance;
+  ServiceRequestApi get _api => MobileBackend.instance.serviceRequests;
+
+  List<_Job> _jobs = const [];
+  bool _loading = true;
+  String? _error;
+  bool _reading = false;
+  bool _readAgain = false;
+
   int _tabIndex = 0;
   Timer? _ticker;
+  final _watches = <StreamSubscription<Object?>>[];
 
   @override
   void initState() {
     super.initState();
-    _store.addListener(_onChange);
-    // Catches up on any job whose deadline passed while the client wasn't
-    // looking, so this screen opens showing the truth.
-    _store.expireOverdueJobs();
-    // And raise the "running late" notice for any mechanic whose ETA ran out
-    // while the client was elsewhere in the app.
-    _store.notifyLateArrivals();
+    _load();
+    // A quote arriving, a job matched, cancelled, expired or back in the
+    // pool: read the list again rather than patch it, so the cards always
+    // show what the backend holds.
+    _watches
+      ..add(_api.watchRequests().listen((_) => _load()))
+      ..add(_api.watchQuotes().listen((_) => _load()));
     // Keeps the "cancelling unlocks in …" countdown moving, and flips the
     // card to cancellable the moment the ETA runs out.
     _ticker = Timer.periodic(const Duration(seconds: 1), _onTick);
   }
 
   @override
+  void didUpdateWidget(ClientJobsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.visible && !oldWidget.visible) _load();
+  }
+
+  @override
   void dispose() {
     _ticker?.cancel();
-    _store.removeListener(_onChange);
+    for (final watch in _watches) {
+      watch.cancel();
+    }
     super.dispose();
   }
 
   void _onTick(Timer _) {
-    // Notifies on its own if an ETA just ran out; the setState is for the
-    // ticking numbers on the cards.
-    _store.notifyLateArrivals();
+    // The "running late" notice is the phone's own; the server sends none. It
+    // reads the device's jobs, so only a local build has anything to raise.
+    QuoteNotificationStore.instance.notifyLateArrivals();
     if (!mounted) return;
-    final counting = _store.myActiveJobs
-        .any((r) => timeUntilArrival(r, _store.acceptedQuoteFor(r.id)) != null);
-    if (counting) setState(() {});
+    final now = DateTime.now();
+    if (_jobs.any((job) => job.arrivalCountdown(now) != null)) setState(() {});
   }
 
-  void _onChange() => setState(() {});
+  /// Reads the client's open jobs and their quotes. A call that arrives while
+  /// a read is running folds into one more read after it, so a burst of events
+  /// costs two reads rather than one per event.
+  Future<void> _load() async {
+    if (_reading) {
+      _readAgain = true;
+      return;
+    }
+    _reading = true;
+    try {
+      do {
+        _readAgain = false;
+        await _read();
+      } while (_readAgain && mounted);
+    } finally {
+      _reading = false;
+    }
+  }
 
-  void _openJob(HelpRequest request) {
-    Navigator.push(
+  Future<void> _read() async {
+    try {
+      final open = (await _api.listMyRequests()).where(
+        (request) => request.status == ServiceRequestStatus.pending || request.status == ServiceRequestStatus.matched,
+      );
+      // A client holds one active request at a time, so this is one or two
+      // reads, not one per job in their history.
+      final jobs = <_Job>[
+        for (final request in open) _Job(request, await _api.listQuotes(request.id)),
+      ];
+      if (!mounted) return;
+      setState(() {
+        _jobs = jobs;
+        _loading = false;
+        _error = null;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.message;
+      });
+    }
+  }
+
+  Future<void> _openJob(_Job job) async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ActiveRequestScreen(requestId: request.id)),
+      MaterialPageRoute(builder: (_) => ActiveRequestScreen(requestId: job.request.id)),
     );
+    _load();
   }
 
-  void _openQuotes(HelpRequest request) {
-    Navigator.push(
+  Future<void> _openQuotes(_Job job) async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => QuotesScreen(requestId: request.id)),
+      MaterialPageRoute(builder: (_) => QuotesScreen(requestId: job.request.id)),
     );
+    // Accepting there matches the job; read it back rather than wait for the
+    // event.
+    _load();
   }
 
-  Future<void> _deleteUploaded(HelpRequest request) async {
+  /// Sends one change to the backend and says how it went: [done] when it
+  /// went through, the backend's own words when it was refused. Reads the list
+  /// again either way.
+  Future<void> _change(Future<Object?> Function() call, {required String done}) async {
+    var message = done;
+    try {
+      await call();
+    } on ApiException catch (error) {
+      message = error.message;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: AppDurations.snackBar),
+      );
+    }
+    await _load();
+  }
+
+  Future<void> _deleteUploaded(_Job job) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -102,22 +193,16 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
       ),
     );
     if (!mounted || confirmed != true) return;
-
-    final ok = _store.clientDeleteRequest(request.id);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ok ? 'Booking cancelled.' : 'Could not cancel this booking.'), duration: AppDurations.snackBar),
-    );
+    await _change(() => _api.cancelRequest(job.request.id), done: 'Booking cancelled.');
   }
 
-  Future<void> _cancelMatched(HelpRequest request) async {
-    final quote = _store.acceptedQuoteFor(request.id);
-    final remaining = timeUntilArrival(request, quote);
+  Future<void> _cancelMatched(_Job job) async {
+    final now = DateTime.now();
 
     // The mechanic is still inside the ETA they committed to. Say so, with the
     // time left and when cancelling opens up, rather than offering options
-    // that would be refused.
-    if (clientCancelLockedByEta(request, quote)) {
+    // the backend would refuse.
+    if (job.cancelLocked(now)) {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -127,13 +212,13 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${quote?.mechanicName ?? 'Your mechanic'} committed to arriving within '
-                '${quote?.eta ?? 'their ETA'} and is still on the way.',
+                '${job.request.mechanicName ?? 'Your mechanic'} committed to arriving within '
+                '${job.eta ?? 'their ETA'} and is still on the way.',
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 10),
               Text(
-                'Cancelling is unavailable for another ${formatTimeRemaining(remaining!)}. '
+                'Cancelling is unavailable for another ${formatTimeRemaining(job.arrivalCountdown(now)!)}. '
                 "If they haven't arrived by then, you can cancel this job at any time.",
                 style: TextStyle(fontSize: 13, color: AppColors.textmedium),
               ),
@@ -169,13 +254,9 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
     if (!mounted) return;
 
     if (choice == 'revert') {
-      final ok = _store.clientRevertToPending(request.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok ? 'Back in the queue: mechanics can quote on it again.' : 'Could not reopen this job.'),
-          duration: AppDurations.snackBar,
-        ),
+      await _change(
+        () => _api.reopenRequest(job.request.id),
+        done: 'Back in the queue: mechanics can quote on it again.',
       );
     } else if (choice == 'delete') {
       final confirmed = await showDialog<bool>(
@@ -193,28 +274,91 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
           ],
         ),
       );
-      if (!mounted) return;
-      if (confirmed == true) {
-        final ok = _store.clientDeleteRequest(request.id);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ok ? 'Job removed.' : 'Could not remove this job.'), duration: AppDurations.snackBar),
-        );
-      }
+      if (!mounted || confirmed != true) return;
+      await _change(() => _api.cancelRequest(job.request.id), done: 'Job removed.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final layout = context.layout;
-    final uploaded = _store.myPendingRequests;
-    final all = _store.myActiveJobs;
-    final pending = all.where((r) => !r.isEmergency && !r.navigating).toList();
-    final active = all.where((r) => r.isEmergency || r.navigating).toList()
+    final now = DateTime.now();
+    final uploaded = _jobs.where((j) => j.request.status == ServiceRequestStatus.pending).toList()
+      ..sort((a, b) => b.request.createdAt.compareTo(a.request.createdAt));
+    final matched = _jobs.where((j) => j.request.status == ServiceRequestStatus.matched);
+    final booked = matched.where((j) => !j.request.isEmergency && !j.request.navigating).toList();
+    final ongoing = matched.where((j) => j.request.isEmergency || j.request.navigating).toList()
       ..sort((a, b) {
-        if (a.isEmergency != b.isEmergency) return a.isEmergency ? -1 : 1;
-        return b.createdAt.compareTo(a.createdAt);
+        if (a.request.isEmergency != b.request.isEmergency) return a.request.isEmergency ? -1 : 1;
+        return b.request.createdAt.compareTo(a.request.createdAt);
       });
+
+    final Widget body;
+    final error = _error;
+    if (_loading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (error != null) {
+      body = GlassEmptyState(
+        icon: Icons.cloud_off_rounded,
+        title: "Couldn't load your jobs",
+        text: error,
+        actionLabel: 'Try again',
+        onAction: _load,
+      );
+    } else {
+      body = IndexedStack(
+        index: _tabIndex,
+        children: [
+          _JobList(
+            empty: GlassEmptyState(
+              icon: Icons.two_wheeler_rounded,
+              title: 'Nothing booked yet',
+              text: 'Pick a service on Home. It shows here while quotes come in.',
+              actionLabel: 'Book a mechanic',
+              onAction: widget.onBook,
+            ),
+            cards: [
+              for (final job in uploaded)
+                _QuotesStageCard(
+                  job: job,
+                  // Which quotes this phone has already shown the client is
+                  // this phone's business, not the server's; the quotes
+                  // screen marks them on the local store by their ids.
+                  unseen: QuoteNotificationStore.instance.unseenQuoteCount(job.liveQuoteIds),
+                  onQuotes: () => _openQuotes(job),
+                  onCancel: () => _deleteUploaded(job),
+                ),
+            ],
+          ),
+          _JobList(
+            empty: const GlassEmptyState(
+              icon: Icons.two_wheeler_rounded,
+              title: 'No booked jobs',
+              text: 'Once you accept a quote, the job and your mechanic show here.',
+            ),
+            cards: [
+              for (final job in booked)
+                _BookedStageCard(
+                  job: job,
+                  now: now,
+                  onOpen: () => _openJob(job),
+                  onCancel: () => _cancelMatched(job),
+                ),
+            ],
+          ),
+          _JobList(
+            empty: const GlassEmptyState(
+              icon: Icons.two_wheeler_rounded,
+              title: 'Nothing under way',
+              text: 'A job moves here when your mechanic sets off.',
+            ),
+            cards: [
+              for (final job in ongoing) _OngoingStageCard(job: job, onOpen: () => _openJob(job)),
+            ],
+          ),
+        ],
+      );
+    }
 
     return Column(
       children: [
@@ -223,65 +367,76 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
           child: GlassSegmented(
             index: _tabIndex,
             labels: const ['Quotes', 'Booked', 'Ongoing'],
-            counts: [uploaded.length, pending.length, active.length],
+            counts: [uploaded.length, booked.length, ongoing.length],
             onChanged: (i) => setState(() => _tabIndex = i),
           ),
         ),
-        Expanded(
-          child: IndexedStack(
-            index: _tabIndex,
-            children: [
-              _JobList(
-                empty: GlassEmptyState(
-                  icon: Icons.two_wheeler_rounded,
-                  title: 'Nothing booked yet',
-                  text: 'Pick a service on Home. It shows here while quotes come in.',
-                  actionLabel: 'Book a mechanic',
-                  onAction: widget.onBook,
-                ),
-                cards: [
-                  for (final r in uploaded)
-                    _QuotesStageCard(
-                      request: r,
-                      store: _store,
-                      onQuotes: () => _openQuotes(r),
-                      onCancel: () => _deleteUploaded(r),
-                    ),
-                ],
-              ),
-              _JobList(
-                empty: const GlassEmptyState(
-                  icon: Icons.two_wheeler_rounded,
-                  title: 'No booked jobs',
-                  text: 'Once you accept a quote, the job and your mechanic show here.',
-                ),
-                cards: [
-                  for (final r in pending)
-                    _BookedStageCard(
-                      request: r,
-                      store: _store,
-                      onOpen: () => _openJob(r),
-                      onCancel: () => _cancelMatched(r),
-                    ),
-                ],
-              ),
-              _JobList(
-                empty: const GlassEmptyState(
-                  icon: Icons.two_wheeler_rounded,
-                  title: 'Nothing under way',
-                  text: 'A job moves here when your mechanic sets off.',
-                ),
-                cards: [
-                  for (final r in active)
-                    _OngoingStageCard(request: r, store: _store, onOpen: () => _openJob(r)),
-                ],
-              ),
-            ],
-          ),
-        ),
+        Expanded(child: body),
       ],
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  A job and what its card reads off it
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// One of the client's open jobs, with the quotes its card needs: how many are
+/// still on the table and which one the job was matched on.
+class _Job {
+  final ServiceRequest request;
+  final List<JobQuote> quotes;
+
+  const _Job(this.request, this.quotes);
+
+  /// The quote the job was matched on: the one the client accepted, or an
+  /// Emergency's accept record.
+  JobQuote? get accepted {
+    for (final quote in quotes) {
+      if (quote.accepted) return quote;
+    }
+    return null;
+  }
+
+  /// Offers still on the table: the ones the client can act on.
+  Iterable<String> get liveQuoteIds => [
+        for (final quote in quotes)
+          if (quote.isLive) quote.id,
+      ];
+
+  int get liveQuotes => liveQuoteIds.length;
+
+  String get mechanicName => request.mechanicName ?? accepted?.mechanicName ?? 'Mechanic';
+
+  /// The arrival time the mechanic promised, as it reads on screen.
+  String? get eta {
+    final quote = accepted;
+    return quote == null ? null : formatEtaDuration(Duration(minutes: quote.etaMinutes));
+  }
+
+  /// Time left before the mechanic is due, never negative. Null when no
+  /// countdown applies: the job is not matched, the mechanic has arrived, or
+  /// no arrival was promised. Counts down to the backend's own
+  /// `expectedArrivalAt`, never to a clock of this screen's.
+  Duration? arrivalCountdown(DateTime now) {
+    final due = request.expectedArrivalAt;
+    if (due == null || request.arrived || request.status != ServiceRequestStatus.matched) return null;
+    final left = due.difference(now);
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  /// The mechanic is still inside the arrival time they promised, so the
+  /// backend refuses a cancel or a reopen until it passes.
+  bool cancelLocked(DateTime now) {
+    final left = arrivalCountdown(now);
+    return left != null && left > Duration.zero;
+  }
+
+  /// What the mechanic's work costs: what was paid, or else an Emergency's
+  /// agreed price or the accepted quote's. An Emergency's accept record
+  /// carries no real price, so it is never read for one.
+  double? get amount =>
+      request.amountPaid ?? (request.isEmergency ? request.agreedPaymentAmount : accepted?.price);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -318,47 +473,47 @@ class _ProblemText {
   const _ProblemText(this.issue, this.description);
 }
 
-/// A request's line is "problem" or "problem: details".
-_ProblemText _splitProblem(String problem) {
+/// A job's headline and its details. The server keeps the two apart; a job
+/// booked on this device carries them as one "problem: details" line.
+_ProblemText _problemOf(ServiceRequest request) {
+  final description = request.description.trim();
+  if (description.isNotEmpty) return _ProblemText(request.problem, description);
+  final problem = request.problem;
   final idx = problem.indexOf(':');
   if (idx == -1 || idx > 40) return _ProblemText(problem, '');
   return _ProblemText(problem.substring(0, idx).trim(), problem.substring(idx + 1).trim());
 }
 
-Color _urgencyColor(String urgency) {
-  switch (urgency) {
-    case 'Emergency':
-      return AppColors.error;
-    case 'Urgent':
-      return AppColors.warning;
-    default:
-      return AppColors.success;
-  }
-}
+Color _urgencyColor(JobUrgency urgency) => switch (urgency) {
+      JobUrgency.emergency => AppColors.error,
+      JobUrgency.urgent => AppColors.warning,
+      JobUrgency.normal => AppColors.success,
+    };
 
 /// "Booked 6:35 PM", or with the date once it is not today.
 String _bookedLabel(DateTime at) {
+  final local = at.toLocal();
   final now = DateTime.now();
-  final hour = at.hour % 12 == 0 ? 12 : at.hour % 12;
-  final minute = at.minute.toString().padLeft(2, '0');
-  final time = '$hour:$minute ${at.hour < 12 ? 'AM' : 'PM'}';
-  if (at.year == now.year && at.month == now.month && at.day == now.day) return 'Booked $time';
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final time = '$hour:$minute ${local.hour < 12 ? 'AM' : 'PM'}';
+  if (local.year == now.year && local.month == now.month && local.day == now.day) return 'Booked $time';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return 'Booked ${months[at.month - 1]} ${at.day}, $time';
+  return 'Booked ${months[local.month - 1]} ${local.day}, $time';
 }
 
-String _paymentDisplay(HelpRequest request, MechanicQuote? quote) {
-  // Once paid this is the recorded amount; before that it is the agreed
-  // Emergency price or the accepted quote. Never a fixed fallback figure.
-  final amount = settledPaymentAmount(request, quote);
+/// The job's price as the card shows it: a real figure, or what it is still
+/// waiting on. Never a fixed fallback figure.
+String _paymentDisplay(_Job job) {
+  final amount = job.amount;
   if (amount != null) return '₱${amount.toStringAsFixed(0)}';
-  return request.isEmergency ? 'PRICE TO BE AGREED' : 'PRICE TO BE QUOTED';
+  return job.request.isEmergency ? 'PRICE TO BE AGREED' : 'PRICE TO BE QUOTED';
 }
 
 /// The card every state shares: the words on the left, the problem's glyph
 /// glowing in the state's colour on the right.
 class _JobCard extends StatelessWidget {
-  final HelpRequest request;
+  final ServiceRequest request;
   final String status;
   final Color accent;
 
@@ -393,8 +548,10 @@ class _JobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
-    final problem = _splitProblem(request.problem);
+    final problem = _problemOf(request);
     final glyph = (MotorcycleProblem.forLabel(problem.issue) ?? MotorcycleProblem.somethingElse).icon;
+    // The photos stay on this device, filed against the id the backend gave
+    // the job; the server has nowhere to put them yet. See JobPhotoStore.
     final photos = JobPhotoStore.instance.pathsFor(request.id).length;
 
     return GlassPanel(
@@ -431,7 +588,7 @@ class _JobCard extends StatelessWidget {
                     children: [
                       const TextSpan(text: '  ·  '),
                       TextSpan(
-                        text: request.urgency,
+                        text: request.urgency.label,
                         style: TextStyle(fontWeight: FontWeight.w700, color: _urgencyColor(request.urgency)),
                       ),
                     ],
@@ -561,17 +718,18 @@ class _CardNote extends StatelessWidget {
 
 /// Who is doing the job: initials, the name, how soon and how rated.
 class _MechanicLine extends StatelessWidget {
-  final String name;
-  final MechanicQuote? quote;
+  final _Job job;
 
-  const _MechanicLine({required this.name, this.quote});
+  const _MechanicLine({required this.job});
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
+    final name = job.mechanicName;
     final initials =
         name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join();
-    final detail = quote == null ? null : 'ETA ${quote!.eta}  ·  ${quote!.rating.toStringAsFixed(1)} ★';
+    final quote = job.accepted;
+    final detail = quote == null ? null : 'ETA ${job.eta}  ·  ${quote.rating.toStringAsFixed(1)} ★';
     return Row(
       children: [
         Container(
@@ -613,10 +771,12 @@ class _MechanicLine extends StatelessWidget {
 
 /// Call and chat for a job with a mechanic, as round glass buttons; chat
 /// carries the unread count.
-List<Widget> _contactButtons(BuildContext context, HelpRequest request, String mechanicName) {
+List<Widget> _contactButtons(BuildContext context, _Job job) {
+  final requestId = job.request.id;
+  final mechanicName = job.mechanicName;
   void openChat() => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: mechanicName)),
+        MaterialPageRoute(builder: (_) => JobChatScreen(requestId: requestId, otherPartyName: mechanicName)),
       );
   return [
     GlassIconButton(
@@ -633,7 +793,7 @@ List<Widget> _contactButtons(BuildContext context, HelpRequest request, String m
     AnimatedBuilder(
       animation: ChatStore.instance,
       builder: (context, _) {
-        final unread = ChatStore.instance.unreadCountFor(request.id, AppSession.instance.currentRole);
+        final unread = ChatStore.instance.unreadCountFor(requestId, AppSession.instance.currentRole);
         return Stack(
           clipBehavior: Clip.none,
           children: [
@@ -673,18 +833,20 @@ List<Widget> _contactButtons(BuildContext context, HelpRequest request, String m
 
 /// Booked, and waiting for mechanics to quote.
 class _QuotesStageCard extends StatelessWidget {
-  final HelpRequest request;
-  final QuoteNotificationStore store;
+  final _Job job;
+
+  /// Quotes this phone has not shown the client yet.
+  final int unseen;
   final VoidCallback onQuotes;
   final VoidCallback onCancel;
 
-  const _QuotesStageCard({required this.request, required this.store, required this.onQuotes, required this.onCancel});
+  const _QuotesStageCard({required this.job, required this.unseen, required this.onQuotes, required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
-    final quoteCount = store.quotesForRequest(request.id).length;
-    final unseen = store.unseenQuoteCountForRequest(request.id);
+    final request = job.request;
+    final quoteCount = job.liveQuotes;
 
     // Emergencies skip quoting: a mechanic claims them directly.
     final String status;
@@ -728,28 +890,27 @@ class _QuotesStageCard extends StatelessWidget {
 
 /// A quote accepted; the mechanic has not set off yet.
 class _BookedStageCard extends StatelessWidget {
-  final HelpRequest request;
-  final QuoteNotificationStore store;
+  final _Job job;
+  final DateTime now;
   final VoidCallback onOpen;
   final VoidCallback onCancel;
 
-  const _BookedStageCard({required this.request, required this.store, required this.onOpen, required this.onCancel});
+  const _BookedStageCard({required this.job, required this.now, required this.onOpen, required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
-    final quote = store.acceptedQuoteFor(request.id);
-    final name = quote?.mechanicName ?? 'Mechanic';
-    final locked = clientCancelLockedByEta(request, quote);
+    final request = job.request;
+    final locked = job.cancelLocked(now);
 
     return _JobCard(
       request: request,
       status: 'Booked',
       accent: c.success,
-      accentLine: _paymentDisplay(request, quote),
+      accentLine: _paymentDisplay(job),
       onTap: onOpen,
-      mechanic: _MechanicLine(name: name, quote: quote),
-      contact: _contactButtons(context, request, name),
+      mechanic: _MechanicLine(job: job),
+      contact: _contactButtons(context, job),
       notes: [
         if (request.lastCancelReason != null)
           _CardNote(
@@ -763,8 +924,8 @@ class _BookedStageCard extends StatelessWidget {
           _CardNote(
             icon: Icons.lock_clock,
             color: c.textmedium,
-            text: 'Cancelling unlocks in ${formatTimeRemaining(timeUntilArrival(request, quote)!)}: '
-                '$name is still within their ${quote?.eta ?? 'ETA'}.',
+            text: 'Cancelling unlocks in ${formatTimeRemaining(job.arrivalCountdown(now)!)}: '
+                '${job.mechanicName} is still within their ${job.eta ?? 'ETA'}.',
           ),
       ],
       actions: [
@@ -777,17 +938,15 @@ class _BookedStageCard extends StatelessWidget {
 
 /// The mechanic is on the way, there, working, or waiting to be paid.
 class _OngoingStageCard extends StatelessWidget {
-  final HelpRequest request;
-  final QuoteNotificationStore store;
+  final _Job job;
   final VoidCallback onOpen;
 
-  const _OngoingStageCard({required this.request, required this.store, required this.onOpen});
+  const _OngoingStageCard({required this.job, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
-    final quote = store.acceptedQuoteFor(request.id);
-    final name = quote?.mechanicName ?? 'Mechanic';
+    final request = job.request;
 
     final (String status, Color accent, String action) = switch (request) {
       _ when !request.arrived => ('On the way', c.info, 'Track mechanic'),
@@ -800,10 +959,10 @@ class _OngoingStageCard extends StatelessWidget {
       request: request,
       status: status,
       accent: accent,
-      accentLine: _paymentDisplay(request, quote),
+      accentLine: _paymentDisplay(job),
       onTap: onOpen,
-      mechanic: _MechanicLine(name: name, quote: quote),
-      contact: _contactButtons(context, request, name),
+      mechanic: _MechanicLine(job: job),
+      contact: _contactButtons(context, job),
       actions: [
         GlassPillButton(
           label: action,
