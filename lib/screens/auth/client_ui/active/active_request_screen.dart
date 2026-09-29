@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../theme/app_theme.dart';
+import '../../../../utils/coalesced_load.dart';
 import '../../../../widgets/chat_icon_button.dart';
 import '../../../../services/backend/mobile_backend.dart';
 import '../../../../widgets/common_widgets.dart';
@@ -16,6 +17,12 @@ import '../profile/mechanic_profile_view_screen.dart';
 import 'qr_scan_screen.dart';
 import '../../../../widgets/glass.dart';
 
+/// The client's view of a matched job: who is coming, how the trip and the
+/// work are going, and paying at the end.
+///
+/// The job is read through [MobileBackend.serviceRequests]: the server in a
+/// normal build, the device's store in a local one. Every step on it is the
+/// mechanic's to report; this screen follows it.
 class ActiveRequestScreen extends StatefulWidget {
   final String requestId;
   const ActiveRequestScreen({super.key, required this.requestId});
@@ -24,45 +31,71 @@ class ActiveRequestScreen extends StatefulWidget {
   State<ActiveRequestScreen> createState() => _ActiveRequestScreenState();
 }
 
-class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
+class _ActiveRequestScreenState extends State<ActiveRequestScreen> with CoalescedLoad<ActiveRequestScreen> {
+  ServiceRequestApi get _api => MobileBackend.instance.serviceRequests;
   final _store = QuoteNotificationStore.instance;
   final _reviews = ReviewStore.instance;
+
+  ServiceRequest? _request;
+  JobQuote? _accepted;
+  bool _loading = true;
+  String? _error;
   Timer? _ticker;
+  StreamSubscription<ServiceRequest>? _watch;
 
   @override
   void initState() {
     super.initState();
-    _store.addListener(_onChange);
     // Keeps the mechanic's rating on this screen live — a review submitted
     // from here (or anywhere else) moves the average immediately.
-    _reviews.addListener(_onChange);
-    // Drives the arrival countdown, and raises the client's "running late"
-    // notification the moment the mechanic's ETA runs out.
-    _store.notifyLateArrivals();
+    _reviews.addListener(_onReviews);
+    reload();
+    // Each step the mechanic reports, a cancel, the expiry sweep: the job as
+    // the backend now holds it.
+    _watch = _api.watchRequests().where((request) => request.id == widget.requestId).listen((_) => reload());
+    // Drives the arrival countdown.
     _ticker = Timer.periodic(const Duration(seconds: 1), _onTick);
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
-    _store.removeListener(_onChange);
-    _reviews.removeListener(_onChange);
+    _watch?.cancel();
+    _reviews.removeListener(_onReviews);
     super.dispose();
   }
 
-  void _onTick(Timer _) {
-    // Notifies by itself if anything actually went late; the setState is for
-    // the ticking numbers.
-    _store.notifyLateArrivals();
-    if (!mounted) return;
-    final request = _store.requestFor(widget.requestId);
-    if (request == null) return;
-    if (timeUntilArrival(request, _store.acceptedQuoteFor(request.id)) != null) {
-      setState(() {});
+  @override
+  Future<void> read() async {
+    try {
+      final request = await _api.findRequest(widget.requestId);
+      final quotes = request == null ? const <JobQuote>[] : await _api.listQuotes(request.id);
+      if (!mounted) return;
+      setState(() {
+        _request = request;
+        _accepted = acceptedQuoteOf(quotes);
+        _loading = false;
+        _error = null;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.message;
+      });
     }
   }
 
-  void _onChange() => setState(() {});
+  void _onTick(Timer _) {
+    // The "running late" notice is the phone's own; the server sends none. It
+    // reads the device's jobs, so only a local build has anything to raise.
+    _store.notifyLateArrivals();
+    if (!mounted) return;
+    final request = _request;
+    if (request != null && timeUntilArrivalOf(request) != null) setState(() {});
+  }
+
+  void _onReviews() => setState(() {});
 
   /// The mechanic's CURRENT rating, read from ReviewStore — the same average
   /// their profile shows — not the snapshot frozen into the quote when it was
@@ -77,23 +110,33 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: AppDurations.snackBar));
   }
 
-  void _openChat(HelpRequest request, MechanicQuote quote) {
+  void _openChat(ServiceRequest request, String mechanicName) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: quote.mechanicName)),
+      MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: mechanicName)),
     );
   }
 
-  void _contact(HelpRequest request, MechanicQuote quote) {
+  void _contact(ServiceRequest request, String mechanicName) {
     showContactSheet(
       context,
-      name: quote.mechanicName,
-      phone: MechanicContactStore.instance.contactFor(quote.mechanicName).phone,
-      onMessage: () => _openChat(request, quote),
+      name: mechanicName,
+      phone: MechanicContactStore.instance.contactFor(mechanicName).phone,
+      onMessage: () => _openChat(request, mechanicName),
     );
   }
 
-  Future<void> _sendPayment(HelpRequest request, MechanicQuote? quote) async {
+  /// Paying still settles on the device: the code is checked, the amount and
+  /// the fee are read, and the payment is booked by the device's own store.
+  /// A job only the server holds is not in that store, so it is refused here,
+  /// before the client scans anything. Moving this onto the backend's pay is
+  /// the next step.
+  Future<void> _sendPayment(ServiceRequest request) async {
+    if (_store.requestFor(request.id) == null) {
+      _showSnack("Paying for this job in the app isn't connected yet.");
+      return;
+    }
+
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -293,26 +336,60 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final request = _store.requestFor(widget.requestId);
-    final quote = request == null ? null : _store.acceptedQuoteFor(request.id);
+    final request = _request;
+    final quote = _accepted;
+    // Matched is the job under way; completed is a paid one, shown with its
+    // receipt. A job back in the pool or called off has nothing to follow.
+    final active = request != null &&
+        quote != null &&
+        (request.status == ServiceRequestStatus.matched || request.status == ServiceRequestStatus.completed);
+
+    final Widget body;
+    final error = _error;
+    if (_loading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (error != null) {
+      body = Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_off, size: 48, color: AppColors.textdark.withValues(alpha: 0.55)),
+            const SizedBox(height: 12),
+            const Text("Couldn't load this job", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(error,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
+            const SizedBox(height: 12),
+            TextButton(onPressed: reload, child: const Text('Try again')),
+          ],
+        ),
+      );
+    } else if (!active) {
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text('This job is no longer active.', style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55))),
+        ),
+      );
+    } else {
+      body = _buildBody(request, quote);
+    }
 
     return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Job Progress'),
       ),
-      body: (request == null || quote == null)
-          ? Center(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text('This job is no longer active.', style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55))),
-              ),
-            )
-          : _buildBody(request, quote),
+      body: body,
     );
   }
 
-  Widget _buildBody(HelpRequest request, MechanicQuote quote) {
+  Widget _buildBody(ServiceRequest request, JobQuote quote) {
+    final mechanicName = request.mechanicName ?? quote.mechanicName;
+    final eta = formatEtaDuration(Duration(minutes: quote.etaMinutes));
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,7 +413,7 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                       style: TextStyle(color: AppColors.textdark, fontSize: 14, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 2),
-                    Text(request.durationLabel,
+                    Text(completionWindowLabelOf(request),
                         style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.7), fontSize: 12)),
                   ],
                 ),
@@ -362,19 +439,19 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(quote.mechanicName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                                Text(mechanicName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                                 const SizedBox(height: 2),
-                                Text(request.urgency, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
+                                Text(request.urgency.label, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
                               ],
                             ),
                           ),
                           CircleIconButton(
                             icon: Icons.call,
                             color: AppColors.success,
-                            tooltip: 'Call ${quote.mechanicName}',
-                            onTap: () => _contact(request, quote),
+                            tooltip: 'Call $mechanicName',
+                            onTap: () => _contact(request, mechanicName),
                           ),
-                          ChatIconButton(requestId: request.id, onTap: () => _openChat(request, quote)),
+                          ChatIconButton(requestId: request.id, onTap: () => _openChat(request, mechanicName)),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -384,18 +461,18 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                         child: request.isEmergency
                             ? Row(
                                 children: [
-                                  _InfoColumn(label: 'ETA', value: quote.eta),
+                                  _InfoColumn(label: 'ETA', value: eta),
                                   const _VerticalDivider(),
-                                  _InfoColumn(label: 'Rating', value: _ratingDisplay(quote.mechanicName)),
+                                  _InfoColumn(label: 'Rating', value: _ratingDisplay(mechanicName)),
                                 ],
                               )
                             : Row(
                                 children: [
-                                  _InfoColumn(label: 'ETA', value: quote.eta),
+                                  _InfoColumn(label: 'ETA', value: eta),
                                   const _VerticalDivider(),
-                                  _InfoColumn(label: 'Rating', value: _ratingDisplay(quote.mechanicName)),
+                                  _InfoColumn(label: 'Rating', value: _ratingDisplay(mechanicName)),
                                   const _VerticalDivider(),
-                                  _InfoColumn(label: 'Quote', value: quote.price, valueColor: AppColors.success),
+                                  _InfoColumn(label: 'Quote', value: formatPesos(quote.price), valueColor: AppColors.success),
                                 ],
                               ),
                       ),
@@ -410,7 +487,7 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ArrivalStatus(request: request, quote: quote),
+                _ArrivalStatus(request: request, mechanicName: mechanicName, eta: eta),
                 const Text('Service Status', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 12),
                 if (request.isEmergency) ...[
@@ -447,12 +524,12 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                  'Payment complete — ₱${(effectivePaymentAmount(request, quote) ?? 0).toStringAsFixed(0)} sent to ${quote.mechanicName}.',
+                                  'Payment complete — ₱${(settledPaymentAmountOf(request, quote) ?? 0).toStringAsFixed(0)} sent to $mechanicName.',
                                   style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 13)),
                               if (request.platformFeeCharged != null) ...[
                                 const SizedBox(height: 2),
                                 Text(
-                                    'Plus a ${formatAdditionalCharge(request.platformFeeCharged!)} ${request.urgency} additional charge — ONGO service charge.',
+                                    'Plus a ${formatAdditionalCharge(request.platformFeeCharged!)} ${request.urgency.label} additional charge — ONGO service charge.',
                                     style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55), fontSize: 11)),
                               ],
                             ],
@@ -463,7 +540,7 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                   ),
                   const SizedBox(height: 10),
                   ElevatedButton.icon(
-                    onPressed: () => MechanicProfileViewScreen.open(context, quote.mechanicName),
+                    onPressed: () => MechanicProfileViewScreen.open(context, mechanicName),
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     label: const Text('Write a Review'),
                     style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 46), shape: const StadiumBorder()),
@@ -482,7 +559,7 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                     )
                   else
                     ElevatedButton(
-                      onPressed: () => _sendPayment(request, quote),
+                      onPressed: () => _sendPayment(request),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: AppColors.textlight,
@@ -521,7 +598,7 @@ class _ActiveRequestScreenState extends State<ActiveRequestScreen> {
                   // moves as they travel), so the action here is the one that
                   // works today: talking to them.
                   ElevatedButton.icon(
-                    onPressed: () => _openChat(request, quote),
+                    onPressed: () => _openChat(request, mechanicName),
                     icon: Icon(Icons.chat_bubble_outline, size: 18, color: AppColors.textlight),
                     label: const Text('Message Mechanic'),
                     style: ElevatedButton.styleFrom(
@@ -585,17 +662,18 @@ class _PaymentBreakdownRow extends StatelessWidget {
 /// Where the mechanic is against the ETA they committed to: counting down
 /// while they still have time, and saying so plainly once that time is up.
 ///
-/// Reads [timeUntilArrival], so it disappears the moment the mechanic marks
-/// themselves arrived and never appears on a job with no accepted quote.
+/// Reads [timeUntilArrivalOf], so it disappears the moment the mechanic marks
+/// themselves arrived, and counts to the backend's own `expectedArrivalAt`.
 class _ArrivalStatus extends StatelessWidget {
-  final HelpRequest request;
-  final MechanicQuote quote;
+  final ServiceRequest request;
+  final String mechanicName;
+  final String eta;
 
-  const _ArrivalStatus({required this.request, required this.quote});
+  const _ArrivalStatus({required this.request, required this.mechanicName, required this.eta});
 
   @override
   Widget build(BuildContext context) {
-    final remaining = timeUntilArrival(request, quote);
+    final remaining = timeUntilArrivalOf(request);
     if (remaining == null) return const SizedBox.shrink();
 
     final late = remaining == Duration.zero;
@@ -622,16 +700,16 @@ class _ArrivalStatus extends StatelessWidget {
                 children: [
                   Text(
                     late
-                        ? '${quote.mechanicName} is running late'
-                        : '${quote.mechanicName} should arrive in ${formatTimeRemaining(remaining)}',
+                        ? '$mechanicName is running late'
+                        : '$mechanicName should arrive in ${formatTimeRemaining(remaining)}',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     late
-                        ? 'Their ETA of ${quote.eta} has passed and they haven\'t arrived yet. '
+                        ? 'Their ETA of $eta has passed and they haven\'t arrived yet. '
                             'You can cancel this job now if you want to.'
-                        : 'They committed to arriving within ${quote.eta} of you accepting the '
+                        : 'They committed to arriving within $eta of you accepting the '
                             'quote. You can cancel once that time is up.',
                     style: TextStyle(fontSize: 12, color: AppColors.error),
                   ),

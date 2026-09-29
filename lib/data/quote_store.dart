@@ -566,6 +566,53 @@ JobCountdown? jobCountdownOf(ServiceRequest request, [DateTime? now]) {
   return JobCountdown(JobCountdownKind.arrival, left.isNegative ? Duration.zero : left);
 }
 
+/// The quote a job the backend holds was matched on: the one its client
+/// accepted, or an Emergency's accept record. Null while nothing is accepted.
+JobQuote? acceptedQuoteOf(Iterable<JobQuote> quotes) {
+  for (final quote in quotes) {
+    if (quote.accepted) return quote;
+  }
+  return null;
+}
+
+/// [timeUntilArrival], asked of a job the backend holds: time left before the
+/// mechanic is due, never negative, counted to the backend's own
+/// `expectedArrivalAt`. Null when no countdown applies: the job is not
+/// matched, the mechanic has arrived, or no arrival was promised.
+Duration? timeUntilArrivalOf(ServiceRequest request, [DateTime? now]) {
+  final due = request.expectedArrivalAt;
+  if (due == null || request.arrived || request.status != ServiceRequestStatus.matched) return null;
+  final left = due.difference(now ?? DateTime.now());
+  return left.isNegative ? Duration.zero : left;
+}
+
+/// [clientCancelLockedByEta], asked of a job the backend holds: the mechanic is
+/// still inside the arrival time they promised, so the backend refuses the
+/// client's cancel or reopen until it passes.
+bool clientCancelLockedOf(ServiceRequest request, [DateTime? now]) {
+  final remaining = timeUntilArrivalOf(request, now);
+  return remaining != null && remaining > Duration.zero;
+}
+
+/// [settledPaymentAmount], asked of a job the backend holds: what was paid,
+/// or else an Emergency's agreed price or the accepted quote's. An
+/// Emergency's accept record carries no real price, so it is never read for
+/// one.
+double? settledPaymentAmountOf(ServiceRequest request, JobQuote? acceptedQuote) =>
+    request.amountPaid ?? (request.isEmergency ? request.agreedPaymentAmount : acceptedQuote?.price);
+
+/// [HelpRequest.durationLabel], asked of a job the backend holds. A matched job
+/// carries the window the backend stamped on it (`deadlineAt` from
+/// `matchedAt`), so a later change to the settings never rewords it; a job not
+/// matched yet says what its urgency would give it.
+String completionWindowLabelOf(ServiceRequest request) {
+  final deadline = request.deadlineAt;
+  final matchedAt = request.matchedAt;
+  if (deadline != null && matchedAt != null) return completionWindowLabelFor(deadline.difference(matchedAt));
+  if (request.status == ServiceRequestStatus.matched) return completionWindowLabelFor(null);
+  return completionWindowLabel(request.urgency.wireName);
+}
+
 double? effectivePaymentAmount(HelpRequest request, MechanicQuote? acceptedQuote) {
   if (request.isEmergency) return request.agreedPaymentAmount;
   return acceptedQuote == null ? null : parsePesoAmount(acceptedQuote.price);

@@ -46,9 +46,8 @@ class SecureRefreshTokenStore implements RefreshTokenStore {
 /// | [ServiceRequestApi] | the API (`/service-requests/*`) |
 /// | [LocationApi] | local — not in the API contract |
 ///
-/// The screens move onto [ServiceRequestApi] one at a time: booking, the
-/// client's quotes and Jobs tab, and the mechanic's job list read it. The job
-/// details, progress, payment, chat and reviews still read their stores on the
+/// The job screens read [ServiceRequestApi] from booking through the last
+/// progress step. Payment, chat and reviews still read their stores on the
 /// device. See project.md, *What is missing*.
 class MobileApi {
   MobileApi._();
