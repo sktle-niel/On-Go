@@ -128,12 +128,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
     return AuthPage(
       // The picture carries its own headline, top left, so the page adds none.
-      photo: const AuthPhoto(
-        AuthHero.signInPhoto,
-        alignment: Alignment.topLeft,
-        words: 'Book a mechanic through our app',
-        backdrop: Color(0xFF131E2E),
-      ),
+      photo: AuthPhoto.mobileMechanic,
       footer: AuthFooterLink(
         prompt: "Don't have an account? ",
         action: 'Register',

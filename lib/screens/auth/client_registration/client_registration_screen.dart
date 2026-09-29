@@ -396,7 +396,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
           AuthPage(
             showBack: true,
             onBack: _back,
-            compactHero: true,
+            // The same picture and the same half-and-half split as Sign In.
+            photo: AuthPhoto.mobileMechanic,
             // A way back to Sign In, offered before anything has been typed.
             footer: _step == 0
                 ? AuthFooterLink(

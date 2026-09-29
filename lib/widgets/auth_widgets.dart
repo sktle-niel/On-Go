@@ -540,6 +540,17 @@ class AuthPhoto {
   final Color? backdrop;
 
   const AuthPhoto(this.asset, {this.alignment = Alignment.center, this.words, this.backdrop});
+
+  /// The picture on Sign In and Registration: a mechanic on a motorcycle in a
+  /// city at night, with "Book a Mechanic through our app" painted into its
+  /// top left (see assets/images/README.md). Kept to the left where it crops,
+  /// so the words stay whole.
+  static const AuthPhoto mobileMechanic = AuthPhoto(
+    'assets/images/sign_in_hero.jpg',
+    alignment: Alignment.topLeft,
+    words: 'Book a mechanic through our app',
+    backdrop: Color(0xFF131E2E),
+  );
 }
 
 /// The page every screen outside the app proper is built on.
@@ -602,13 +613,11 @@ class AuthPage extends StatelessWidget {
     final layout = context.layout;
     final media = MediaQuery.of(context);
     final top = media.padding.top;
-    // The hero gives way to the form: folded when the page asks for it,
-    // whenever the keyboard is up, or when the window is too short to spare
-    // a third of itself.
+    // The picture and the form share the screen half and half. The hero gives
+    // way to the form: folded when the page asks for it, whenever the
+    // keyboard is up, or when the window is too short to spare half of itself.
     final compact = compactHero || media.viewInsets.bottom > 0 || layout.isShort;
-    final heroHeight = compact
-        ? top + AuthHero.compactHeight
-        : (layout.height * 0.30).clamp(top + 180, top + 290).toDouble();
+    final heroHeight = compact ? top + AuthHero.compactHeight : layout.height * 0.5;
     final theme = AuthScheme.darkTheme;
     final c = theme.palette;
 
@@ -637,7 +646,7 @@ class AuthPage extends StatelessWidget {
                   left: 0,
                   right: 0,
                   height: heroHeight + AuthPage.sheetRadius + 40,
-                  child: _AuthScene(photo: photo),
+                  child: _AuthScene(photo: photo, clearOfBack: showBack),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -679,7 +688,14 @@ class AuthPage extends StatelessWidget {
 class _AuthScene extends StatelessWidget {
   final AuthPhoto? photo;
 
-  const _AuthScene({this.photo});
+  /// The page has a back button at the top left, where a picture's words
+  /// begin, so a picture with words steps down below it too.
+  final bool clearOfBack;
+
+  const _AuthScene({this.photo, this.clearOfBack = false});
+
+  /// The row the back button takes, below the status bar.
+  static const double _backRow = 52;
 
   @override
   Widget build(BuildContext context) {
@@ -701,8 +717,11 @@ class _AuthScene extends StatelessWidget {
             // own top edge colour, behind the status bar.
             ColoredBox(color: words == null ? c.background : (own?.backdrop ?? c.background)),
             Padding(
-              // Words painted into the picture start below the clock.
-              padding: EdgeInsets.only(top: words == null ? 0 : MediaQuery.paddingOf(context).top),
+              // Words painted into the picture start below the clock, and
+              // below the back button when there is one.
+              padding: EdgeInsets.only(
+                top: words == null ? 0 : MediaQuery.paddingOf(context).top + (clearOfBack ? _backRow : 0),
+              ),
               child: Image(
                 image: scene,
                 fit: BoxFit.cover,
@@ -863,11 +882,6 @@ class AuthHero extends StatelessWidget {
   /// The photo the app ships with: a mechanic leaning into an engine bay in
   /// daylight (Pexels, free licence; see assets/images/README.md).
   static const String defaultPhoto = 'assets/images/auth_hero.jpg';
-
-  /// The picture on Sign In: a mechanic on a motorcycle in a city at night,
-  /// with "Book a Mechanic through our app" painted into its top left (see
-  /// assets/images/README.md).
-  static const String signInPhoto = 'assets/images/sign_in_hero.jpg';
 
   @override
   Widget build(BuildContext context) {
