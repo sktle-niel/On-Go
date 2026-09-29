@@ -127,7 +127,13 @@ class _SignInScreenState extends State<SignInScreen> {
     final usesApi = MobileBackend.instance.usesApi;
 
     return AuthPage(
-      headline: const AuthHeadline(lead: "Let's get you", accent: 'moving again'),
+      // The picture carries its own headline, top left, so the page adds none.
+      photo: const AuthPhoto(
+        AuthHero.signInPhoto,
+        alignment: Alignment.topLeft,
+        words: 'Book a mechanic through our app',
+        backdrop: Color(0xFF131E2E),
+      ),
       footer: AuthFooterLink(
         prompt: "Don't have an account? ",
         action: 'Register',

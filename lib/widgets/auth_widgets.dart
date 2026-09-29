@@ -521,6 +521,27 @@ class AuthHeadline {
   const AuthHeadline({required this.lead, required this.accent});
 }
 
+/// A picture for the top of an [AuthPage] in place of the default photo.
+class AuthPhoto {
+  /// The bundled picture.
+  final String asset;
+
+  /// Which part of the picture stays in view where the hero crops it.
+  final Alignment alignment;
+
+  /// The words painted into the picture, for a screen reader. Set when the
+  /// picture carries its own headline: the page then leaves its top undimmed
+  /// so those words stay bright, starts the picture below the status bar so
+  /// the clock never sits on them, and puts no wordmark of its own over them.
+  final String? words;
+
+  /// The colour above a picture with [words], behind the status bar: its own
+  /// top edge, so the step down does not show.
+  final Color? backdrop;
+
+  const AuthPhoto(this.asset, {this.alignment = Alignment.center, this.words, this.backdrop});
+}
+
 /// The page every screen outside the app proper is built on.
 ///
 /// A photo of the trade across the top, darkened towards the bottom, and a
@@ -553,6 +574,11 @@ class AuthPage extends StatelessWidget {
   /// Words over the photo in place of the wordmark.
   final AuthHeadline? headline;
 
+  /// The picture across the top, when a page has its own. Null is
+  /// [AuthHero.defaultPhoto]. A background the console published wins over
+  /// either.
+  final AuthPhoto? photo;
+
   const AuthPage({
     super.key,
     required this.children,
@@ -561,6 +587,7 @@ class AuthPage extends StatelessWidget {
     this.compactHero = false,
     this.onBack,
     this.headline,
+    this.photo,
   });
 
   /// The sheet's corner radius — how much hero shows beside the corners.
@@ -610,7 +637,7 @@ class AuthPage extends StatelessWidget {
                   left: 0,
                   right: 0,
                   height: heroHeight + AuthPage.sheetRadius + 40,
-                  child: const _AuthScene(),
+                  child: _AuthScene(photo: photo),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -621,6 +648,7 @@ class AuthPage extends StatelessWidget {
                       showBack: showBack,
                       onBack: onBack,
                       headline: headline,
+                      photoHasWords: photo?.words != null,
                     ),
                     Expanded(
                       child: DecoratedBox(
@@ -649,7 +677,9 @@ class AuthPage extends StatelessWidget {
 /// The photo behind the top of an [AuthPage], in its own colours, darkened
 /// towards the bottom so the words over it read and the sheet takes over.
 class _AuthScene extends StatelessWidget {
-  const _AuthScene();
+  final AuthPhoto? photo;
+
+  const _AuthScene({this.photo});
 
   @override
   Widget build(BuildContext context) {
@@ -657,43 +687,55 @@ class _AuthScene extends StatelessWidget {
     return AnimatedBuilder(
       animation: AuthBackgroundController.instance,
       builder: (context, _) {
-        final photo = AuthBackgroundController.instance.photoPath;
-        final ImageProvider scene =
-            photo == null ? const AssetImage(AuthHero.defaultPhoto) : FileImage(File(photo));
+        final published = AuthBackgroundController.instance.photoPath;
+        final own = published == null ? photo : null;
+        final ImageProvider scene = published != null
+            ? FileImage(File(published))
+            : AssetImage(own?.asset ?? AuthHero.defaultPhoto);
+        final words = own?.words;
         return Stack(
           fit: StackFit.expand,
           children: [
             // The page colour first, so there is never a blank while the photo
-            // decodes or if it cannot be read.
-            ColoredBox(color: c.background),
-            Image(
-              image: scene,
-              fit: BoxFit.cover,
-              // Fades in once decoded rather than popping over the colour.
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                if (wasSynchronouslyLoaded) return child;
-                return AnimatedOpacity(
-                  opacity: frame == null ? 0 : 1,
-                  duration: AppMotion.normal,
-                  curve: AppMotion.enter,
-                  child: child,
-                );
-              },
-              errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+            // decodes or if it cannot be read. Above a picture with words, its
+            // own top edge colour, behind the status bar.
+            ColoredBox(color: words == null ? c.background : (own?.backdrop ?? c.background)),
+            Padding(
+              // Words painted into the picture start below the clock.
+              padding: EdgeInsets.only(top: words == null ? 0 : MediaQuery.paddingOf(context).top),
+              child: Image(
+                image: scene,
+                fit: BoxFit.cover,
+                alignment: own?.alignment ?? Alignment.center,
+                semanticLabel: words,
+                excludeFromSemantics: words == null,
+                // Fades in once decoded rather than popping over the colour.
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded) return child;
+                  return AnimatedOpacity(
+                    opacity: frame == null ? 0 : 1,
+                    duration: AppMotion.normal,
+                    curve: AppMotion.enter,
+                    child: child,
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+              ),
             ),
             // Dark at the top for the clock and the words, darker at the foot
-            // where the sheet meets it.
+            // where the sheet meets it. A picture with words of its own keeps
+            // its top bright: only a faint shade for the clock.
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    c.background.withValues(alpha: 0.72),
-                    c.background.withValues(alpha: 0.28),
+                    c.background.withValues(alpha: words == null ? 0.72 : 0.30),
+                    c.background.withValues(alpha: words == null ? 0.28 : 0.0),
                     c.background.withValues(alpha: 0.88),
                   ],
-                  stops: const [0, 0.45, 1],
+                  stops: [0, words == null ? 0.45 : 0.12, 1],
                 ),
               ),
             ),
@@ -797,6 +839,11 @@ class AuthHero extends StatelessWidget {
   final bool showBack;
   final AuthHeadline? headline;
 
+  /// The page's picture carries its own words ([AuthPhoto.words]), so the
+  /// hero draws no wordmark over it, unless the console's published
+  /// background has replaced that picture.
+  final bool photoHasWords;
+
   /// What the back button does; null pops the route.
   final VoidCallback? onBack;
 
@@ -807,6 +854,7 @@ class AuthHero extends StatelessWidget {
     this.showBack = false,
     this.onBack,
     this.headline,
+    this.photoHasWords = false,
   });
 
   /// The band the hero folds to, below the status bar.
@@ -815,6 +863,11 @@ class AuthHero extends StatelessWidget {
   /// The photo the app ships with: a mechanic leaning into an engine bay in
   /// daylight (Pexels, free licence; see assets/images/README.md).
   static const String defaultPhoto = 'assets/images/auth_hero.jpg';
+
+  /// The picture on Sign In: a mechanic on a motorcycle in a city at night,
+  /// with "Book a Mechanic through our app" painted into its top left (see
+  /// assets/images/README.md).
+  static const String signInPhoto = 'assets/images/sign_in_hero.jpg';
 
   @override
   Widget build(BuildContext context) {
@@ -834,6 +887,11 @@ class AuthHero extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(24, top, 24, 0),
               child: LayoutBuilder(
                 builder: (context, constraints) {
+                  // The picture's own words are the headline; nothing goes over
+                  // them.
+                  if (photoHasWords && AuthBackgroundController.instance.photoPath == null) {
+                    return const SizedBox.shrink();
+                  }
                   // Decided by the room there is right now, not by [compact]:
                   // the band animates between its two heights, and the full
                   // block must never be asked to fit a height it cannot.
