@@ -87,6 +87,13 @@ class _QuotesScreenState extends State<QuotesScreen> {
         _loading = false;
         _error = null;
       });
+      // What was just put on screen is what the client has now seen, by the
+      // backend's own ids, so a server job's badge clears as well as a local one.
+      QuoteNotificationStore.instance.markQuotesSeen([
+        for (final list in quotes.values)
+          for (final quote in list)
+            if (quote.isLive) quote.id,
+      ]);
       _scrollToFocused();
     } on ApiException catch (error) {
       if (!mounted) return;

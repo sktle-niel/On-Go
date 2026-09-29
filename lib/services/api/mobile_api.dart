@@ -46,8 +46,10 @@ class SecureRefreshTokenStore implements RefreshTokenStore {
 /// | [ServiceRequestApi] | the API (`/service-requests/*`) |
 /// | [LocationApi] | local — not in the API contract |
 ///
-/// Jobs, quotes, ETA, chat and reviews are not in the contract at all and stay
-/// in their stores on the device.
+/// The screens move onto [ServiceRequestApi] one at a time: booking, the
+/// client's quotes and Jobs tab, and the mechanic's job list read it. The job
+/// details, progress, payment, chat and reviews still read their stores on the
+/// device. See project.md, *What is missing*.
 class MobileApi {
   MobileApi._();
 

@@ -74,11 +74,14 @@ class LocalServiceRequestService implements ServiceRequestApi {
   }
 
   @override
-  Future<List<ServiceRequest>> listOpenRequests({JobUrgency? urgency}) async =>
-      _dtos(_jobs.availableJobs, urgency);
+  Future<List<ServiceRequest>> listOpenRequests({JobUrgency? urgency}) async {
+    await _sweep();
+    return _dtos(_jobs.availableJobs, urgency);
+  }
 
   @override
   Future<List<ServiceRequest>> listMyRequests({JobUrgency? urgency}) async {
+    await _sweep();
     final mine = <HelpRequest>[
       ..._jobs.myPendingRequests,
       ..._jobs.myActiveJobs,
@@ -296,6 +299,20 @@ class LocalServiceRequestService implements ServiceRequestApi {
       onCancel: () => _jobs.removeListener(listener),
     );
     return controller.stream;
+  }
+
+  // ─── The completion clock ─────────────────────────────────────────────
+
+  /// Returns overdue jobs to the pool before a list is read, as the server
+  /// sweeps before every jobs route, so a list never shows a job whose
+  /// deadline has passed.
+  ///
+  /// It waits one turn first. A screen reads its list from `initState`, and a
+  /// sweep that expires something notifies the store; done in the same turn,
+  /// that would ask listeners elsewhere to rebuild in the middle of a build.
+  Future<void> _sweep() async {
+    await Future<void>.value();
+    _jobs.expireOverdueJobs();
   }
 
   // ─── Reshaping ────────────────────────────────────────────────────────
