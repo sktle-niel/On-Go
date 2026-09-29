@@ -415,16 +415,15 @@ class _KindChip extends StatelessWidget {
 }
 
 /// The card for when the bike has stopped on the road: in the brand tint,
-/// with a line, a dark button, and a picture of a mobile mechanic on the
-/// right.
+/// with a line, a dark button, and a drawing of a mechanic at work on a
+/// scooter on the right.
 class _EmergencyCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _EmergencyCard({required this.onTap});
 
-  /// The mechanic and the "Mobile Mechanic" top box from the Sign In picture,
-  /// cropped clear of the words painted into it (see assets/images/README.md).
-  static const String _emergencyPhoto = 'assets/images/emergency_card.jpg';
+  /// A drawing on a white ground (see assets/images/README.md).
+  static const String _emergencyPicture = 'assets/images/emergency_card.jpg';
 
   @override
   Widget build(BuildContext context) {
@@ -490,17 +489,34 @@ class _EmergencyCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: 118,
+                    width: 132,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.asset(
-                          _emergencyPhoto,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => ColoredBox(color: c.primary.withValues(alpha: 0.2)),
-                        ),
-                      ),
+                      padding: const EdgeInsets.fromLTRB(0, 10, 10, 10),
+                      // The drawing is on white. On a light card it is
+                      // multiplied by the card's own tint, so its white turns
+                      // into the card and the drawing sits on it with no box.
+                      // A dark card cannot take that, so there it keeps a
+                      // white tile.
+                      child: AppColors.isDark
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: ColoredBox(
+                                color: Colors.white,
+                                child: Image.asset(
+                                  _emergencyPicture,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                                ),
+                              ),
+                            )
+                          : Image.asset(
+                              _emergencyPicture,
+                              fit: BoxFit.contain,
+                              alignment: Alignment.bottomCenter,
+                              color: Color.alphaBlend(c.primary.withValues(alpha: 0.08), c.surface),
+                              colorBlendMode: BlendMode.multiply,
+                              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                            ),
                     ),
                   ),
                 ],
