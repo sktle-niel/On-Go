@@ -591,8 +591,12 @@ class AuthPage extends StatelessWidget {
   final AuthPhoto? photo;
 
   /// How much of the screen's height the picture takes; the form has the
-  /// rest. Sign In gives the picture 0.4, Registration 0.25.
+  /// rest. Sign In gives the picture 0.4.
   final double heroShare;
+
+  /// Off, the page has no picture: the form fills the screen under a slim
+  /// band with the wordmark and the back button, as Registration does.
+  final bool showPhoto;
 
   const AuthPage({
     super.key,
@@ -604,6 +608,7 @@ class AuthPage extends StatelessWidget {
     this.headline,
     this.photo,
     this.heroShare = 0.5,
+    this.showPhoto = true,
   });
 
   /// The sheet's corner radius — how much hero shows beside the corners.
@@ -621,7 +626,7 @@ class AuthPage extends StatelessWidget {
     // The picture takes [heroShare] of the height and the form the rest. The
     // hero gives way to the form: folded when the page asks for it, whenever
     // the keyboard is up, or when the window is too short to spare the room.
-    final compact = compactHero || media.viewInsets.bottom > 0 || layout.isShort;
+    final compact = !showPhoto || compactHero || media.viewInsets.bottom > 0 || layout.isShort;
     final heroHeight = compact ? top + AuthHero.compactHeight : layout.height * heroShare;
     final theme = AuthScheme.darkTheme;
     final c = theme.palette;
@@ -631,7 +636,8 @@ class AuthPage extends StatelessWidget {
       child: AuthScheme(
         palette: c,
         child: Scaffold(
-          backgroundColor: c.background,
+          // Without a picture the band and the sheet are one surface.
+          backgroundColor: showPhoto ? c.background : c.surface,
           body: AnnotatedRegion<SystemUiOverlayStyle>(
             value: SystemUiOverlayStyle(
               statusBarColor: Colors.transparent,
@@ -644,15 +650,16 @@ class AuthPage extends StatelessWidget {
               children: [
                 // The photo across the top, fading into the page; the sheet
                 // rises over its lower edge.
-                AnimatedPositioned(
-                  duration: AppMotion.slow,
-                  curve: AppMotion.move,
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: heroHeight + AuthPage.sheetRadius + 40,
-                  child: _AuthScene(photo: photo, clearOfBack: showBack),
-                ),
+                if (showPhoto)
+                  AnimatedPositioned(
+                    duration: AppMotion.slow,
+                    curve: AppMotion.move,
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: heroHeight + AuthPage.sheetRadius + 40,
+                    child: _AuthScene(photo: photo, clearOfBack: showBack),
+                  ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -662,14 +669,16 @@ class AuthPage extends StatelessWidget {
                       showBack: showBack,
                       onBack: onBack,
                       headline: headline,
-                      photoHasWords: photo?.words != null,
+                      photoHasWords: showPhoto && photo?.words != null,
                     ),
                     Expanded(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: c.surface,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(sheetRadius)),
-                          boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, -6))],
+                          boxShadow: showPhoto
+                              ? const [BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, -6))]
+                              : null,
                         ),
                         child: SafeArea(
                           top: false,
@@ -1394,6 +1403,49 @@ class AuthFooterLink extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Where a stepped form is: one dot per step. The current one stretches into a
+/// short bar in the brand colour, the ones already done stay a softer red, and
+/// the ones still ahead are grey. A screen reader hears "Step 1 of 3".
+class AuthStepDots extends StatelessWidget {
+  /// The current step, from 0.
+  final int step;
+  final int count;
+
+  const AuthStepDots({super.key, required this.step, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AuthScheme.of(context);
+    return Semantics(
+      label: 'Step ${step + 1} of $count',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < count; i++)
+            Padding(
+              padding: EdgeInsets.only(right: i < count - 1 ? 6 : 0),
+              child: AnimatedContainer(
+                duration: AppMotion.normal,
+                curve: AppMotion.enter,
+                width: i == step ? 24 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: i == step
+                      ? c.primary
+                      : i < step
+                          ? c.primary.withValues(alpha: 0.45)
+                          : c.textmedium.withValues(alpha: 0.35),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

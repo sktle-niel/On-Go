@@ -8,7 +8,6 @@ import '../../../data/client_account_store.dart';
 import '../../../services/backend/mobile_backend.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/auth_widgets.dart';
-import '../../../widgets/common_widgets.dart';
 import '../../../widgets/password_strength.dart';
 import '../client_ui/client_home_screen.dart';
 
@@ -396,10 +395,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
           AuthPage(
             showBack: true,
             onBack: _back,
-            // The same picture as Sign In, in a shorter band: the form is
-            // longer here and needs the room.
-            photo: AuthPhoto.mobileMechanic,
-            heroShare: 0.25,
+            // No picture: the form has the whole screen.
+            showPhoto: false,
             // A way back to Sign In, offered before anything has been typed.
             footer: _step == 0
                 ? AuthFooterLink(
@@ -409,13 +406,8 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                   )
                 : null,
             children: [
-              StepProgressBar(step: _step, count: _stepCount),
-              const SizedBox(height: 12),
-              Text(
-                'STEP ${_step + 1} OF $_stepCount',
-                style: AppText.overline(context).copyWith(color: c.textmedium),
-              ),
-              const SizedBox(height: 8),
+              AuthStepDots(step: _step, count: _stepCount),
+              const SizedBox(height: 16),
               AuthIntro(title: _title, subtitle: _subtitle),
               const SizedBox(height: 28),
               // The step's fields and its button slide in from the right; the

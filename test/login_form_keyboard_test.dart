@@ -178,11 +178,15 @@ void main() {
       expect(find.text('Register').hitTestable(), findsOneWidget);
     });
 
-    testWidgets('Registration gives the picture the top 25%, for its longer form', (tester) async {
+    testWidgets('Registration has no picture: the form fills the screen under the slim band',
+        (tester) async {
       const size = Size(390, 844);
       await _pump(tester, size, const ClientRegistrationScreen());
 
-      expect(tester.getRect(_cardScrollable).top, closeTo(size.height * 0.25, 1));
+      // The band is the wordmark and the back button; the form starts under it.
+      expect(tester.getRect(_cardScrollable).top, closeTo(AuthHero.compactHeight, 1));
+      expect(find.byType(Image), findsNothing);
+      expect(find.text('On Go'), findsOneWidget);
     });
 
     testWidgets('Register still opens registration from under the keyboard', (tester) async {
