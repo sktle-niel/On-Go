@@ -123,7 +123,6 @@ class _MechanicHomeScreenState extends State<MechanicHomeScreen> {
             count: MechanicNotificationStore.instance
                 .unreadCountFor(QuoteNotificationStore.currentMechanicName),
             onTap: _openNotifications,
-            badgeColor: AppColors.warning,
           ),
         ),
       ),

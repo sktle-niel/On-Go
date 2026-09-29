@@ -32,10 +32,18 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Flat on a hairline: a white surface set off from the page by a line,
+    // not a shadow. A caller can still ask for lift. On a dark theme it is a
+    // pane of glass over the page's glow, unless the caller asked for a
+    // colour of its own rather than the plain surface.
+    final glass = AppColors.isDark && (color == null || color == AppColors.surface);
     return Card(
-      elevation: elevation ?? AppElevation.raised,
-      color: color ?? Theme.of(context).cardColor,
-      shape: RoundedRectangleBorder(borderRadius: borderRadius ?? AppRadii.borderLg),
+      elevation: elevation ?? AppElevation.flat,
+      color: glass ? Colors.white.withValues(alpha: 0.06) : (color ?? AppColors.surface),
+      shape: RoundedRectangleBorder(
+        borderRadius: borderRadius ?? AppFilledContainers.surface.borderRadius,
+        side: glass ? BorderSide(color: Colors.white.withValues(alpha: 0.12)) : AppHairline.side(AppColors.textmedium),
+      ),
       margin: EdgeInsets.zero,
       child: Padding(padding: padding, child: child),
     );
@@ -248,4 +256,36 @@ Future<void> showContactSheet(
       ),
     ),
   );
+}
+
+/// Where the user is in a stepped form: one segment per step, filled up to
+/// the current one.
+class StepProgressBar extends StatelessWidget {
+  final int step;
+  final int count;
+
+  const StepProgressBar({super.key, required this.step, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return Row(
+      children: [
+        for (var i = 0; i < count; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.enter,
+              height: 4,
+              decoration: BoxDecoration(
+                color: i <= step ? c.primary : AppHairline.of(c.textmedium),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:on_go/screens/auth/forgot_password_screen.dart';
 import 'package:on_go/screens/auth/sign_in_screen.dart';
-import 'package:on_go/screens/welcome_screen.dart';
+import 'package:on_go/screens/auth/client_registration/client_registration_screen.dart';
 import 'package:on_go/theme/app_theme.dart';
 import 'package:on_go/widgets/auth_widgets.dart';
 
@@ -97,7 +97,7 @@ const _devices = <String, Size>{
 };
 
 Finder get _cardScrollable => find
-    .descendant(of: find.byType(AuthBottomCard), matching: find.byType(Scrollable))
+    .descendant(of: find.byType(AuthPage), matching: find.byType(Scrollable))
     .first;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -124,11 +124,11 @@ void main() {
         await tester.scrollUntilVisible(find.text('Sign In'), -40, scrollable: _cardScrollable);
         expect(find.text('Sign In').hitTestable(), findsOneWidget);
 
-        // The field, not its hint. The hint is painted underneath the text
-        // input, so a tap there lands on the field and the hint itself is
-        // never the thing hit.
+        // The field, found through its placeholder: the name sits above the
+        // field, the placeholder inside it. The placeholder is painted under
+        // the text input, so a tap there lands on the field.
         final username =
-            find.ancestor(of: find.text('Username'), matching: find.byType(TextField));
+            find.ancestor(of: find.text('Enter your username'), matching: find.byType(TextField));
         await tester.scrollUntilVisible(username, -40, scrollable: _cardScrollable);
         expect(username.hitTestable(), findsOneWidget);
       });
@@ -185,7 +185,7 @@ void main() {
       await tester.scrollUntilVisible(find.text('Sign Up'), 40, scrollable: _cardScrollable);
       await tester.tap(find.text('Sign Up'));
       await tester.pumpAndSettle();
-      expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(ClientRegistrationScreen), findsOneWidget);
     });
 
     testWidgets('Forgot Password? still opens the reset flow from under the keyboard',
@@ -204,7 +204,7 @@ void main() {
     for (final device in _devices.entries) {
       for (final screen in <String, Widget>{
         'Forgot Password': const ForgotPasswordScreen(),
-        'Welcome': const WelcomeScreen(),
+        'Registration': const ClientRegistrationScreen(),
       }.entries) {
         testWidgets('${screen.key} does not overflow with the keyboard open @ ${device.key}',
             (tester) async {

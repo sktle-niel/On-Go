@@ -27,6 +27,7 @@ class ClientAccountStore extends ChangeNotifier {
   bool get hasAccount => isRegistered;
 
   String firstName = '';
+  String middleName = '';
   String lastName = '';
   String email = '';
   String address = '';
@@ -43,6 +44,7 @@ class ClientAccountStore extends ChangeNotifier {
   void enterDemoMode() {
     mode = ClientAccountMode.demo;
     firstName = 'Demo';
+    middleName = '';
     lastName = 'Client';
     email = '';
     address = '';
@@ -58,6 +60,7 @@ class ClientAccountStore extends ChangeNotifier {
     required String firstName,
     required String lastName,
     required String email,
+    String middleName = '',
     required String address,
     required String phone,
     required String password,
@@ -66,6 +69,7 @@ class ClientAccountStore extends ChangeNotifier {
   }) {
     mode = ClientAccountMode.registered;
     this.firstName = firstName;
+    this.middleName = middleName;
     this.lastName = lastName;
     this.email = email;
     this.address = address;
@@ -89,6 +93,7 @@ class ClientAccountStore extends ChangeNotifier {
     mode = ClientAccountMode.registered;
     if (!sameAccount) {
       firstName = displayName;
+      middleName = '';
       lastName = '';
       this.email = email;
       address = '';
@@ -144,6 +149,7 @@ class ClientAccountStore extends ChangeNotifier {
   void clear() {
     mode = ClientAccountMode.none;
     firstName = '';
+    middleName = '';
     lastName = '';
     email = '';
     address = '';

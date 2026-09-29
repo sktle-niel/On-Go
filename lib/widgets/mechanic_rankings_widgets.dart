@@ -8,6 +8,7 @@ import '../data/quote_store.dart';
 import '../data/review_store.dart';
 import '../theme/app_theme.dart';
 import 'app_widgets.dart';
+import 'glass.dart';
 
 /// What the Rankings list is ordered by.
 enum RankingSort { rank, ratings, reviews }
@@ -183,7 +184,12 @@ class _MechanicRankingsViewState extends State<MechanicRankingsView> {
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(24)),
+                        // A pane of glass on a dark theme, the page's grey on a light one.
+                        decoration: BoxDecoration(
+                          color: AppColors.isDark ? Colors.white.withValues(alpha: 0.07) : AppColors.background,
+                          borderRadius: BorderRadius.circular(24),
+                          border: AppColors.isDark ? Border.all(color: Colors.white.withValues(alpha: 0.12)) : null,
+                        ),
                         child: TextField(
                           onChanged: (v) => setState(() => _query = v),
                           textInputAction: TextInputAction.search,
@@ -194,6 +200,10 @@ class _MechanicRankingsViewState extends State<MechanicRankingsView> {
                             prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                             hintText: 'Search mechanics...',
                             border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            // The pill is the field; no second box inside it.
+                            filled: false,
                             isDense: true,
                           ),
                         ),
@@ -231,8 +241,8 @@ class _MechanicRankingsViewState extends State<MechanicRankingsView> {
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        border: Border.all(color: AppColors.textdark.withValues(alpha: 0.2)),
+                        color: Glass.card,
+                        border: Border.all(color: AppColors.isDark ? Glass.edge : AppColors.textdark.withValues(alpha: 0.2)),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -293,12 +303,10 @@ class _MechanicRankingsViewState extends State<MechanicRankingsView> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.textmedium.withValues(alpha: 0.55)),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4)),
-                    ],
+                    color: Glass.card,
+                    borderRadius: AppRadii.borderMd,
+                    border: Border.all(color: AppColors.isDark ? Glass.edge : AppHairline.of(AppColors.textmedium)),
+                    boxShadow: AppShadows.popover,
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,

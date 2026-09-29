@@ -5,6 +5,7 @@ import '../../../../theme/app_theme.dart';
 import '../../../../widgets/notification_card.dart';
 import '../active/active_request_screen.dart';
 import '../home/quotes_screen.dart';
+import '../../../../widgets/glass.dart';
 
 /// What the client's bell opens: quotes that arrived and the progress the
 /// mechanic reported on their job.
@@ -87,11 +88,9 @@ class ClientNotificationsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textlight,
         title: const Text('Notifications'),
       ),
       body: AnimatedBuilder(
@@ -100,25 +99,10 @@ class ClientNotificationsScreen extends StatelessWidget {
           final notifications = QuoteNotificationStore.instance.clientNotifications;
 
           if (notifications.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.notifications_none, size: 48, color: AppColors.textdark.withValues(alpha: 0.55)),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'No notifications yet',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Quotes and updates on your job will appear here once a mechanic responds.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55)),
-                  ),
-                ],
-              ),
+            return const GlassEmptyState(
+              icon: Icons.notifications_none_rounded,
+              title: 'No notifications yet',
+              text: 'Quotes and updates on your job will appear here once a mechanic responds.',
             );
           }
 

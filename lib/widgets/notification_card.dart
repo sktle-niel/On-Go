@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'glass.dart';
 
 /// One entry in either bell's list — the card both notification screens draw,
 /// and a single tap target that follows the notification to its content.
@@ -25,7 +26,7 @@ class NotificationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(16),
-      side: BorderSide(color: AppColors.textdark.withValues(alpha: 0.2)),
+      side: BorderSide(color: AppColors.isDark ? Glass.edge : AppColors.textdark.withValues(alpha: 0.2)),
     );
 
     return Semantics(
@@ -34,7 +35,7 @@ class NotificationCard extends StatelessWidget {
       hint: 'Opens what this notification is about',
       excludeSemantics: true,
       child: Material(
-        color: AppColors.surface,
+        color: Glass.card,
         shape: shape,
         clipBehavior: Clip.antiAlias,
         child: InkWell(

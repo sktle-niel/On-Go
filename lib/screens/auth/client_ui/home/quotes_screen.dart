@@ -6,6 +6,7 @@ import '../../../../widgets/common_widgets.dart';
 import '../../../../data/quote_store.dart' show QuoteNotificationStore, formatEtaDuration;
 import '../../../../services/backend/mobile_backend.dart';
 import '../profile/mechanic_profile_view_screen.dart';
+import '../../../../widgets/glass.dart';
 
 class QuotesScreen extends StatefulWidget {
   /// When set, only this request's quotes are shown (used by the "Quotes"
@@ -147,11 +148,9 @@ class _QuotesScreenState extends State<QuotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textmedium,
         title: const Text('Quotes'),
       ),
       body: Builder(
@@ -241,7 +240,7 @@ class _ProblemText {
 
 _ProblemText _splitProblem(String problem) {
   final idx = problem.indexOf(':');
-  if (idx == -1 || idx > 40) return _ProblemText('Reported Issue', problem);
+  if (idx == -1 || idx > 40) return _ProblemText(problem, '');
   final rest = problem.substring(idx + 1).trim();
   return _ProblemText(problem.substring(0, idx).trim(), rest.isEmpty ? problem : rest);
 }

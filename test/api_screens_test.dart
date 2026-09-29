@@ -247,15 +247,28 @@ void main() {
         );
     await tester.pumpWidget(app(_phone, const ClientRegistrationScreen()));
 
-    final fields = find.byType(TextField);
+    // Step 1: the account.
+    var fields = find.byType(TextField);
     await tester.enterText(fields.at(0), 'juan@example.com');
-    await tester.enterText(fields.at(1), 'Juan');
-    await tester.enterText(fields.at(2), 'Dela Cruz');
-    await tester.enterText(fields.at(3), 'Puerto Princesa City');
-    await tester.enterText(fields.at(4), '09170000000');
-    await tester.enterText(fields.at(5), _strongPassword);
-    await tester.enterText(fields.at(6), _strongPassword);
+    await tester.enterText(fields.at(1), _strongPassword);
+    await tester.enterText(fields.at(2), _strongPassword);
+    // The keyboard's key on the last field moves the form along.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('STEP 2 OF 3'), findsOneWidget, reason: 'the account step was complete');
 
+    // Step 2: who they are.
+    fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'Juan');
+    await tester.enterText(fields.at(1), 'Santos');
+    await tester.enterText(fields.at(2), 'Dela Cruz');
+    await tester.enterText(fields.at(3), '09170000000');
+    await tester.enterText(fields.at(4), 'Puerto Princesa City');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('STEP 3 OF 3'), findsOneWidget, reason: 'the details step was complete');
+
+    // Step 3: the photo is optional. Create the account.
     final submit = find.byWidgetPredicate((widget) => widget is ElevatedButton).last;
     await tester.ensureVisible(submit);
     await tester.tap(submit);

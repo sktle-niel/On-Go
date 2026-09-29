@@ -100,12 +100,16 @@ class ThemeController extends ChangeNotifier {
 
   /// Reads everything saved. Safe to call before `runApp`; a storage failure
   /// just leaves the defaults in place rather than blocking startup.
-  Future<void> load() async {
+  ///
+  /// [darkByDefault] is where the Dark Mode switch starts for someone who has
+  /// never touched it: the mobile app opens dark, the console light. A saved
+  /// choice always wins.
+  Future<void> load({bool darkByDefault = false}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final storedId = prefs.getString(_themeKey);
 
-      _darkMode = prefs.getBool(_darkModeKey) ?? false;
+      _darkMode = prefs.getBool(_darkModeKey) ?? darkByDefault;
       _dynamicThemes = prefs.getBool(_dynamicKey) ?? false;
       // Read untyped: the level used to be stored as a whole number, so an
       // install from before it went continuous still has an int under this

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/glass.dart';
 
 /// Theme picker, shared by the Client and Mechanic shells. The admin console
 /// has its own, built on the same palettes.
@@ -45,11 +46,9 @@ class _ThemeScreenState extends State<ThemeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return GlassScaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textlight,
         title: const Text('Themes'),
       ),
       body: ListView(

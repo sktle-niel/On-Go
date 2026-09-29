@@ -43,7 +43,7 @@ class _PhotoGalleryViewerScreenState extends State<PhotoGalleryViewerScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        foregroundColor: AppColors.textmedium,
+        foregroundColor: Colors.white,
         elevation: 0,
         title: multiple ? Text('${_index + 1} / ${widget.photoPaths.length}') : null,
       ),

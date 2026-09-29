@@ -106,19 +106,22 @@ class AppThemes {
     id: defaultId,
     family: 'classic',
     label: 'Default',
-    description: 'The original On Go red on a light background.',
+    description: 'On Go red on white, with a light grey canvas.',
+    // Neutral greys rather than warm ones: the surfaces are meant to
+    // disappear so the red, used only where something acts, can carry the
+    // brand on its own.
     palette: AppPalette(
-      primary: Color(0xffd11d28),
-      primarydark: Color.fromARGB(255, 168, 0, 17),
-      background: Color.fromARGB(255, 247, 242, 236),
-      surface: Color.fromARGB(255, 245, 244, 240),
-      textdark: Color.fromARGB(255, 13, 14, 15),
-      textmedium: Color.fromARGB(255, 104, 109, 122),
-      textlight: Color.fromARGB(255, 255, 251, 248),
-      info: Color.fromARGB(255, 102, 155, 188),
-      success: Color.fromARGB(255, 118, 151, 77),
-      warning: Color.fromARGB(255, 254, 174, 1),
-      error: Color.fromARGB(255, 223, 0, 0),
+      primary: Color(0xFFD11D28),
+      primarydark: Color(0xFFA80011),
+      background: Color(0xFFF5F5F7),
+      surface: Color(0xFFFFFFFF),
+      textdark: Color(0xFF1C1C1E),
+      textmedium: Color(0xFF6E6E73),
+      textlight: Color(0xFFFFFFFF),
+      info: Color(0xFF2F6FED),
+      success: Color(0xFF1E9E5A),
+      warning: Color(0xFFE59500),
+      error: Color(0xFFD93025),
     ),
   );
 
@@ -128,18 +131,20 @@ class AppThemes {
     label: 'Dark Default',
     description: 'Low-light palette for night driving and roadside work.',
     isDark: true,
+    // The same neutrality after dark: near-black canvas, a slightly lighter
+    // surface, and the red lifted a step so it holds its weight on it.
     palette: AppPalette(
-      primary: Color.fromARGB(255, 206, 26, 26),
-      primarydark: Color.fromARGB(255, 158, 22, 22),
-      background: Color.fromARGB(255, 18, 19, 22),
-      surface: Color.fromARGB(255, 31, 34, 40),
-      textdark: Color.fromARGB(255, 240, 241, 243),
-      textmedium: Color.fromARGB(255, 158, 163, 174),
-      textlight: Color.fromARGB(255, 248, 249, 250),
-      info: Color.fromARGB(255, 40, 190, 250),
-      success: Color.fromARGB(255, 46, 196, 171),
-      warning: Color.fromARGB(255, 255, 178, 63),
-      error: Color.fromARGB(255, 210, 47, 47),
+      primary: Color(0xFFE0323D),
+      primarydark: Color(0xFFB01521),
+      background: Color(0xFF121214),
+      surface: Color(0xFF1C1C1F),
+      textdark: Color(0xFFF2F2F4),
+      textmedium: Color(0xFF9C9CA3),
+      textlight: Color(0xFFFFFFFF),
+      info: Color(0xFF5B9CFF),
+      success: Color(0xFF34C77B),
+      warning: Color(0xFFF2B33D),
+      error: Color(0xFFF0605A),
     ),
   );
 

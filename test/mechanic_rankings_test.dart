@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:on_go/widgets/glass.dart';
 import 'package:on_go/data/app_session.dart';
 import 'package:on_go/data/mechanic_account_store.dart';
 import 'package:on_go/data/mechanic_notification_store.dart';
@@ -125,7 +126,8 @@ void main() {
   group('screens', () {
     testWidgets('both shells call the tab Rankings, never Leaderboard', (tester) async {
       await _pump(tester, const ClientHomeScreen());
-      expect(tester.widget<OnGoBottomNav>(find.byType(OnGoBottomNav)).items.map((i) => i.label),
+      // The client shell is drawn in glass; the mechanic's is not yet.
+      expect(tester.widget<GlassNavBar>(find.byType(GlassNavBar)).items.map((i) => i.label),
           ['Home', 'Jobs', 'History', 'Rankings']);
 
       await tester.pumpWidget(app(_phone, const MechanicHomeScreen()));

@@ -3,13 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:on_go/theme/app_theme.dart';
 import 'package:on_go/widgets/auth_widgets.dart';
 
-import 'package:on_go/screens/welcome_screen.dart';
 import 'package:on_go/screens/auth/sign_in_screen.dart';
 import 'package:on_go/screens/auth/forgot_password_screen.dart';
 import 'package:on_go/screens/auth/client_registration/client_registration_screen.dart';
 import 'package:on_go/screens/auth/client_ui/client_home_screen.dart';
 import 'package:on_go/screens/auth/client_ui/history/service_history_screen.dart';
-import 'package:on_go/screens/auth/client_ui/home/need_help_screen.dart';
+import 'package:on_go/data/motorcycle_problem.dart';
+import 'package:on_go/screens/auth/client_ui/home/book_help_screen.dart';
+import 'package:on_go/screens/auth/client_ui/home/client_home_tab.dart';
 import 'package:on_go/screens/auth/client_ui/home/quotes_screen.dart';
 import 'package:on_go/screens/auth/client_ui/jobs/client_jobs_screen.dart';
 import 'package:on_go/screens/auth/client_ui/notifications/client_notifications_screen.dart';
@@ -53,13 +54,14 @@ const devices = <String, Size>{
 };
 
 final screens = <String, Widget Function()>{
-  'WelcomeScreen': () => const WelcomeScreen(),
   'SignInScreen': () => SignInScreen(),
   'ForgotPasswordScreen': () => const ForgotPasswordScreen(),
   'ClientRegistrationScreen': () => const ClientRegistrationScreen(),
   'ClientHomeScreen': () => const ClientHomeScreen(),
   'ServiceHistoryScreen': () => const ServiceHistoryScreen(),
-  'NeedHelpScreen': () => const NeedHelpScreen(),
+  'ClientHomeTab': () => const ClientHomeTab(),
+  'BookHelpScreen details': () => const BookHelpScreen(problem: MotorcycleProblem.flatTire),
+  'BookHelpScreen place': () => const BookHelpScreen(problem: MotorcycleProblem.somethingElse, initialStep: 1),
   'QuotesScreen': () => const QuotesScreen(),
   'ClientJobsScreen': () => const ClientJobsScreen(),
   'ClientNotificationsScreen': () => const ClientNotificationsScreen(),
@@ -250,9 +252,9 @@ void main() {
       Future<double> buttonWidth(Size size) async {
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1;
-        await tester.pumpWidget(app(size, const WelcomeScreen()));
+        await tester.pumpWidget(app(size, const ClientRegistrationScreen()));
         await tester.pump(const Duration(milliseconds: 50));
-        return tester.getSize(find.byType(AuthRoleButton).first).width;
+        return tester.getSize(find.byType(AuthPrimaryButton).first).width;
       }
 
       addTearDown(tester.view.reset);
@@ -261,8 +263,8 @@ void main() {
       final onTablet = await buttonWidth(const Size(834, 1112));
 
       // Wider than a phone's, but nothing like the full width of the tablet —
-      // a "Register as Client" button running the whole width of an iPad is
-      // the thing this guards against.
+      // a "Create account" button running the whole width of an iPad is the
+      // thing this guards against.
       expect(onTablet, greaterThan(onPhone));
       expect(onTablet, lessThan(700));
     });

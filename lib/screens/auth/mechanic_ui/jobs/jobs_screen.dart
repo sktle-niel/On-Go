@@ -712,7 +712,7 @@ class _ProblemText {
 _ProblemText _splitProblem(String problem) {
   final idx = problem.indexOf(':');
   if (idx == -1 || idx > 40) {
-    return _ProblemText('Reported Issue', problem);
+    return _ProblemText(problem, '');
   }
   final rest = problem.substring(idx + 1).trim();
   return _ProblemText(problem.substring(0, idx).trim(), rest.isEmpty ? problem : rest);
@@ -1336,10 +1336,10 @@ class _AcceptedTabState extends State<_AcceptedTab> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 4))],
+                color: AppColors.surface,
+                borderRadius: AppRadii.borderMd,
+                border: Border.all(color: AppHairline.of(AppColors.textmedium)),
+                boxShadow: AppShadows.popover,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

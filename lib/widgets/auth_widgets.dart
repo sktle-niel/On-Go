@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
+import 'glass.dart';
 
 // The registration screens reach the photo badge through this file, as before.
 export 'common_widgets.dart' show PhotoRemoveButton;
@@ -20,16 +21,14 @@ final List<TextInputFormatter> phMobileInputFormatters = [
   LengthLimitingTextInputFormatter(11),
 ];
 
-/// Red header banner (logo + subtitle)
+/// The wordmark and a line under it, set on the page rather than on a band.
 class OnGoHeader extends StatelessWidget {
   final String subtitle;
   const OnGoHeader({super.key, this.subtitle = 'Service Anywhere'});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.primary,
+    return Padding(
       // The status bar's real height rather than a fixed 48, which was too
       // little under a notch and too much on a phone without one.
       padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 16, 20, 20),
@@ -38,7 +37,7 @@ class OnGoHeader extends StatelessWidget {
           Text(
             'On Go',
             style: TextStyle(
-              color: AppColors.textmedium,
+              color: AppColors.primary,
               fontSize: 28,
               fontWeight: FontWeight.w800,
               // Large type reads best slightly tightened, not spread out.
@@ -311,18 +310,22 @@ class StepNavButtons extends StatelessWidget {
     super.key,
     this.onBack,
     this.onNext,
-    this.nextLabel = 'NEXT',
-    this.backLabel = 'BACK',
+    this.nextLabel = 'Next',
+    this.backLabel = 'Back',
     this.isLastStep = false,
     this.busy = false,
-    this.busyLabel = 'PLEASE WAIT…',
+    this.busyLabel = 'Please wait…',
   });
 
   @override
   Widget build(BuildContext context) {
-    final next = ElevatedButton(
-      onPressed: busy ? null : onNext,
-      child: Text(busy ? busyLabel : nextLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+    // The one red button on the form; Back is ink on an outline beside it.
+    final next = PressScale(
+      enabled: !busy && onNext != null,
+      child: ElevatedButton(
+        onPressed: busy ? null : onNext,
+        child: Text(busy ? busyLabel : nextLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
     );
 
     return Row(
@@ -331,12 +334,6 @@ class StepNavButtons extends StatelessWidget {
           Expanded(
             child: OutlinedButton(
               onPressed: busy ? null : onBack,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: BorderSide(color: AppColors.primary),
-                minimumSize: const Size(0, 48),
-                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.25),
-              ),
               child: Text(backLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
           ),
@@ -368,17 +365,21 @@ class RegistrationHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final canGoBack = Navigator.of(context).canPop();
 
+    // The page's own surface with a hairline under it, like every app bar.
     return Container(
       width: double.infinity,
-      color: AppColors.primary,
-      padding: EdgeInsets.fromLTRB(4, MediaQuery.paddingOf(context).top + 8, 4, 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: AppHairline.side(AppColors.textmedium)),
+      ),
+      padding: EdgeInsets.fromLTRB(4, MediaQuery.paddingOf(context).top + 8, 4, 14),
       child: Row(
         children: [
           SizedBox(
             width: 48,
             child: canGoBack
                 ? IconButton(
-                    icon: Icon(Icons.arrow_back, color: AppColors.textlight),
+                    icon: Icon(Icons.arrow_back, color: AppColors.textdark),
                     tooltip: 'Back',
                     onPressed: () => Navigator.maybePop(context),
                   )
@@ -393,17 +394,17 @@ class RegistrationHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: AppColors.textlight,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+                    color: AppColors.textdark,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textlight, fontSize: 12),
+                  style: TextStyle(color: AppColors.textmedium, fontSize: 12),
                 ),
               ],
             ),
@@ -480,87 +481,475 @@ class OnGoChoiceRow extends StatelessWidget {
   }
 }
 
-/// Layout used by the Sign In / Welcome screens.
-class AuthBottomCard extends StatelessWidget {
-  final List<Widget> children;
-  final Widget? topContent;
+// ═══════════════════════════════════════════════════════════════════════════
+//  The front door: Sign In, Welcome, Forgot Password, the session restore
+// ═══════════════════════════════════════════════════════════════════════════
 
-  const AuthBottomCard({super.key, required this.children, this.topContent});
+/// The page every screen outside the app proper is built on.
+///
+/// The glowing glass page with a photo of the trade across the top, and a
+/// sheet of frosted glass with rounded top corners rising over both — the
+/// front door of a ride-hailing app drawn the way the rest of the client app
+/// is (lib/widgets/glass.dart). The photo is the one an admin published from
+/// the console when there is one.
+///
+/// The sheet scrolls only when it has to. With the keyboard up the hero folds
+/// to a slim band so the form keeps the room, and the field being typed into
+/// is brought above the keyboard; when everything fits, [footer] sits on the
+/// bottom edge and nothing moves.
+class AuthPage extends StatelessWidget {
+  /// The sheet's content, top down.
+  final List<Widget> children;
+
+  /// Pinned to the bottom of the sheet: the "already have an account?" line.
+  final Widget? footer;
+
+  /// A back button on the hero, for a screen reached from another one.
+  final bool showBack;
+
+  /// The slim hero from the start, for a page that is mostly form and needs
+  /// the room more than the picture.
+  final bool compactHero;
+
+  /// What the back button does. Null pops the route; a stepped form passes
+  /// something that first walks back through its steps.
+  final VoidCallback? onBack;
+
+  const AuthPage({
+    super.key,
+    required this.children,
+    this.footer,
+    this.showBack = false,
+    this.compactHero = false,
+    this.onBack,
+  });
+
+  /// The sheet's corner radius — how much hero shows beside the corners.
+  static const double sheetRadius = 28;
+
+  /// The widest the sheet's content gets. A sign-in form a foot wide, on a
+  /// tablet or a phone on its side, looks like a mistake.
+  static const double contentMaxWidth = 480;
 
   @override
   Widget build(BuildContext context) {
-    // Scrolls when it has to, and only then.
-    //
-    // With the keyboard up, the Scaffold hands this far less height than the
-    // card needs — over half the screen with some keyboards — and a Column
-    // that cannot scroll can only overflow, painting the warning stripe over
-    // "Don't have account? Sign Up". Inside a scroll view the card has
-    // somewhere to go: the field being typed into is brought above the
-    // keyboard, and the rest of the card is a swipe away.
-    //
-    // When everything fits, nothing changes. The minimum height is the full
-    // height available, so the space above the card still expands and the
-    // card still sits on the bottom edge exactly as before, and clamping
-    // physics stop it bouncing when there is nothing to scroll.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          // What lets the Expanded below work inside a scroll view: it gives
-          // the column a definite height — the taller of the screen and the
-          // card — for the space above the card to fill.
-          child: IntrinsicHeight(
-            child: Column(
+    final layout = context.layout;
+    final media = MediaQuery.of(context);
+    final top = media.padding.top;
+    // The hero gives way to the form: folded when the page asks for it,
+    // whenever the keyboard is up, or when the window is too short to spare
+    // a third of itself.
+    final compact = compactHero || media.viewInsets.bottom > 0 || layout.isShort;
+    final heroHeight = compact
+        ? top + AuthHero.compactHeight
+        : (layout.height * 0.32).clamp(top + 184, top + 280).toDouble();
+    final c = AppColors.palette;
+    final dark = AppColors.isDark;
+
+    return Scaffold(
+      backgroundColor: c.background,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        // The clock sits on the hero, so it is drawn light on every theme.
+        value: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+          systemNavigationBarColor: c.surface,
+          systemNavigationBarIconBrightness:
+              AppColors.isDark ? Brightness.light : Brightness.dark,
+        ),
+        child: Stack(
+          children: [
+            // The glow the page is laid on, and the photo across the top of
+            // it, fading into the glow; the sheet is glass, so both show
+            // through it.
+            const Positioned.fill(child: GlassBackdrop()),
+            AnimatedPositioned(
+              duration: AppMotion.slow,
+              curve: AppMotion.move,
+              top: 0,
+              left: 0,
+              right: 0,
+              height: heroHeight + 180,
+              child: const _AuthScene(),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: Center(child: topContent ?? const SizedBox.shrink())),
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    border: Border.all(color: AppColors.primary, width: 4),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(32),
-                      topRight: Radius.circular(32),
-                    ),
-                  ),
-                  padding: EdgeInsets.fromLTRB(
-                    context.layout.isTablet ? 32 : 24,
-                    36,
-                    context.layout.isTablet ? 32 : 24,
-                    32,
-                  ),
-                  // The card itself still runs edge to edge — that full-bleed
-                  // panel anchored to the bottom is the design. What stops at
-                  // a sensible width is what is INSIDE it: on a tablet, a
-                  // sign-in field and a "Register as Client" button stretched
-                  // across ten inches look broken, and the buttons become a
-                  // long way from the thumb that has to reach them. Centred
-                  // inside the card, they keep a phone's proportions on any
-                  // screen.
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: context.layout.contentMaxWidth),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: children,
+                AuthHero(height: heroHeight, compact: compact, showBack: showBack, onBack: onBack),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(sheetRadius)),
+                    child: BackdropFilter(
+                      filter: Glass.blur,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: dark ? c.background.withValues(alpha: 0.64) : Colors.white.withValues(alpha: 0.86),
+                          // A lit top edge; the clip rounds its ends.
+                          border: Border(top: BorderSide(color: Glass.edge)),
+                        ),
+                        child: SafeArea(
+                          top: false,
+                          child: _AuthSheet(footer: footer, children: children),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// White, borderless input field for use on the red card.
+/// The photo behind the top of an [AuthPage]: the trade, multiplied by the
+/// brand colour, fading out towards the sheet so the glow takes over.
+class _AuthScene extends StatelessWidget {
+  const _AuthScene();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return AnimatedBuilder(
+      animation: AuthBackgroundController.instance,
+      builder: (context, _) {
+        final photo = AuthBackgroundController.instance.photoPath;
+        final ImageProvider scene =
+            photo == null ? const AssetImage(AuthHero.defaultPhoto) : FileImage(File(photo));
+        return ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (bounds) => const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.black, Colors.black, Colors.transparent],
+            stops: [0, 0.55, 1],
+          ).createShader(bounds),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // The colour first, so there is never a blank while the photo
+              // decodes or if it cannot be read.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [c.primary, c.primarydark],
+                  ),
+                ),
+              ),
+              // The scene, multiplied by the brand colour: it reads in red and
+              // stays a backdrop for the words rather than competing with them.
+              Image(
+                image: scene,
+                fit: BoxFit.cover,
+                color: c.primary,
+                colorBlendMode: BlendMode.multiply,
+                // Fades in once decoded rather than popping over the colour.
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded) return child;
+                  return AnimatedOpacity(
+                    opacity: frame == null ? 0 : 1,
+                    duration: AppMotion.normal,
+                    curve: AppMotion.enter,
+                    child: child,
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+              ),
+              // A shade that deepens towards the wordmark, for legibility.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      c.primarydark.withValues(alpha: 0.05),
+                      c.primarydark.withValues(alpha: 0.70),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The white sheet: [AuthPage]'s content, scrolling only when it must.
+class _AuthSheet extends StatelessWidget {
+  final List<Widget> children;
+  final Widget? footer;
+
+  const _AuthSheet({required this.children, this.footer});
+
+  @override
+  Widget build(BuildContext context) {
+    final side = context.layout.isTablet ? 32.0 : 24.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Past the reading measure the content centres and the rest of the
+        // width becomes margin.
+        final slack = (constraints.maxWidth - AuthPage.contentMaxWidth) / 2;
+        final inset = slack > side ? slack : side;
+
+        // Inside a scroll view the sheet has somewhere to go when the
+        // keyboard takes half the screen. The minimum height is the full
+        // height available, so when everything fits the footer still sits on
+        // the bottom edge, and clamping physics stop it bouncing when there
+        // is nothing to scroll. IntrinsicHeight gives the column a definite
+        // height — the taller of the sheet and its content — for the Spacer
+        // above the footer to fill.
+        return SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: _SheetEntrance(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(inset, 28, inset, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ...children,
+                      if (footer != null) ...[
+                        const Spacer(),
+                        const SizedBox(height: 20),
+                        footer!,
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The sheet's content settling into place as the screen opens: a short
+/// rise and fade, once. Skipped when the reader has asked for no animation.
+class _SheetEntrance extends StatelessWidget {
+  final Widget child;
+
+  const _SheetEntrance({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppMotion.slow,
+      curve: AppMotion.enter,
+      child: child,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, 16 * (1 - t)),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// The brand hero across the top of every [AuthPage]: the wordmark, and the
+/// back button. It is see-through; the photo of the trade behind it belongs
+/// to the page, so it can run on under the glass sheet.
+///
+/// [height] includes the status bar, which the hero runs under. While
+/// [compact] it is a slim band with the wordmark alone, so the form keeps the
+/// room when the keyboard is up.
+class AuthHero extends StatelessWidget {
+  final double height;
+  final bool compact;
+  final bool showBack;
+
+  /// What the back button does; null pops the route.
+  final VoidCallback? onBack;
+
+  const AuthHero({
+    super.key,
+    required this.height,
+    this.compact = false,
+    this.showBack = false,
+    this.onBack,
+  });
+
+  /// The band the hero folds to, below the status bar.
+  static const double compactHeight = 64;
+
+  /// The photo the app ships with: a mechanic leaning into an engine bay in
+  /// daylight (Pexels, free licence; see assets/images/README.md).
+  static const String defaultPhoto = 'assets/images/auth_hero.jpg';
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    final top = MediaQuery.paddingOf(context).top;
+
+    return AnimatedContainer(
+      duration: AppMotion.slow,
+      curve: AppMotion.move,
+      height: height,
+      child: Builder(
+        builder: (context) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(24, top, 24, 0),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Decided by the room there is right now, not by
+                      // [compact]: the band animates between its two heights,
+                      // and the full block must never be asked to fit a
+                      // height it cannot.
+                      final full = constraints.maxHeight >= 172;
+                      if (!full) {
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            // Clear of the back button beside it.
+                            padding: EdgeInsets.only(left: showBack ? 48 : 0),
+                            child: const _Brand(compact: true),
+                          ),
+                        );
+                      }
+                      return const Padding(
+                        padding: EdgeInsets.only(top: 8, bottom: 24),
+                        child: Align(
+                          alignment: Alignment.bottomLeft,
+                          // Scales down rather than overflowing at the largest
+                          // text sizes.
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.bottomLeft,
+                            child: _Brand(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              if (showBack)
+                Positioned(
+                  top: top + 6,
+                  left: 12,
+                  child: IconButton(
+                    onPressed: onBack ?? () => Navigator.maybePop(context),
+                    tooltip: 'Back',
+                    icon: const Icon(Icons.arrow_back_rounded, size: 22),
+                    style: IconButton.styleFrom(
+                      backgroundColor: c.textlight.withValues(alpha: 0.18),
+                      foregroundColor: c.textlight,
+                      minimumSize: const Size(44, 44),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// The wordmark on the hero, with the tagline under it when there is room.
+class _Brand extends StatelessWidget {
+  final bool compact;
+
+  const _Brand({this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    final wordmark = Text(
+      'On Go',
+      style: TextStyle(
+        color: c.textlight,
+        fontSize: compact ? 20 : 34,
+        fontWeight: FontWeight.w800,
+        letterSpacing: compact ? -0.4 : -1.0,
+        height: 1.1,
+      ),
+    );
+    if (compact) return wordmark;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        wordmark,
+        const SizedBox(height: 4),
+        Text(
+          'Service Anywhere',
+          style: TextStyle(
+            color: c.textlight.withValues(alpha: 0.88),
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The headline at the top of the sheet and the line under it. Set left,
+/// like a page rather than a dialog.
+class AuthIntro extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+
+  const AuthIntro({super.key, required this.title, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.6,
+            height: 1.15,
+            color: c.textdark,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            subtitle!,
+            style: TextStyle(fontSize: 14, height: 1.4, color: c.textmedium),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// A field on the sheet: its name in bold above, a placeholder inside, a
+/// white well with a faint outline. The brand colour appears only while it
+/// has focus; an error turns the outline red and explains itself underneath.
 class AuthTextField extends StatelessWidget {
-  final String hint;
+  /// The field's name, set above it: "Email", "Password", "First name".
+  final String label;
+
+  /// The prompt inside the empty field: "Enter your email".
+  final String? hint;
   final bool obscure;
   final TextEditingController? controller;
   final TextInputType keyboardType;
@@ -578,9 +967,16 @@ class AuthTextField extends StatelessWidget {
   /// Caps the length and hides the counter — for a fixed-length code.
   final int? maxLength;
 
+  /// What is wrong with the value, under the field in the error colour.
+  final String? errorText;
+
+  final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
+
   const AuthTextField({
     super.key,
-    required this.hint,
+    required this.label,
+    this.hint,
     this.obscure = false,
     this.controller,
     this.keyboardType = TextInputType.text,
@@ -590,158 +986,208 @@ class AuthTextField extends StatelessWidget {
     this.onSubmitted,
     this.autofillHints,
     this.maxLength,
+    this.errorText,
+    this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
   });
 
   @override
   Widget build(BuildContext context) {
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: AppColors.textmedium.withValues(alpha: 0.2), width: 1.5),
-    );
+    final c = AppColors.palette;
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
+          borderRadius: AppRadii.borderMd,
+          borderSide: BorderSide(color: color, width: width),
+        );
 
-    return TextFormField(
-      controller: controller,
-      obscureText: obscure,
-      enableSuggestions: !obscure,
-      autocorrect: !obscure,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      autofillHints: autofillHints,
-      maxLength: maxLength,
-      onChanged: onChanged,
-      onFieldSubmitted: onSubmitted,
-      style: TextStyle(color: AppColors.textdark),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55)),
-        filled: true,
-        fillColor: AppColors.surface,
-        suffixIcon: suffixIcon,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.textdark),
         ),
-        counterText: maxLength == null ? null : '',
-        border: border,
-        enabledBorder: border,
-        // Same colour, heavier line: the field being typed into is visible at
-        // a glance without the palette changing.
-        focusedBorder: border.copyWith(borderSide: border.borderSide.copyWith(width: 2.5)),
-      ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          obscureText: obscure,
+          enableSuggestions: !obscure,
+          autocorrect: !obscure,
+          keyboardType: keyboardType,
+          textInputAction: textInputAction,
+          autofillHints: autofillHints,
+          maxLength: maxLength,
+          textCapitalization: textCapitalization,
+          inputFormatters: inputFormatters,
+          onChanged: onChanged,
+          onFieldSubmitted: onSubmitted,
+          cursorColor: c.primary,
+          style: TextStyle(color: c.textdark, fontSize: 15, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: c.textmedium, fontSize: 15, fontWeight: FontWeight.w400),
+            filled: true,
+            fillColor: AppColors.isDark ? Colors.white.withValues(alpha: 0.06) : c.surface,
+            suffixIcon: suffixIcon,
+            suffixIconColor: c.textmedium,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            counterText: maxLength == null ? null : '',
+            errorText: errorText,
+            errorStyle: TextStyle(fontSize: 12, color: c.error),
+            border: border(AppHairline.outline(c.textmedium), 1),
+            enabledBorder: border(AppHairline.outline(c.textmedium), 1),
+            focusedBorder: border(c.primary, 1.5),
+            errorBorder: border(c.error, 1),
+            focusedErrorBorder: border(c.error, 1.5),
+          ),
+        ),
+      ],
     );
   }
 }
 
-/// Solid primary button with light text.
-class AuthWhiteButton extends StatelessWidget {
+/// The one brand-coloured button on the sheet: full width, tall enough for a
+/// thumb, and answering the press. While [busy] it keeps its colour and shows
+/// it is working, rather than going grey as if it had been switched off.
+class AuthPrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
+  final bool busy;
 
-  const AuthWhiteButton({super.key, required this.label, this.onPressed});
+  const AuthPrimaryButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.busy = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textlight,
-        minimumSize: const Size(double.infinity, 50),
-        shape: const StadiumBorder(),
-        textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+    final c = AppColors.palette;
+    final text = Text(label, maxLines: 1, overflow: TextOverflow.ellipsis);
+
+    return PressScale(
+      enabled: onPressed != null && !busy,
+      child: ElevatedButton(
+        onPressed: busy ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 54),
+          shape: RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
+          disabledBackgroundColor: busy ? c.primary.withValues(alpha: 0.72) : null,
+          disabledForegroundColor: busy ? c.textlight : null,
+          textStyle: TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+          ),
+        ),
+        child: busy
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: c.textlight),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(child: text),
+                ],
+              )
+            : text,
       ),
-      child: Text(label),
     );
   }
 }
 
-/// Primary pill button with a light icon and label.
-class AuthRoleButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
+/// The line at the foot of the sheet: a prompt and the one link that answers
+/// it — "Don't have an account? Sign Up".
+///
+/// Wrap, not Row: at a large system text scale the prompt and the link no
+/// longer fit side by side, and the link drops to its own line instead of
+/// overflowing. Identical to a centred Row when it does fit.
+class AuthFooterLink extends StatelessWidget {
+  final String? prompt;
+  final String action;
   final VoidCallback onTap;
 
-  const AuthRoleButton({
+  const AuthFooterLink({
     super.key,
-    required this.icon,
-    required this.label,
+    this.prompt,
+    required this.action,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.primary,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.textlight, width: 1.5),
-                ),
-                child: Icon(icon, color: AppColors.textlight, size: 20),
-              ),
-              const SizedBox(width: 16),
-              // Expanded, not bare: the label takes what is left of the row
-              // after the circle rather than demanding its own full width.
-              // Without it "Register as Mechanic" runs past the right edge of
-              // the card on any phone narrower than about 430 points.
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textlight,
-                  ),
-                ),
-              ),
-            ],
+    final c = AppColors.palette;
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (prompt != null) Text(prompt!, style: TextStyle(fontSize: 14, color: c.textmedium)),
+        TextButton(
+          onPressed: onTap,
+          // A real tap area; with zero padding and no minimum size the link
+          // was only as big as its letters.
+          style: TextButton.styleFrom(
+            foregroundColor: c.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            minimumSize: const Size(48, 44),
+          ),
+          child: Text(
+            action,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
         ),
-      ),
+      ],
     );
   }
 }
 
-/// The backdrop the Sign In and Welcome screens sit on.
-///
-/// Paints the photo an admin published from the console website (Settings >
-/// Change Background), or [AppColors.surface] — the default background color
-/// — when there is none. It listens to [AuthBackgroundController], so a
-/// published or cleared photo swaps both screens over on its own.
-class AuthBackground extends StatelessWidget {
-  final Widget child;
+/// The other button on the sheet: ink on an outline, the same size and shape
+/// as [AuthPrimaryButton], for the path that is offered but not urged —
+/// "Continue with Google" above the form.
+class AuthSecondaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
 
-  const AuthBackground({super.key, required this.child});
+  /// A mark to the left of the label.
+  final Widget? leading;
+
+  const AuthSecondaryButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.leading,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: AuthBackgroundController.instance,
-      child: child,
-      builder: (context, child) {
-        final photo = AuthBackgroundController.instance.photoPath;
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            image: photo == null
-                ? null
-                : DecorationImage(image: FileImage(File(photo)), fit: BoxFit.cover),
+    final c = AppColors.palette;
+    return PressScale(
+      enabled: onPressed != null,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 54),
+          shape: RoundedRectangleBorder(borderRadius: AppRadii.borderLg),
+          side: BorderSide(color: AppHairline.outline(c.textmedium)),
+          foregroundColor: c.textdark,
+          textStyle: TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
           ),
-          child: child,
-        );
-      },
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (leading != null) ...[leading!, const SizedBox(width: 10)],
+            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ],
+        ),
+      ),
     );
   }
 }

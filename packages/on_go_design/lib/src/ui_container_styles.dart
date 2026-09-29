@@ -154,21 +154,21 @@ class AppOutlinedContainers {
   /// **CARD** — the bordered card that most content sits in: a profile
   /// header, a notification, an audit entry.
   static AppContainerSpec card = const AppContainerSpec(
-    radius: 16,
+    radius: 12,
     outlineWidth: 1,
     outlineStyle: AppOutlineStyle.solid,
   );
 
   /// **FIELD** — text inputs and anything shaped like one.
   static AppContainerSpec field = const AppContainerSpec(
-    radius: 12,
+    radius: 10,
     outlineWidth: 1,
     outlineStyle: AppOutlineStyle.solid,
   );
 
   /// **TILE** — a bordered row inside a card: a credential, a detail line.
   static AppContainerSpec tile = const AppContainerSpec(
-    radius: 12,
+    radius: 10,
     outlineWidth: 1,
     outlineStyle: AppOutlineStyle.solid,
   );
@@ -212,11 +212,11 @@ class AppOutlinedContainers {
 
   static void resetToDefaults() {
     card = const AppContainerSpec(
-        radius: 16, outlineWidth: 1, outlineStyle: AppOutlineStyle.solid);
+        radius: 12, outlineWidth: 1, outlineStyle: AppOutlineStyle.solid);
     field = const AppContainerSpec(
-        radius: 12, outlineWidth: 1, outlineStyle: AppOutlineStyle.solid);
+        radius: 10, outlineWidth: 1, outlineStyle: AppOutlineStyle.solid);
     tile = const AppContainerSpec(
-        radius: 12, outlineWidth: 1, outlineStyle: AppOutlineStyle.solid);
+        radius: 10, outlineWidth: 1, outlineStyle: AppOutlineStyle.solid);
     chip = const AppContainerSpec(
         radius: 999, outlineWidth: 1, outlineStyle: AppOutlineStyle.solid);
     button = const AppContainerSpec(
@@ -236,14 +236,14 @@ class AppFilledContainers {
   AppFilledContainers._();
 
   /// **SURFACE** — a filled panel inside a screen, with no border.
-  static AppContainerSpec surface = const AppContainerSpec(radius: 16);
+  static AppContainerSpec surface = const AppContainerSpec(radius: 12);
 
   /// **DIALOG** — an alert or a confirmation.
-  static AppContainerSpec dialog = const AppContainerSpec(radius: 24);
+  static AppContainerSpec dialog = const AppContainerSpec(radius: 16);
 
   /// **SHEET** — a bottom sheet. Only its top corners are rounded; see
   /// [sheetTopRadius].
-  static AppContainerSpec sheet = const AppContainerSpec(radius: 24);
+  static AppContainerSpec sheet = const AppContainerSpec(radius: 20);
 
   /// **BADGE** — a status pill: `active`, `Moderator`, a notification count.
   static AppContainerSpec badge = const AppContainerSpec(radius: 999);
@@ -252,7 +252,7 @@ class AppFilledContainers {
   static AppContainerSpec button = const AppContainerSpec(radius: 999);
 
   /// **SNACKBAR / TOOLTIP** — transient overlays.
-  static AppContainerSpec overlay = const AppContainerSpec(radius: 12);
+  static AppContainerSpec overlay = const AppContainerSpec(radius: 10);
 
   /// A sheet's corners: rounded on top, square where it meets the edge.
   static BorderRadius get sheetTopRadius =>
@@ -262,11 +262,11 @@ class AppFilledContainers {
       [surface, dialog, sheet, badge, button, overlay];
 
   static void resetToDefaults() {
-    surface = const AppContainerSpec(radius: 16);
-    dialog = const AppContainerSpec(radius: 24);
-    sheet = const AppContainerSpec(radius: 24);
+    surface = const AppContainerSpec(radius: 12);
+    dialog = const AppContainerSpec(radius: 16);
+    sheet = const AppContainerSpec(radius: 20);
     badge = const AppContainerSpec(radius: 999);
     button = const AppContainerSpec(radius: 999);
-    overlay = const AppContainerSpec(radius: 12);
+    overlay = const AppContainerSpec(radius: 10);
   }
 }
