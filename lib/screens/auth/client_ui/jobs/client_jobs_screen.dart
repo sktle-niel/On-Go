@@ -514,7 +514,7 @@ class _JobCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.palette;
     final problem = _problemOf(request);
-    final glyph = (MotorcycleProblem.forLabel(problem.issue) ?? MotorcycleProblem.somethingElse).icon;
+    final picture = (MotorcycleProblem.forLabel(problem.issue) ?? MotorcycleProblem.somethingElse).picture;
     // The photos stay on this device, filed against the id the backend gave
     // the job; the server has nowhere to put them yet. See JobPhotoStore.
     final photos = JobPhotoStore.instance.pathsFor(request.id).length;
@@ -530,7 +530,7 @@ class _JobCard extends StatelessWidget {
             right: 0,
             bottom: 0,
             width: _artWidth,
-            child: _CardArt(icon: glyph, color: accent, contact: contact),
+            child: _CardArt(picture: picture, color: accent, contact: contact),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, _artWidth + 8, 16),
@@ -617,14 +617,14 @@ class _JobCard extends StatelessWidget {
   }
 }
 
-/// The right-hand panel of a card: the problem's glyph lit by a glow in the
+/// The right-hand panel of a card: the problem's icon lit by a glow in the
 /// state's colour, and the call and chat buttons at its foot.
 class _CardArt extends StatelessWidget {
-  final IconData icon;
+  final String picture;
   final Color color;
   final List<Widget> contact;
 
-  const _CardArt({required this.icon, required this.color, required this.contact});
+  const _CardArt({required this.picture, required this.color, required this.contact});
 
   @override
   Widget build(BuildContext context) {
@@ -641,7 +641,7 @@ class _CardArt extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 18),
-            GlassGlyph(icon, size: 46),
+            Image.asset(picture, width: 52, height: 52, excludeFromSemantics: true),
             const Spacer(),
             if (contact.isNotEmpty)
               Padding(

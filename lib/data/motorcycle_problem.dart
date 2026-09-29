@@ -1,26 +1,31 @@
-import 'package:flutter/material.dart';
-
 /// Which chip on the home screen a service sits under.
 enum ServiceKind {
-  repair('Repairs', Icons.build_rounded),
-  maintenance('Maintenance', Icons.oil_barrel_rounded),
-  towing('Towing', Icons.local_shipping_rounded),
+  repair('Repairs', 'repairs'),
+  maintenance('Maintenance', 'oil_change'),
+  towing('Towing', 'towing'),
 
   /// Listed under "All" only.
-  other('Other', Icons.handyman_rounded);
+  other('Other', 'other');
 
-  const ServiceKind(this.label, this.icon);
+  const ServiceKind(this.label, this._picture);
 
   final String label;
-  final IconData icon;
+  final String _picture;
+
+  /// The icon on the chip, a bundled picture.
+  String get picture => servicePicture(_picture);
 }
+
+/// The bundled icon named [name]. The icons come from Flaticon and are listed,
+/// with their authors, in assets/images/README.md.
+String servicePicture(String name) => 'assets/images/services/$name.png';
 
 /// What a client can book a mechanic for, as picked on the home screen. On
 /// Go is motorcycle repair; this list is the whole menu.
 ///
-/// Each carries a glyph for the home screen's service cards and the job
-/// cards, a [kind] for the home screen's chips, and a [blurb] that says in a
-/// line what the mechanic does about it.
+/// Each carries an icon for the home screen's service cards, the booking and
+/// the job cards, a [kind] for the home screen's chips, and a [blurb] that
+/// says in a line what the mechanic does about it.
 ///
 /// The booking sends [label] as the request's problem line, and whatever the
 /// client adds as its description.
@@ -28,7 +33,7 @@ enum MotorcycleProblem {
   wontStart(
     "Won't start",
     "Won't start",
-    Icons.power_settings_new_rounded,
+    'wont_start',
     'E.g. it clicks when I press the starter, or nothing happens at all.',
     ServiceKind.repair,
     'Starter, spark and fuel checks on the spot',
@@ -36,7 +41,7 @@ enum MotorcycleProblem {
   flatTire(
     'Flat tire',
     'Flat tire',
-    Icons.tire_repair_rounded,
+    'flat_tire',
     'E.g. the rear tire went flat on the road; I may need a new interior.',
     ServiceKind.repair,
     'Patch or replace the tube where you stopped',
@@ -44,7 +49,7 @@ enum MotorcycleProblem {
   batteryDead(
     'Battery dead',
     'Battery',
-    Icons.battery_alert_rounded,
+    'battery',
     'E.g. the lights are dim and the horn is weak.',
     ServiceKind.repair,
     'A jump start or a new battery',
@@ -52,7 +57,7 @@ enum MotorcycleProblem {
   chain(
     'Chain problem',
     'Chain',
-    Icons.link_rounded,
+    'chain',
     'E.g. the chain slipped off, or it is loose and noisy.',
     ServiceKind.repair,
     'Tighten, refit or replace the chain',
@@ -60,7 +65,7 @@ enum MotorcycleProblem {
   brakes(
     'Brake problem',
     'Brakes',
-    Icons.album_rounded,
+    'brakes',
     'E.g. the front brake feels soft, or it squeals when I stop.',
     ServiceKind.repair,
     'Brake pads, cables and fluid',
@@ -68,7 +73,7 @@ enum MotorcycleProblem {
   engine(
     'Engine problem',
     'Engine',
-    Icons.settings_rounded,
+    'engine',
     'E.g. it stalls at idle, smokes, or loses power going uphill.',
     ServiceKind.repair,
     'Stalling, smoke or lost power',
@@ -76,7 +81,7 @@ enum MotorcycleProblem {
   electrical(
     'Electrical or lights',
     'Electrical',
-    Icons.bolt_rounded,
+    'electrical',
     'E.g. the headlight is out, or the signal lights stopped working.',
     ServiceKind.repair,
     'Lights, signals and wiring',
@@ -84,7 +89,7 @@ enum MotorcycleProblem {
   overheating(
     'Overheating',
     'Overheating',
-    Icons.thermostat_rounded,
+    'overheating',
     'E.g. the engine gets very hot in traffic, or there is a burning smell.',
     ServiceKind.repair,
     'Coolant, fan and temperature checks',
@@ -92,7 +97,7 @@ enum MotorcycleProblem {
   oilChange(
     'Oil change',
     'Oil change',
-    Icons.oil_barrel_rounded,
+    'oil_change',
     'E.g. it is due for a change; say the oil you use if you have a preference.',
     ServiceKind.maintenance,
     'Fresh engine oil and a new filter',
@@ -100,7 +105,7 @@ enum MotorcycleProblem {
   tuneUp(
     'Tune-up',
     'Tune-up',
-    Icons.tune_rounded,
+    'tune_up',
     'E.g. a general check: carb or injection, spark plug, cables, tightening.',
     ServiceKind.maintenance,
     'Spark plug, cables and a full check',
@@ -108,7 +113,7 @@ enum MotorcycleProblem {
   accident(
     'Accident or towing',
     'Towing',
-    Icons.local_shipping_rounded,
+    'towing',
     'E.g. I dropped the bike and it will not run; I need it moved.',
     ServiceKind.towing,
     'Your mechanic moves the bike to a shop',
@@ -116,13 +121,13 @@ enum MotorcycleProblem {
   somethingElse(
     'Something else',
     'Other',
-    Icons.handyman_rounded,
+    'other',
     'Tell the mechanic what is happening, in your own words.',
     ServiceKind.other,
     'Describe it in your own words',
   );
 
-  const MotorcycleProblem(this.label, this.shortLabel, this.icon, this.detailsHint, this.kind, this.blurb);
+  const MotorcycleProblem(this.label, this.shortLabel, this._picture, this.detailsHint, this.kind, this.blurb);
 
   /// As the mechanic reads it in the request and the client in the booking.
   final String label;
@@ -130,8 +135,10 @@ enum MotorcycleProblem {
   /// Under the tile, where there is room for a word or two.
   final String shortLabel;
 
-  /// The glyph on the tile and the card.
-  final IconData icon;
+  final String _picture;
+
+  /// The icon on the card, the booking and the job, a bundled picture.
+  String get picture => servicePicture(_picture);
 
   /// The example in the details field for this problem.
   final String detailsHint;

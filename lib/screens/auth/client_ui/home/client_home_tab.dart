@@ -341,7 +341,7 @@ class _KindChips extends StatelessWidget {
         children: [
           _KindChip(
             label: 'All',
-            icon: Icons.apps_rounded,
+            picture: servicePicture('all'),
             selected: selected == null,
             onTap: () => onSelected(null),
           ),
@@ -349,7 +349,7 @@ class _KindChips extends StatelessWidget {
             const SizedBox(width: 10),
             _KindChip(
               label: kind.label,
-              icon: kind.icon,
+              picture: kind.picture,
               selected: selected == kind,
               onTap: () => onSelected(kind),
             ),
@@ -362,11 +362,11 @@ class _KindChips extends StatelessWidget {
 
 class _KindChip extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final String picture;
   final bool selected;
   final VoidCallback onTap;
 
-  const _KindChip({required this.label, required this.icon, required this.selected, required this.onTap});
+  const _KindChip({required this.label, required this.picture, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -390,7 +390,7 @@ class _KindChip extends StatelessWidget {
             child: AnimatedContainer(
               duration: AppMotion.fast,
               curve: AppMotion.enter,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
               decoration: ShapeDecoration(
                 shape: shape,
                 color: selected ? c.primary : Glass.card,
@@ -401,7 +401,18 @@ class _KindChip extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 18, color: ink),
+                  // A white disc keeps the icon's colours clear of the red.
+                  AnimatedContainer(
+                    duration: AppMotion.fast,
+                    width: 30,
+                    height: 30,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: selected ? Colors.white : c.primary.withValues(alpha: AppColors.isDark ? 0.18 : 0.08),
+                    ),
+                    child: Image.asset(picture, excludeFromSemantics: true),
+                  ),
                   const SizedBox(width: 8),
                   Text(label, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: ink)),
                 ],
@@ -570,7 +581,7 @@ class _ArrowPill extends StatelessWidget {
   }
 }
 
-/// One service to book: its glyph on a tinted tile, what it is, what the
+/// One service to book: its icon on a tinted tile, what it is, what the
 /// mechanic does about it, and the button.
 class _ServiceCard extends StatelessWidget {
   final MotorcycleProblem problem;
@@ -597,7 +608,8 @@ class _ServiceCard extends StatelessWidget {
                 color: c.primary.withValues(alpha: AppColors.isDark ? 0.18 : 0.08),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(problem.icon, size: 30, color: c.primary),
+              padding: const EdgeInsets.all(12),
+              child: Image.asset(problem.picture, excludeFromSemantics: true),
             ),
             const SizedBox(width: 14),
             Expanded(

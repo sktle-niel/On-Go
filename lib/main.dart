@@ -12,6 +12,7 @@ import 'data/point_transaction_store.dart';
 import 'data/problem_report_store.dart';
 import 'data/rank_policy_store.dart';
 import 'data/review_store.dart';
+import 'data/service_icon_credits.dart';
 import 'data/urgency_policy_store.dart';
 import 'services/api/mobile_api.dart';
 import 'services/location/location_service.dart';
@@ -80,6 +81,8 @@ void main() async {
     directory: PsgcPlaceDirectory(),
     geocoder: PlatformReverseGeocoder(),
   );
+  // The credit Flaticon asks for, shown in Settings > Credits.
+  registerServiceIconCredits();
   runApp(MyApp(
     resumeRegistrationStep: RegistrationDraft.instance.pendingPickerStep,
     restoreSession: hasStoredSession,
