@@ -129,6 +129,7 @@ class _SignInScreenState extends State<SignInScreen> {
     return AuthPage(
       // The picture carries its own headline, top left, so the page adds none.
       photo: AuthPhoto.mobileMechanic,
+      heroShare: 0.4,
       footer: AuthFooterLink(
         prompt: "Don't have an account? ",
         action: 'Register',

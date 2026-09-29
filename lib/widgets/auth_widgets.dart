@@ -590,6 +590,10 @@ class AuthPage extends StatelessWidget {
   /// either.
   final AuthPhoto? photo;
 
+  /// How much of the screen's height the picture takes; the form has the
+  /// rest. Sign In gives the picture 0.4, Registration 0.25.
+  final double heroShare;
+
   const AuthPage({
     super.key,
     required this.children,
@@ -599,6 +603,7 @@ class AuthPage extends StatelessWidget {
     this.onBack,
     this.headline,
     this.photo,
+    this.heroShare = 0.5,
   });
 
   /// The sheet's corner radius — how much hero shows beside the corners.
@@ -613,11 +618,11 @@ class AuthPage extends StatelessWidget {
     final layout = context.layout;
     final media = MediaQuery.of(context);
     final top = media.padding.top;
-    // The picture and the form share the screen half and half. The hero gives
-    // way to the form: folded when the page asks for it, whenever the
-    // keyboard is up, or when the window is too short to spare half of itself.
+    // The picture takes [heroShare] of the height and the form the rest. The
+    // hero gives way to the form: folded when the page asks for it, whenever
+    // the keyboard is up, or when the window is too short to spare the room.
     final compact = compactHero || media.viewInsets.bottom > 0 || layout.isShort;
-    final heroHeight = compact ? top + AuthHero.compactHeight : layout.height * 0.5;
+    final heroHeight = compact ? top + AuthHero.compactHeight : layout.height * heroShare;
     final theme = AuthScheme.darkTheme;
     final c = theme.palette;
 
@@ -742,19 +747,27 @@ class _AuthScene extends StatelessWidget {
               ),
             ),
             // Dark at the top for the clock and the words, darker at the foot
-            // where the sheet meets it. A picture with words of its own keeps
-            // its top bright: only a faint shade for the clock.
+            // where the sheet meets it. A picture with words of its own stays
+            // bright where the words are: a faint shade for the clock, and the
+            // dark only in the last stretch, most of it under the sheet.
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    c.background.withValues(alpha: words == null ? 0.72 : 0.30),
-                    c.background.withValues(alpha: words == null ? 0.28 : 0.0),
-                    c.background.withValues(alpha: 0.88),
-                  ],
-                  stops: [0, words == null ? 0.45 : 0.12, 1],
+                  colors: words == null
+                      ? [
+                          c.background.withValues(alpha: 0.72),
+                          c.background.withValues(alpha: 0.28),
+                          c.background.withValues(alpha: 0.88),
+                        ]
+                      : [
+                          c.background.withValues(alpha: 0.30),
+                          c.background.withValues(alpha: 0.0),
+                          c.background.withValues(alpha: 0.0),
+                          c.background.withValues(alpha: 0.88),
+                        ],
+                  stops: words == null ? const [0, 0.45, 1] : const [0, 0.12, 0.72, 1],
                 ),
               ),
             ),

@@ -164,25 +164,25 @@ void main() {
       expect(rect.bottom, lessThanOrEqualTo(size.height - keyboard));
     });
 
-    testWidgets('without the keyboard the picture and the form share the screen half and half',
+    testWidgets('without the keyboard the picture takes the top 40% and the form the rest',
         (tester) async {
       const size = Size(390, 844);
       await _pump(tester, size, const SignInScreen());
 
-      // The form's sheet begins where the picture ends: halfway down.
-      expect(tester.getRect(_cardScrollable).top, closeTo(size.height / 2, 1));
-      expect(tester.getRect(find.text('Username')).top, greaterThan(size.height / 2));
+      // The form's sheet begins where the picture ends.
+      expect(tester.getRect(_cardScrollable).top, closeTo(size.height * 0.4, 1));
+      expect(tester.getRect(find.text('Username')).top, greaterThan(size.height * 0.4));
 
-      // The form scrolls within its half, and the footer ends it.
+      // The footer ends the form, scrolled to if it runs long.
       await tester.scrollUntilVisible(find.text('Register'), 40, scrollable: _cardScrollable);
       expect(find.text('Register').hitTestable(), findsOneWidget);
     });
 
-    testWidgets('Registration splits the screen at the same place as Sign In', (tester) async {
+    testWidgets('Registration gives the picture the top 25%, for its longer form', (tester) async {
       const size = Size(390, 844);
       await _pump(tester, size, const ClientRegistrationScreen());
 
-      expect(tester.getRect(_cardScrollable).top, closeTo(size.height / 2, 1));
+      expect(tester.getRect(_cardScrollable).top, closeTo(size.height * 0.25, 1));
     });
 
     testWidgets('Register still opens registration from under the keyboard', (tester) async {
