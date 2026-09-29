@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../data/app_session.dart';
-import '../../../data/client_account_store.dart';
-import '../../../data/points_wallet_store.dart';
 import '../../../data/quote_store.dart';
 import '../../../data/review_store.dart';
+import '../../../services/backend/mobile_backend.dart' show GeoPoint;
 import '../../../services/location/location_service.dart';
+import '../../../services/location/place_sources.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/evaluation_widgets.dart';
 import '../../../widgets/glass.dart';
@@ -16,10 +16,9 @@ import 'jobs/client_jobs_screen.dart';
 import 'menu/client_menu_drawer.dart';
 import 'notifications/client_notifications_screen.dart';
 import 'rank/rankings_screen.dart';
-import 'rewards/client_rewards_screen.dart';
 
-/// The client's app: a glass header, four tabs over a glowing page, and a
-/// glass tab bar floating above the bottom edge.
+/// The client's app: a header with the menu, the client's place and the bell,
+/// four tabs, and a tab bar floating above the bottom edge.
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({super.key});
 
@@ -54,11 +53,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     );
   }
 
-  void _openRewards() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ClientRewardsScreen()),
-      );
-
   @override
   Widget build(BuildContext context) {
     final tabs = <Widget>[
@@ -82,7 +76,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
         body: GlassBackdrop(
           child: Column(
             children: [
-              _GlassHeader(onOpenNotifications: _openNotifications, onOpenRewards: _openRewards),
+              _AppHeader(onOpenNotifications: _openNotifications),
               // Stays until every completed job is evaluated — on every tab,
               // across restarts, without ever blocking the app.
               const PendingEvaluationBanner(),
@@ -121,51 +115,30 @@ class _ClearOfTabBar extends StatelessWidget {
   }
 }
 
-/// The header over every tab: the wordmark, the points, the bell and the
-/// account, which opens the menu.
-class _GlassHeader extends StatelessWidget {
+//// The header over every tab, laid out the way a ride-hailing app has it: the
+/// menu on the left, the client's place in the middle, the bell on the right.
+class _AppHeader extends StatelessWidget {
   final VoidCallback onOpenNotifications;
-  final VoidCallback onOpenRewards;
 
-  const _GlassHeader({required this.onOpenNotifications, required this.onOpenRewards});
+  const _AppHeader({required this.onOpenNotifications});
 
   @override
   Widget build(BuildContext context) {
-    final c = AppColors.palette;
     final layout = context.layout;
     final top = MediaQuery.paddingOf(context).top;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(layout.gutter, top + 6, layout.gutter - 6, 6),
+      padding: EdgeInsets.fromLTRB(layout.gutter - 6, top + 6, layout.gutter - 6, 6),
       child: Row(
         children: [
-          // "On" in ink, "Go" in the brand colour. A logo, so on a narrow
-          // phone with large text it shrinks to fit rather than pushing the
-          // buttons off the edge.
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text.rich(
-                  TextSpan(
-                    text: 'On ',
-                    children: [TextSpan(text: 'Go', style: TextStyle(color: c.primary))],
-                  ),
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    fontStyle: FontStyle.italic,
-                    letterSpacing: -0.6,
-                    color: c.textdark,
-                  ),
-                ),
-              ),
+          Builder(
+            builder: (context) => GlassIconButton(
+              icon: Icons.menu_rounded,
+              tooltip: 'Menu',
+              onPressed: () => Scaffold.of(context).openDrawer(),
             ),
           ),
-          _PointsPill(onTap: onOpenRewards),
-          const SizedBox(width: 2),
+          const Expanded(child: Center(child: _LocationPill())),
           AnimatedBuilder(
             animation: QuoteNotificationStore.instance,
             builder: (context, _) => _Badged(
@@ -177,132 +150,111 @@ class _GlassHeader extends StatelessWidget {
               ),
             ),
           ),
-          Builder(
-            builder: (context) => _AccountButton(onTap: () => Scaffold.of(context).openDrawer()),
-          ),
         ],
       ),
     );
   }
 }
 
-/// The client's points as a white pill, the way a ride-hailing header shows
-/// the wallet. Opens the rewards.
-class _PointsPill extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _PointsPill({required this.onTap});
+/// Where the client is, as a pill: the town from the phone's last fix, named
+/// by the phone's own geocoder. Tapping it takes a fresh fix, asking for
+/// location access first if the client has not given it.
+class _LocationPill extends StatefulWidget {
+  const _LocationPill();
 
   @override
-  Widget build(BuildContext context) {
-    final c = AppColors.palette;
-    return AnimatedBuilder(
-      animation: Listenable.merge([PointsWalletStore.instance, ClientAccountStore.instance]),
-      builder: (context, _) {
-        final points = PointsWalletStore.instance.balanceFor(ClientAccountStore.instance.name);
-        return Semantics(
-          button: true,
-          label: 'Rewards, ${points.toStringAsFixed(0)} points',
-          excludeSemantics: true,
-          child: PressScale(
-            child: Material(
-              type: MaterialType.transparency,
-              child: InkWell(
-                onTap: onTap,
-                customBorder: const StadiumBorder(),
-                child: Ink(
-                  padding: const EdgeInsets.fromLTRB(6, 5, 12, 5),
-                  decoration: ShapeDecoration(shape: const StadiumBorder(), color: Glass.contrast),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(shape: BoxShape.circle, color: c.primary),
-                        child: Icon(Icons.star_rounded, size: 15, color: c.textlight),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        points.toStringAsFixed(0),
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Glass.onContrast),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
+  State<_LocationPill> createState() => _LocationPillState();
 }
 
-/// The client's initials on glass. Opens the menu.
-class _AccountButton extends StatelessWidget {
-  final VoidCallback onTap;
+class _LocationPillState extends State<_LocationPill> {
+  final _location = LocationService.instance;
 
-  const _AccountButton({required this.onTap});
+  /// The fix [_place] was named for, so a new fix is named once.
+  GeoPoint? _namedPoint;
+  String? _place;
+
+  @override
+  void initState() {
+    super.initState();
+    _location.addListener(_onLocation);
+    _onLocation();
+  }
+
+  @override
+  void dispose() {
+    _location.removeListener(_onLocation);
+    super.dispose();
+  }
+
+  void _onLocation() {
+    if (mounted) setState(() {});
+    final point = _location.bestKnown?.point;
+    final geocoder = PlaceSources.geocoder;
+    if (point == null || geocoder == null || point == _namedPoint) return;
+    _namedPoint = point;
+    geocoder.placeAt(point).then((place) {
+      if (!mounted || place == null || _namedPoint != point) return;
+      final town = [place.cityMunicipality, place.province].whereType<String>().where((s) => s.trim().isNotEmpty);
+      setState(() => _place = town.isEmpty ? place.name : town.join(', '));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = AppColors.palette;
-    return AnimatedBuilder(
-      animation: ClientAccountStore.instance,
-      builder: (context, _) {
-        final account = ClientAccountStore.instance;
-        final initials = [account.firstName, account.lastName]
-            .map((w) => w.trim())
-            .where((w) => w.isNotEmpty)
-            .map((w) => w[0].toUpperCase())
-            .join();
-        return Tooltip(
-          message: 'Menu',
-          child: Semantics(
-            button: true,
-            label: 'Menu',
-            excludeSemantics: true,
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: Center(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: InkWell(
-                    onTap: onTap,
-                    customBorder: const CircleBorder(),
-                    child: Ink(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color.lerp(c.primary, Colors.white, 0.2)!, c.primarydark],
-                        ),
-                        border: Border.all(color: Glass.edge, width: 1.5),
-                      ),
-                      child: Center(
-                        child: Text(
-                          initials.isEmpty ? '?' : initials,
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c.textlight),
-                        ),
+    final label = _place ??
+        (_location.isLocating
+            ? 'Locating…'
+            : (_location.bestKnown != null ? 'Current location' : 'Set your location'));
+
+    return Semantics(
+      button: true,
+      label: 'Your location: $label',
+      excludeSemantics: true,
+      child: PressScale(
+        // The shadow sits outside the Material, whose ink is clipped to a
+        // rectangle.
+        child: DecoratedBox(
+          decoration: ShapeDecoration(shape: const StadiumBorder(), shadows: Glass.lift),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: () => _location.locate(),
+              customBorder: const StadiumBorder(),
+              child: Ink(
+                height: 40,
+                padding: const EdgeInsets.fromLTRB(12, 0, 10, 0),
+                decoration: ShapeDecoration(
+                  shape: StadiumBorder(side: BorderSide(color: Glass.edge)),
+                  color: Glass.card,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.location_on_rounded, size: 18, color: c.primary),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: c.textdark),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: c.textmedium),
+                  ],
                 ),
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
-/// A count in the brand colour on the corner of a round button.
+// A count in the brand colour on the corner of a round button.
 class _Badged extends StatelessWidget {
   final int count;
   final Widget child;

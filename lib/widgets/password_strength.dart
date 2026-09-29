@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'auth_widgets.dart' show AuthScheme;
 
 enum PasswordStrength { empty, weak, fair, good, strong }
 
@@ -89,7 +90,7 @@ class PasswordMatchIndicator extends StatelessWidget {
     if (confirmPassword.isEmpty) return const SizedBox.shrink();
 
     final matches = password == confirmPassword;
-    final color = matches ? AppColors.success : AppColors.error;
+    final color = matches ? AuthScheme.of(context).success : AuthScheme.of(context).error;
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -127,7 +128,7 @@ class PasswordStrengthMeter extends StatelessWidget {
             child: LinearProgressIndicator(
               value: strength.fraction,
               minHeight: 5,
-              backgroundColor: AppColors.textdark.withValues(alpha: 0.2),
+              backgroundColor: AuthScheme.of(context).textdark.withValues(alpha: 0.2),
               valueColor: AlwaysStoppedAnimation(strength.color),
             ),
           ),

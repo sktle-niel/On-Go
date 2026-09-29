@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -384,7 +383,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final c = AppColors.palette;
+    final c = AuthScheme.darkTheme.palette;
 
     return PopScope(
       // The system back walks the steps too.
@@ -521,7 +520,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
                 const SizedBox(height: 22),
                 AuthSecondaryButton(
                   label: 'Continue with Google',
-                  leading: const _GoogleMark(size: 20),
+                  leading: const GoogleMark(size: 20),
                   onPressed: _googleBusy ? null : _continueWithGoogle,
                 ),
               ],
@@ -592,7 +591,7 @@ class _ClientRegistrationScreenState extends State<ClientRegistrationScreen> {
         );
 
       default:
-        final c = AppColors.palette;
+        final c = AuthScheme.darkTheme.palette;
         final ImageProvider? photo = _profilePhoto != null
             ? FileImage(_profilePhoto!)
             : _socialPhotoUrl != null
@@ -627,7 +626,7 @@ class _AvatarPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = AppColors.palette;
+    final c = AuthScheme.of(context);
     return Semantics(
       button: true,
       label: image == null ? 'Add a profile photo' : 'Change profile photo',
@@ -684,7 +683,7 @@ class _GoogleConnected extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = AppColors.palette;
+    final c = AuthScheme.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
       decoration: BoxDecoration(
@@ -694,7 +693,7 @@ class _GoogleConnected extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const _GoogleMark(size: 22),
+          const GoogleMark(size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -734,7 +733,7 @@ class _OrDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = AppColors.palette;
+    final c = AuthScheme.of(context);
     return Row(
       children: [
         const Expanded(child: Divider()),
@@ -757,7 +756,7 @@ class _Note extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = AppColors.palette;
+    final c = AuthScheme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(color: c.background, borderRadius: AppRadii.borderMd),
@@ -770,49 +769,4 @@ class _Note extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Google's "G", drawn rather than shipped as a picture: four arcs of a ring
-/// and the bar, in Google's own colours.
-class _GoogleMark extends StatelessWidget {
-  final double size;
-
-  const _GoogleMark({this.size = 20});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(size: Size.square(size), painter: const _GoogleMarkPainter());
-  }
-}
-
-class _GoogleMarkPainter extends CustomPainter {
-  const _GoogleMarkPainter();
-
-  static const Color _blue = Color(0xFF4285F4);
-  static const Color _green = Color(0xFF34A853);
-  static const Color _yellow = Color(0xFFFBBC05);
-  static const Color _red = Color(0xFFEA4335);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = size.width / 2;
-    final stroke = r * 0.46;
-    final ring = Rect.fromCircle(center: Offset(r, r), radius: r - stroke / 2);
-    double rad(double degrees) => degrees * math.pi / 180;
-    Paint arc(Color color) => Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke;
-
-    // Angles run clockwise from three o'clock; the ring opens at the top
-    // right, where the bar comes in.
-    canvas.drawArc(ring, rad(225), rad(90), false, arc(_red)); // top
-    canvas.drawArc(ring, rad(135), rad(90), false, arc(_yellow)); // left
-    canvas.drawArc(ring, rad(45), rad(90), false, arc(_green)); // bottom
-    canvas.drawArc(ring, rad(0), rad(45), false, arc(_blue)); // lower right
-    canvas.drawRect(Rect.fromLTWH(r, r - stroke / 2, r, stroke), Paint()..color = _blue);
-  }
-
-  @override
-  bool shouldRepaint(_GoogleMarkPainter oldDelegate) => false;
 }

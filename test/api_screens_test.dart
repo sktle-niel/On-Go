@@ -269,7 +269,7 @@ void main() {
     expect(find.text('STEP 3 OF 3'), findsOneWidget, reason: 'the details step was complete');
 
     // Step 3: the photo is optional. Create the account.
-    final submit = find.byWidgetPredicate((widget) => widget is ElevatedButton).last;
+    final submit = find.text('Create account');
     await tester.ensureVisible(submit);
     await tester.tap(submit);
     await tester.pump();

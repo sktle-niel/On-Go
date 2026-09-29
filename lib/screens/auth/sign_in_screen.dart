@@ -115,28 +115,30 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
+  void _register({bool withGoogle = false}) => Navigator.push(
+        context,
+        // Straight to the form: a client's account is the only one opened
+        // from the app. Google only fills the form in; the account is On Go's.
+        MaterialPageRoute(builder: (_) => ClientRegistrationScreen(startWithGoogle: withGoogle)),
+      );
+
   @override
   Widget build(BuildContext context) {
     final usesApi = MobileBackend.instance.usesApi;
-    final c = AppColors.palette;
 
     return AuthPage(
+      headline: const AuthHeadline(lead: "Let's get you", accent: 'moving again'),
       footer: AuthFooterLink(
         prompt: "Don't have an account? ",
-        action: 'Sign Up',
-        // Straight to the form: a client's account is the only one opened
-        // from the app.
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ClientRegistrationScreen()),
-        ),
+        action: 'Register',
+        onTap: _register,
       ),
       children: [
         const AuthIntro(
-          title: 'Welcome back',
-          subtitle: 'Sign in to find help or take on jobs.',
+          title: 'Welcome back!',
+          subtitle: 'Sign in to book a mechanic or take on a job.',
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         AutofillGroup(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -145,7 +147,9 @@ class _SignInScreenState extends State<SignInScreen> {
                 // The API signs in by email; the local build also takes
                 // the demo usernames.
                 label: usesApi ? 'Email' : 'Username',
-                hint: usesApi ? 'Enter your email' : 'Enter your username',
+                icon: usesApi ? Icons.mail_outline_rounded : Icons.person_outline_rounded,
+                labelAbove: false,
+                autocorrect: false,
                 controller: _usernameCtrl,
                 keyboardType: usesApi ? TextInputType.emailAddress : TextInputType.text,
                 textInputAction: TextInputAction.next,
@@ -154,7 +158,8 @@ class _SignInScreenState extends State<SignInScreen> {
               const SizedBox(height: 14),
               AuthTextField(
                 label: 'Password',
-                hint: 'Enter your password',
+                icon: Icons.lock_outline_rounded,
+                labelAbove: false,
                 obscure: _obscurePassword,
                 controller: _passwordCtrl,
                 // The keyboard's key signs in, so a user does not have
@@ -180,21 +185,10 @@ class _SignInScreenState extends State<SignInScreen> {
         const SizedBox(height: 4),
         Align(
           alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: () => Navigator.push(
+          child: _ForgotLink(
+            onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
-            ),
-            // A real tap area; with zero padding and no minimum size the
-            // link was only as big as its letters.
-            style: TextButton.styleFrom(
-              foregroundColor: c.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-              minimumSize: const Size(48, 44),
-            ),
-            child: const Text(
-              'Forgot Password?',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -204,7 +198,40 @@ class _SignInScreenState extends State<SignInScreen> {
           busy: _signingIn,
           onPressed: _handleSignIn,
         ),
+        const SizedBox(height: 18),
+        const AuthDivider(label: 'or'),
+        const SizedBox(height: 18),
+        AuthSecondaryButton(
+          label: 'Sign up with Google',
+          leading: const GoogleMark(size: 20),
+          onPressed: () => _register(withGoogle: true),
+        ),
       ],
+    );
+  }
+}
+
+/// "Forgot password?" in the brand colour, at the right under the fields.
+class _ForgotLink extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _ForgotLink({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onTap,
+      // A real tap area; with zero padding and no minimum size the link was
+      // only as big as its letters.
+      style: TextButton.styleFrom(
+        foregroundColor: AuthScheme.of(context).primary,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        minimumSize: const Size(48, 44),
+      ),
+      child: const Text(
+        'Forgot password?',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }
