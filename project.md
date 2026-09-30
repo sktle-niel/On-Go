@@ -19,8 +19,8 @@ because the next person plans against it.
 Two Flutter front ends, a shared contract and a deployed API. Accounts, the
 points rules, revenue, the verification queue, the moderator directory and the
 Sign In background cross between the two applications through the API. The jobs
-domain only partly does: the server owns it, and the app reaches it for booking,
-quotes and the job lists, while the rest of the job still runs on each phone.
+domain does up to payment: the server owns it, and the app books, quotes,
+matches and works a job through it, while paying still settles on each phone.
 
 | Part | State |
 | --- | --- |
@@ -164,7 +164,7 @@ they look empty on staging only because little traffic has gone through it.
 
 ## What is missing
 
-### The jobs domain is served, and the app is halfway onto it
+### The jobs domain is served, and the app is on it up to payment
 
 This replaced "the backend has no routes", which was the entry here for a long
 time. The API now serves booking, quotes, accept, the status machine, payment
@@ -177,16 +177,18 @@ and `LocalServiceRequestService` over `quote_store.dart` in an
 
 | Goes through the seam | Still reads `quote_store.dart` directly |
 | --- | --- |
-| Booking (`book_help_screen.dart`) | The client's job details (`active_request_screen.dart`) |
-| The client's quotes: accept, reject (`quotes_screen.dart`) | The mechanic's active job: progress steps, agreed amount (`mechanic_active_job_screen.dart`) |
-| The client's Jobs tab: the list, cancel, reopen (`client_jobs_screen.dart`) | QR payment, earnings, and both notification screens |
+| Booking (`book_help_screen.dart`) | Paying: "Send Payment" on the client's job details settles on the device |
+| The client's quotes: accept, reject (`quotes_screen.dart`) | Earnings, the points wallet, and both notification screens |
+| The client's Jobs tab: the list, cancel, reopen (`client_jobs_screen.dart`) | |
 | The mechanic's job list: quote, withdraw, accept an Emergency, cancel (`jobs_screen.dart`) | |
+| The client's job details: the mechanic, the arrival countdown, each step, the receipt (`active_request_screen.dart`) | |
+| The mechanic's active job: each progress step, the Emergency's agreed amount, the payment code (`mechanic_active_job_screen.dart`) | |
 
-So in a normal build, a job can be booked, quoted, accepted and cancelled
-against the server, and it shows on the client's Jobs tab. It stops at the
-screens in the right-hand column: opening a server job there finds nothing,
-because they look the id up in the device's store. Until they move, two phones
-can see the same job but not work it to the end.
+So in a normal build, a job can be booked, quoted, accepted and worked through
+to service-complete against the server, and both phones follow the same record.
+It stops at payment. "Send Payment" still books through the device's store,
+which does not hold a server job, so for one it says paying is not connected
+yet instead of letting the client scan a code that could not be settled.
 
 The order is forced by the server, not chosen. `POST /service-requests/:id/pay`
 looks the job up by id and answers 404 for one it does not hold, so a job has to
@@ -195,10 +197,10 @@ it can be paid there. Payment is the end of the sequence, not the start of it:
 
     book → quote → accept → progress → pay
 
-Booking, quoting and accepting are on the server now, so what is left runs in
-this order: the job details and the mechanic's active job (progress), then
-payment through `/pay`. Once payment is there, `POST /payments` can close. It
-is the compatibility window the server keeps open for jobs it does not hold.
+Everything before payment is on the server now, so what is left is payment
+through `/pay`, with the points wallet it spends from. Once payment is there,
+`POST /payments` can close. It is the compatibility window the server keeps
+open for jobs it does not hold.
 
 ### Test coverage
 

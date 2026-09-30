@@ -99,6 +99,22 @@ class _ClientSettingsScreenState extends State<ClientSettingsScreen> {
               onTap: _changePassword,
             ),
           ],
+          const SizedBox(height: 8),
+          const Divider(),
+          const SizedBox(height: 16),
+          const SectionLabel('ABOUT'),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.info_outline, color: AppColors.textdark),
+            title: Text('Credits', style: TextStyle(fontSize: 15, color: AppColors.textdark)),
+            subtitle: Text(
+              'The icons from Flaticon, and the licences of the code On Go uses',
+              style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55)),
+            ),
+            trailing: Icon(Icons.chevron_right, color: AppColors.textdark.withValues(alpha: 0.55)),
+            onTap: () => showLicensePage(context: context, applicationName: 'On Go'),
+          ),
         ],
       ),
     );

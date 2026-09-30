@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:on_go/data/quote_store.dart';
@@ -7,127 +5,29 @@ import 'package:on_go/screens/auth/client_ui/jobs/client_jobs_screen.dart';
 import 'package:on_go/services/backend/mobile_backend.dart';
 
 import 'responsive_layout_test.dart' show app;
+import 'service_request_test_support.dart';
 
 /// The client's Jobs tab, driven through `MobileBackend.serviceRequests` by a
-/// scripted backend that answers the way the server does: its ids, its
-/// separate problem and description, its `expectedArrivalAt`. What these pin
-/// is that the tab shows the backend's jobs and sends the client's changes to
-/// it, rather than reading the phone's own job store.
-class _ScriptedJobs implements ServiceRequestApi {
-  List<ServiceRequest> mine = [];
-  Map<String, List<JobQuote>> quotes = {};
-
-  /// When set, reading the list fails with this.
-  ApiException? listFails;
-
-  /// What a cancel answers; by default the request, cancelled, and gone.
-  Future<ServiceRequest> Function(String requestId)? cancelWith;
-
-  final cancelled = <String>[];
-  final reopened = <String>[];
-  var reads = 0;
-  final requestEvents = StreamController<ServiceRequest>.broadcast();
-  final quoteEvents = StreamController<JobQuote>.broadcast();
-
-  @override
-  Future<List<ServiceRequest>> listMyRequests({JobUrgency? urgency}) async {
-    reads++;
-    final failure = listFails;
-    if (failure != null) throw failure;
-    return List.of(mine);
-  }
-
-  @override
-  Future<List<JobQuote>> listQuotes(String requestId) async => quotes[requestId] ?? const [];
-
-  @override
-  Future<ServiceRequest> cancelRequest(String requestId, {String? reason}) {
-    cancelled.add(requestId);
-    final answer = cancelWith;
-    if (answer != null) return answer(requestId);
-    final request = mine.singleWhere((r) => r.id == requestId);
-    mine = [for (final r in mine) if (r.id != requestId) r];
-    return Future.value(request);
-  }
-
-  @override
-  Future<ServiceRequest> reopenRequest(String requestId) async {
-    reopened.add(requestId);
-    return mine.singleWhere((r) => r.id == requestId);
-  }
-
-  @override
-  Stream<ServiceRequest> watchRequests() => requestEvents.stream;
-
-  @override
-  Stream<JobQuote> watchQuotes() => quoteEvents.stream;
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('${invocation.memberName}');
-}
+/// scripted backend that answers the way the server does. What these pin is
+/// that the tab shows the backend's jobs and sends the client's changes to it,
+/// rather than reading the phone's own job store.
 
 const _phone = Size(390, 844);
 
-ServiceRequest _request({
-  required String id,
-  String problem = 'Flat tire',
-  String description = '',
-  JobUrgency urgency = JobUrgency.urgent,
-  ServiceRequestStatus status = ServiceRequestStatus.pending,
-  double surcharge = 50,
-  DateTime? matchedAt,
-  DateTime? expectedArrivalAt,
-  String? mechanicName,
-  bool navigating = false,
-}) =>
-    ServiceRequest(
-      id: id,
-      clientId: 'da530bdb-0000-4000-8000-000000000001',
-      clientName: 'Carla Sample',
-      problem: problem,
-      description: description,
-      location: 'EDSA Guadalupe',
-      urgency: urgency,
-      status: status,
-      surcharge: surcharge,
-      createdAt: DateTime.now().toUtc().subtract(const Duration(minutes: 10)),
-      matchedAt: matchedAt,
-      expectedArrivalAt: expectedArrivalAt,
-      mechanicId: mechanicName == null ? null : '4004a552-0000-4000-8000-000000000002',
-      mechanicName: mechanicName,
-      navigating: navigating,
-    );
-
-JobQuote _quote(String id, String requestId,
-        {bool accepted = false, DateTime? withdrawnAt, double price = 500, int etaMinutes = 30}) =>
-    JobQuote(
-      id: id,
-      requestId: requestId,
-      mechanicId: 'mechanic-$id',
-      mechanicName: 'Mike Sample',
-      price: price,
-      etaMinutes: etaMinutes,
-      rating: 4.5,
-      accepted: accepted,
-      withdrawnAt: withdrawnAt,
-      createdAt: DateTime.now().toUtc(),
-    );
-
 void main() {
-  late _ScriptedJobs jobs;
+  late ScriptedServiceRequests jobs;
 
   setUp(() {
     // The phone's own job store stays empty: anything on screen came from the
     // scripted backend.
     QuoteNotificationStore.instance.clear();
-    jobs = _ScriptedJobs();
+    jobs = ScriptedServiceRequests();
     MobileBackend.configure(usesApi: true, serviceRequests: jobs);
   });
 
   tearDown(() async {
     MobileBackend.debugReset();
-    await jobs.requestEvents.close();
-    await jobs.quoteEvents.close();
+    await jobs.close();
   });
 
   Future<void> pump(WidgetTester tester) async {
@@ -141,17 +41,17 @@ void main() {
 
   testWidgets("a server job waits for quotes on the first tab, with the backend's figures", (tester) async {
     jobs.mine = [
-      _request(id: '04f60f8f-pending', description: 'Rear left'),
+      scriptedRequest(id: '04f60f8f-pending', description: 'Rear left'),
       // Closed jobs are history, not this tab's.
-      _request(id: 'paid', problem: 'Battery', status: ServiceRequestStatus.completed),
-      _request(id: 'called-off', problem: 'Chain', status: ServiceRequestStatus.cancelled),
+      scriptedRequest(id: 'paid', problem: 'Battery', status: ServiceRequestStatus.completed),
+      scriptedRequest(id: 'called-off', problem: 'Chain', status: ServiceRequestStatus.cancelled),
     ];
     jobs.quotes = {
       '04f60f8f-pending': [
-        _quote('q1', '04f60f8f-pending'),
-        _quote('q2', '04f60f8f-pending'),
+        scriptedQuote('q1', '04f60f8f-pending'),
+        scriptedQuote('q2', '04f60f8f-pending'),
         // Taken off the table: not counted.
-        _quote('q3', '04f60f8f-pending', withdrawnAt: DateTime.now().toUtc()),
+        scriptedQuote('q3', '04f60f8f-pending', withdrawnAt: DateTime.now().toUtc()),
       ],
     };
 
@@ -168,9 +68,9 @@ void main() {
 
   testWidgets("a server job's new quotes are counted by their ids, and ones already shown are not",
       (tester) async {
-    jobs.mine = [_request(id: 'pending')];
+    jobs.mine = [scriptedRequest(id: 'pending')];
     jobs.quotes = {
-      'pending': [_quote('seen', 'pending'), _quote('fresh', 'pending')],
+      'pending': [scriptedQuote('seen', 'pending'), scriptedQuote('fresh', 'pending')],
     };
     // The quotes screen marks what it put on screen, by the backend's ids.
     QuoteNotificationStore.instance.markQuotesSeen(['seen']);
@@ -184,7 +84,7 @@ void main() {
       (tester) async {
     final now = DateTime.now().toUtc();
     jobs.mine = [
-      _request(
+      scriptedRequest(
         id: 'matched',
         urgency: JobUrgency.normal,
         status: ServiceRequestStatus.matched,
@@ -195,7 +95,7 @@ void main() {
       ),
     ];
     jobs.quotes = {
-      'matched': [_quote('accepted', 'matched', accepted: true)],
+      'matched': [scriptedQuote('accepted', 'matched', accepted: true)],
     };
 
     await pump(tester);
@@ -216,7 +116,7 @@ void main() {
   });
 
   testWidgets('cancelling a booking goes to the backend, and the list is read again', (tester) async {
-    jobs.mine = [_request(id: 'pending')];
+    jobs.mine = [scriptedRequest(id: 'pending')];
 
     await pump(tester);
     await tester.tap(find.text('Cancel'));
@@ -231,7 +131,7 @@ void main() {
   });
 
   testWidgets("a refused cancel is told in the backend's own words", (tester) async {
-    jobs.mine = [_request(id: 'pending')];
+    jobs.mine = [scriptedRequest(id: 'pending')];
     jobs.cancelWith = (_) => Future.error(const ApiException(
           ApiErrorKind.rejected,
           'A mechanic already took this job.',
@@ -253,7 +153,7 @@ void main() {
     await pump(tester);
     expect(find.text('Nothing booked yet'), findsOneWidget);
 
-    final booked = _request(id: 'new-booking', problem: 'Battery');
+    final booked = scriptedRequest(id: 'new-booking', problem: 'Battery');
     jobs.mine = [booked];
     jobs.requestEvents.add(booked);
     await tester.pump();
@@ -270,7 +170,7 @@ void main() {
     expect(find.text("Couldn't reach On Go."), findsOneWidget);
 
     jobs.listFails = null;
-    jobs.mine = [_request(id: 'pending')];
+    jobs.mine = [scriptedRequest(id: 'pending')];
     await tester.tap(find.text('Try again'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));

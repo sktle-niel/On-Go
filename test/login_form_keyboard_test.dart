@@ -10,8 +10,8 @@ import 'package:on_go/widgets/auth_widgets.dart';
 ///
 /// With the keyboard open the Scaffold gave the sign-in card less height than
 /// it needed, and a card that could not scroll overflowed — the warning stripe
-/// painted over "Don't have account? Sign Up". The card now scrolls when, and
-/// only when, it has to.
+/// painted over the "Don't have an account?" line. The card now scrolls when,
+/// and only when, it has to.
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Harness
@@ -118,17 +118,17 @@ void main() {
         expect(_overflows(errors), isEmpty);
 
         // The link the overflow stripe was painted over in the report.
-        await tester.scrollUntilVisible(find.text('Sign Up'), 40, scrollable: _cardScrollable);
-        expect(find.text('Sign Up').hitTestable(), findsOneWidget);
+        await tester.scrollUntilVisible(find.text('Register'), 40, scrollable: _cardScrollable);
+        expect(find.text('Register').hitTestable(), findsOneWidget);
 
         await tester.scrollUntilVisible(find.text('Sign In'), -40, scrollable: _cardScrollable);
         expect(find.text('Sign In').hitTestable(), findsOneWidget);
 
-        // The field, found through its placeholder: the name sits above the
-        // field, the placeholder inside it. The placeholder is painted under
-        // the text input, so a tap there lands on the field.
+        // The field, found through its placeholder: the sign-in fields carry
+        // an icon and a placeholder, no name above. The placeholder is painted
+        // under the text input, so a tap there lands on the field.
         final username =
-            find.ancestor(of: find.text('Enter your username'), matching: find.byType(TextField));
+            find.ancestor(of: find.text('Username'), matching: find.byType(TextField));
         await tester.scrollUntilVisible(username, -40, scrollable: _cardScrollable);
         expect(username.hitTestable(), findsOneWidget);
       });
@@ -140,18 +140,18 @@ void main() {
         () => _pump(tester, size, const SignInScreen(), keyboard: size.height * 0.55, textScale: 2.0),
       );
       expect(_overflows(errors), isEmpty);
-      await tester.scrollUntilVisible(find.text('Sign Up'), 40, scrollable: _cardScrollable);
-      expect(find.text('Sign Up').hitTestable(), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Register'), 40, scrollable: _cardScrollable);
+      expect(find.text('Register').hitTestable(), findsOneWidget);
     });
 
     testWidgets('a field scrolled out of sight comes back when it takes focus', (tester) async {
       // A phone on its side with the keyboard up leaves the least room of any
-      // supported screen; scrolled down to Sign Up, Username is off the top.
+      // supported screen; scrolled down to Register, Username is off the top.
       const size = Size(844, 390);
       const keyboard = 214.0;
       await _pump(tester, size, const SignInScreen(), keyboard: keyboard);
 
-      await tester.scrollUntilVisible(find.text('Sign Up'), 40, scrollable: _cardScrollable);
+      await tester.scrollUntilVisible(find.text('Register'), 40, scrollable: _cardScrollable);
       final username = find.byType(EditableText).first;
       expect(tester.getRect(username).bottom, lessThan(0),
           reason: 'the precondition: Username has scrolled out of sight');
@@ -164,37 +164,48 @@ void main() {
       expect(rect.bottom, lessThanOrEqualTo(size.height - keyboard));
     });
 
-    testWidgets('without the keyboard the card still sits on the bottom edge', (tester) async {
+    testWidgets('without the keyboard the picture takes the top 40% and the form the rest',
+        (tester) async {
       const size = Size(390, 844);
       await _pump(tester, size, const SignInScreen());
 
-      // Anchored to the bottom, as before — not pulled up to the top by the
-      // scroll view it now sits in.
-      expect(tester.getRect(find.text('Sign Up')).bottom, greaterThan(size.height - 120));
-      expect(tester.getRect(find.text('Username')).top, greaterThan(size.height / 3));
+      // The form's sheet begins where the picture ends.
+      expect(tester.getRect(_cardScrollable).top, closeTo(size.height * 0.4, 1));
+      expect(tester.getRect(find.text('Username')).top, greaterThan(size.height * 0.4));
 
-      // And nothing to scroll: it fits.
-      final position = tester.state<ScrollableState>(_cardScrollable).position;
-      expect(position.maxScrollExtent, 0);
+      // The footer ends the form, scrolled to if it runs long.
+      await tester.scrollUntilVisible(find.text('Register'), 40, scrollable: _cardScrollable);
+      expect(find.text('Register').hitTestable(), findsOneWidget);
     });
 
-    testWidgets('Sign Up still opens registration from under the keyboard', (tester) async {
+    testWidgets('Registration has no picture: the form fills the screen under the slim band',
+        (tester) async {
+      const size = Size(390, 844);
+      await _pump(tester, size, const ClientRegistrationScreen());
+
+      // The band is the wordmark and the back button; the form starts under it.
+      expect(tester.getRect(_cardScrollable).top, closeTo(AuthHero.compactHeight, 1));
+      expect(find.byType(Image), findsNothing);
+      expect(find.text('On Go'), findsOneWidget);
+    });
+
+    testWidgets('Register still opens registration from under the keyboard', (tester) async {
       const size = Size(360, 640);
       await _pump(tester, size, const SignInScreen(), keyboard: size.height * 0.55);
 
-      await tester.scrollUntilVisible(find.text('Sign Up'), 40, scrollable: _cardScrollable);
-      await tester.tap(find.text('Sign Up'));
+      await tester.scrollUntilVisible(find.text('Register'), 40, scrollable: _cardScrollable);
+      await tester.tap(find.text('Register'));
       await tester.pumpAndSettle();
       expect(find.byType(ClientRegistrationScreen), findsOneWidget);
     });
 
-    testWidgets('Forgot Password? still opens the reset flow from under the keyboard',
+    testWidgets('Forgot password? still opens the reset flow from under the keyboard',
         (tester) async {
       const size = Size(360, 640);
       await _pump(tester, size, const SignInScreen(), keyboard: size.height * 0.55);
 
-      await tester.scrollUntilVisible(find.text('Forgot Password?'), 40, scrollable: _cardScrollable);
-      await tester.tap(find.text('Forgot Password?'));
+      await tester.scrollUntilVisible(find.text('Forgot password?'), 40, scrollable: _cardScrollable);
+      await tester.tap(find.text('Forgot password?'));
       await tester.pumpAndSettle();
       expect(find.byType(ForgotPasswordScreen), findsOneWidget);
     });

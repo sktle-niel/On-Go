@@ -7,9 +7,18 @@ import '../../../../data/chat_store.dart';
 import '../../../../data/job_photo_store.dart';
 import '../../../../data/mechanic_contact_store.dart';
 import '../../../../data/motorcycle_problem.dart';
-import '../../../../data/quote_store.dart' show QuoteNotificationStore, formatEtaDuration, formatTimeRemaining;
+import '../../../../data/quote_store.dart'
+    show
+        QuoteNotificationStore,
+        acceptedQuoteOf,
+        clientCancelLockedOf,
+        formatEtaDuration,
+        formatTimeRemaining,
+        settledPaymentAmountOf,
+        timeUntilArrivalOf;
 import '../../../../services/backend/mobile_backend.dart';
 import '../../../../theme/app_theme.dart';
+import '../../../../utils/coalesced_load.dart';
 import '../../../../widgets/common_widgets.dart';
 import '../../../../widgets/glass.dart';
 import '../../../shared/job_chat_screen.dart';
@@ -44,14 +53,12 @@ class ClientJobsScreen extends StatefulWidget {
   State<ClientJobsScreen> createState() => _ClientJobsScreenState();
 }
 
-class _ClientJobsScreenState extends State<ClientJobsScreen> {
+class _ClientJobsScreenState extends State<ClientJobsScreen> with CoalescedLoad<ClientJobsScreen> {
   ServiceRequestApi get _api => MobileBackend.instance.serviceRequests;
 
   List<_Job> _jobs = const [];
   bool _loading = true;
   String? _error;
-  bool _reading = false;
-  bool _readAgain = false;
 
   int _tabIndex = 0;
   Timer? _ticker;
@@ -60,13 +67,13 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    reload();
     // A quote arriving, a job matched, cancelled, expired or back in the
     // pool: read the list again rather than patch it, so the cards always
     // show what the backend holds.
     _watches
-      ..add(_api.watchRequests().listen((_) => _load()))
-      ..add(_api.watchQuotes().listen((_) => _load()));
+      ..add(_api.watchRequests().listen((_) => reload()))
+      ..add(_api.watchQuotes().listen((_) => reload()));
     // Keeps the "cancelling unlocks in …" countdown moving, and flips the
     // card to cancellable the moment the ETA runs out.
     _ticker = Timer.periodic(const Duration(seconds: 1), _onTick);
@@ -75,7 +82,7 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
   @override
   void didUpdateWidget(ClientJobsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.visible && !oldWidget.visible) _load();
+    if (widget.visible && !oldWidget.visible) reload();
   }
 
   @override
@@ -96,26 +103,9 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
     if (_jobs.any((job) => job.arrivalCountdown(now) != null)) setState(() {});
   }
 
-  /// Reads the client's open jobs and their quotes. A call that arrives while
-  /// a read is running folds into one more read after it, so a burst of events
-  /// costs two reads rather than one per event.
-  Future<void> _load() async {
-    if (_reading) {
-      _readAgain = true;
-      return;
-    }
-    _reading = true;
-    try {
-      do {
-        _readAgain = false;
-        await _read();
-      } while (_readAgain && mounted);
-    } finally {
-      _reading = false;
-    }
-  }
-
-  Future<void> _read() async {
+  /// Reads the client's open jobs and their quotes.
+  @override
+  Future<void> read() async {
     try {
       final open = (await _api.listMyRequests()).where(
         (request) => request.status == ServiceRequestStatus.pending || request.status == ServiceRequestStatus.matched,
@@ -145,7 +135,7 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
       context,
       MaterialPageRoute(builder: (_) => ActiveRequestScreen(requestId: job.request.id)),
     );
-    _load();
+    reload();
   }
 
   Future<void> _openQuotes(_Job job) async {
@@ -155,7 +145,7 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
     );
     // Accepting there matches the job; read it back rather than wait for the
     // event.
-    _load();
+    reload();
   }
 
   /// Sends one change to the backend and says how it went: [done] when it
@@ -173,7 +163,7 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
         SnackBar(content: Text(message), duration: AppDurations.snackBar),
       );
     }
-    await _load();
+    await reload();
   }
 
   Future<void> _deleteUploaded(_Job job) async {
@@ -303,7 +293,7 @@ class _ClientJobsScreenState extends State<ClientJobsScreen> {
         title: "Couldn't load your jobs",
         text: error,
         actionLabel: 'Try again',
-        onAction: _load,
+        onAction: reload,
       );
     } else {
       body = IndexedStack(
@@ -389,14 +379,7 @@ class _Job {
 
   const _Job(this.request, this.quotes);
 
-  /// The quote the job was matched on: the one the client accepted, or an
-  /// Emergency's accept record.
-  JobQuote? get accepted {
-    for (final quote in quotes) {
-      if (quote.accepted) return quote;
-    }
-    return null;
-  }
+  JobQuote? get accepted => acceptedQuoteOf(quotes);
 
   /// Offers still on the table: the ones the client can act on.
   Iterable<String> get liveQuoteIds => [
@@ -414,29 +397,11 @@ class _Job {
     return quote == null ? null : formatEtaDuration(Duration(minutes: quote.etaMinutes));
   }
 
-  /// Time left before the mechanic is due, never negative. Null when no
-  /// countdown applies: the job is not matched, the mechanic has arrived, or
-  /// no arrival was promised. Counts down to the backend's own
-  /// `expectedArrivalAt`, never to a clock of this screen's.
-  Duration? arrivalCountdown(DateTime now) {
-    final due = request.expectedArrivalAt;
-    if (due == null || request.arrived || request.status != ServiceRequestStatus.matched) return null;
-    final left = due.difference(now);
-    return left.isNegative ? Duration.zero : left;
-  }
+  Duration? arrivalCountdown(DateTime now) => timeUntilArrivalOf(request, now);
 
-  /// The mechanic is still inside the arrival time they promised, so the
-  /// backend refuses a cancel or a reopen until it passes.
-  bool cancelLocked(DateTime now) {
-    final left = arrivalCountdown(now);
-    return left != null && left > Duration.zero;
-  }
+  bool cancelLocked(DateTime now) => clientCancelLockedOf(request, now);
 
-  /// What the mechanic's work costs: what was paid, or else an Emergency's
-  /// agreed price or the accepted quote's. An Emergency's accept record
-  /// carries no real price, so it is never read for one.
-  double? get amount =>
-      request.amountPaid ?? (request.isEmergency ? request.agreedPaymentAmount : accepted?.price);
+  double? get amount => settledPaymentAmountOf(request, accepted);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -549,7 +514,7 @@ class _JobCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.palette;
     final problem = _problemOf(request);
-    final glyph = (MotorcycleProblem.forLabel(problem.issue) ?? MotorcycleProblem.somethingElse).icon;
+    final picture = (MotorcycleProblem.forLabel(problem.issue) ?? MotorcycleProblem.somethingElse).picture;
     // The photos stay on this device, filed against the id the backend gave
     // the job; the server has nowhere to put them yet. See JobPhotoStore.
     final photos = JobPhotoStore.instance.pathsFor(request.id).length;
@@ -565,7 +530,7 @@ class _JobCard extends StatelessWidget {
             right: 0,
             bottom: 0,
             width: _artWidth,
-            child: _CardArt(icon: glyph, color: accent, contact: contact),
+            child: _CardArt(picture: picture, color: accent, contact: contact),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, _artWidth + 8, 16),
@@ -652,14 +617,14 @@ class _JobCard extends StatelessWidget {
   }
 }
 
-/// The right-hand panel of a card: the problem's glyph lit by a glow in the
+/// The right-hand panel of a card: the problem's icon lit by a glow in the
 /// state's colour, and the call and chat buttons at its foot.
 class _CardArt extends StatelessWidget {
-  final IconData icon;
+  final String picture;
   final Color color;
   final List<Widget> contact;
 
-  const _CardArt({required this.icon, required this.color, required this.contact});
+  const _CardArt({required this.picture, required this.color, required this.contact});
 
   @override
   Widget build(BuildContext context) {
@@ -676,7 +641,7 @@ class _CardArt extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 18),
-            GlassGlyph(icon, size: 46),
+            Image.asset(picture, width: 52, height: 52, excludeFromSemantics: true),
             const Spacer(),
             if (contact.isNotEmpty)
               Padding(

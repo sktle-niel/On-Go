@@ -11,6 +11,7 @@ import 'package:on_go/screens/auth/session_restore_screen.dart';
 import 'package:on_go/screens/auth/sign_in_screen.dart';
 import 'package:on_go/services/api/mobile_api.dart';
 import 'package:on_go/services/backend/mobile_backend.dart';
+import 'package:on_go/widgets/auth_widgets.dart' show AuthStepDots;
 import 'package:on_go/widgets/change_password_dialog.dart';
 import 'package:on_go_api/on_go_api.dart';
 
@@ -255,7 +256,7 @@ void main() {
     // The keyboard's key on the last field moves the form along.
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
-    expect(find.text('STEP 2 OF 3'), findsOneWidget, reason: 'the account step was complete');
+    expect(find.byWidgetPredicate((w) => w is AuthStepDots && w.step == 1), findsOneWidget, reason: 'the account step was complete');
 
     // Step 2: who they are.
     fields = find.byType(TextField);
@@ -266,10 +267,10 @@ void main() {
     await tester.enterText(fields.at(4), 'Puerto Princesa City');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
-    expect(find.text('STEP 3 OF 3'), findsOneWidget, reason: 'the details step was complete');
+    expect(find.byWidgetPredicate((w) => w is AuthStepDots && w.step == 2), findsOneWidget, reason: 'the details step was complete');
 
     // Step 3: the photo is optional. Create the account.
-    final submit = find.byWidgetPredicate((widget) => widget is ElevatedButton).last;
+    final submit = find.text('Create account');
     await tester.ensureVisible(submit);
     await tester.tap(submit);
     await tester.pump();

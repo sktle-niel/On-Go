@@ -321,7 +321,14 @@ class _BookHelpScreenState extends State<BookHelpScreen> {
                 radius: 14,
                 padding: EdgeInsets.zero,
                 tint: c.primary,
-                child: SizedBox(width: 46, height: 46, child: Center(child: GlassGlyph(problem.icon, size: 24))),
+                child: SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Image.asset(problem.picture, excludeFromSemantics: true),
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

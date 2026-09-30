@@ -2,16 +2,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:on_go_shared/on_go_shared.dart';
-
-import '../../../../services/location/location_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
+import '../../../../data/quote_store.dart'
+    show QuoteNotificationStore, acceptedQuoteOf, buildPaymentQrData, formatEtaDuration, settledPaymentAmountOf;
+import '../../../../services/backend/mobile_backend.dart';
+import '../../../../services/location/location_service.dart';
 import '../../../../theme/app_theme.dart';
+import '../../../../utils/coalesced_load.dart';
 import '../../../../widgets/chat_icon_button.dart';
 import '../../../../widgets/common_widgets.dart';
-import '../../../../data/quote_store.dart';
 import '../../../shared/job_chat_screen.dart';
 
+/// The mechanic's job once they have it: heading out, the trip, the work, and
+/// the payment code at the end.
+///
+/// The job is read through [MobileBackend.serviceRequests], and every step is
+/// reported to it: the server in a normal build, the device's store in a local
+/// one. The backend gates the order (work needs arrival, completion needs
+/// work) and keeps the first time of a step reported twice; this screen shows
+/// the job as the backend answered, never as it assumed.
 class MechanicActiveJobScreen extends StatefulWidget {
   final String requestId;
   const MechanicActiveJobScreen({super.key, required this.requestId});
@@ -20,8 +30,20 @@ class MechanicActiveJobScreen extends StatefulWidget {
   State<MechanicActiveJobScreen> createState() => _MechanicActiveJobScreenState();
 }
 
-class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
-  final _store = QuoteNotificationStore.instance;
+class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen>
+    with CoalescedLoad<MechanicActiveJobScreen> {
+  ServiceRequestApi get _api => MobileBackend.instance.serviceRequests;
+
+  ServiceRequest? _request;
+  JobQuote? _accepted;
+  bool _loading = true;
+  String? _error;
+  StreamSubscription<ServiceRequest>? _watch;
+
+  /// Steps sent and not answered yet. A button cannot send its step twice,
+  /// and a burst of location fixes reports a step once.
+  final _sending = <JobProgressStep>{};
+  bool _savingAmount = false;
 
   // Arrival detection reads the shared LocationService rather than GPS
   // directly: one set of permission, services and error handling for the
@@ -39,48 +61,102 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
   @override
   void initState() {
     super.initState();
-    _store.addListener(_onChange);
     _location.addListener(_onLocation);
-    final request = _store.requestFor(widget.requestId);
-    if (request != null && request.navigating) {
-      _startTracking(request);
-    }
+    reload();
+    // The job as others change it: the client paying, a cancel, the expiry
+    // sweep taking it back to the pool.
+    _watch = _api.watchRequests().where((request) => request.id == widget.requestId).listen((_) => reload());
   }
 
   @override
   void dispose() {
-    _store.removeListener(_onChange);
+    _watch?.cancel();
     _location.removeListener(_onLocation);
     _stopTracking();
     super.dispose();
   }
 
-  void _onChange() => setState(() {});
+  @override
+  Future<void> read() async {
+    try {
+      final request = await _api.findRequest(widget.requestId);
+      final quotes = request == null ? const <JobQuote>[] : await _api.listQuotes(request.id);
+      if (!mounted) return;
+      setState(() {
+        _request = request;
+        _accepted = acceptedQuoteOf(quotes);
+        _loading = false;
+        _error = null;
+      });
+      // A trip already under way when the screen opens is picked back up.
+      if (request != null && request.navigating && !request.arrived) _startTracking(request);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.message;
+      });
+    }
+  }
 
-  void _openChat(HelpRequest request) => Navigator.push(
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), duration: AppDurations.snackBar));
+  }
+
+  /// Reports [step] and shows the job as the backend answered. A refusal is
+  /// told in the backend's own words, unless [quiet]: a step detected from
+  /// location is tried again on the next fix rather than announced.
+  Future<bool> _advance(JobProgressStep step, {bool quiet = false}) async {
+    if (!_sending.add(step)) return false;
+    setState(() {});
+    try {
+      final answer = await _api.advanceJob(widget.requestId, step);
+      if (mounted) setState(() => _request = answer);
+      return true;
+    } on ApiException catch (error) {
+      if (!quiet) _snack(error.message);
+      return false;
+    } finally {
+      _sending.remove(step);
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _openChat(ServiceRequest request) => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => JobChatScreen(requestId: request.id, otherPartyName: request.clientName)),
       );
 
   /// How far the mechanic is from the client, from the latest location fix.
   /// A dash when either end is unknown, never a stand-in figure.
-  String _distanceLabel(HelpRequest request) {
+  String _distanceLabel(ServiceRequest request) {
     final here = _location.current;
-    if (here == null || !request.hasClientCoordinates) return '—';
-    final meters = here.point.distanceTo(GeoPoint(request.clientLat!, request.clientLng!));
+    final client = request.point;
+    if (here == null || client == null) return '—';
+    final meters = here.point.distanceTo(client);
     if (meters < 1000) return '${meters.round()} m';
     return '${(meters / 1000).toStringAsFixed(1)} km';
   }
 
-  void _beginNavigating(HelpRequest request) {
-    _store.mechanicStartNavigating(request.id);
-    _startTracking(request);
+  Future<void> _beginNavigating() async {
+    if (!await _advance(JobProgressStep.navigating)) return;
+    final request = _request;
+    if (request != null) _startTracking(request);
   }
 
-  Future<void> _startTracking(HelpRequest request) async {
+  /// Arrival, with En Route first if the trip never registered one.
+  Future<void> _arrive({bool quiet = false}) async {
+    final request = _request;
+    if (request == null) return;
+    if (!request.enRoute && !await _advance(JobProgressStep.enRoute, quiet: quiet)) return;
+    if (await _advance(JobProgressStep.arrived, quiet: quiet)) _stopTracking();
+  }
+
+  Future<void> _startTracking(ServiceRequest request) async {
     if (_tracking) return;
     if (request.arrived) return;
-    if (!request.hasClientCoordinates) return;
+    if (request.point == null) return;
 
     // Heading to a job is a moment the mechanic plainly needs location, so a
     // prompt here is warranted — the service only shows one if asking can
@@ -118,39 +194,29 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
       return;
     }
 
-    final request = _store.requestFor(widget.requestId);
+    final request = _request;
     final update = _location.current;
     if (request == null || update == null || identical(update, _lastHandled)) return;
-    if (!request.hasClientCoordinates) return;
+    final client = request.point;
+    if (client == null) return;
     // A fix from before this job's tracking began says nothing about the trip.
     final since = _trackingSince;
     if (since != null && update.recordedAt.isBefore(since.subtract(const Duration(seconds: 5)))) return;
 
     _lastHandled = update;
-    _handlePosition(request, update.point);
+    final distance = update.point.distanceTo(client);
+    _initialDistance ??= distance;
+    if (!request.enRoute && distance < _initialDistance! - _movementThresholdMeters) {
+      _advance(JobProgressStep.enRoute, quiet: true);
+    }
+    if (!request.arrived && distance <= _arrivalRadiusMeters) {
+      _arrive(quiet: true);
+    }
     // The distance on the card moves with every fix.
     setState(() {});
   }
 
-  void _handlePosition(HelpRequest request, GeoPoint position) {
-    final distance = position.distanceTo(GeoPoint(request.clientLat!, request.clientLng!));
-    _initialDistance ??= distance;
-
-    if (!request.enRoute && distance < _initialDistance! - _movementThresholdMeters) {
-      _store.mechanicMarkEnRoute(request.id);
-    }
-    if (!request.arrived && distance <= _arrivalRadiusMeters) {
-      _store.mechanicMarkArrived(request.id);
-      _stopTracking();
-    }
-  }
-
-  void _confirmArrivalManually(HelpRequest request) {
-    if (!request.enRoute) _store.mechanicMarkEnRoute(request.id);
-    _store.mechanicMarkArrived(request.id);
-  }
-
-  Future<void> _setEmergencyPaymentAmount(HelpRequest request) async {
+  Future<void> _setEmergencyPaymentAmount(ServiceRequest request) async {
     final controller = TextEditingController(
       text: request.agreedPaymentAmount != null ? request.agreedPaymentAmount!.toStringAsFixed(0) : '',
     );
@@ -193,9 +259,17 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
         ],
       ),
     );
-    if (amount == null) return;
+    if (amount == null || !mounted) return;
 
-    _store.mechanicSetPaymentAmount(request.id, amount);
+    setState(() => _savingAmount = true);
+    try {
+      final answer = await _api.setAgreedAmount(widget.requestId, amount);
+      if (mounted) setState(() => _request = answer);
+    } on ApiException catch (error) {
+      _snack(error.message);
+    } finally {
+      if (mounted) setState(() => _savingAmount = false);
+    }
   }
 
   @override
@@ -207,11 +281,20 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
       ),
       body: Builder(
         builder: (context) {
-          final request = _store.requestFor(widget.requestId);
-          if (request == null) {
+          if (_loading) return const Center(child: CircularProgressIndicator());
+          final error = _error;
+          if (error != null) return _LoadFailed(message: error, onRetry: reload);
+
+          final request = _request;
+          // Matched is the job being worked; completed is a paid one, shown with
+          // its receipt. Anything else, including a job back in the pool, is no
+          // longer this mechanic's.
+          if (request == null ||
+              (request.status != ServiceRequestStatus.matched && request.status != ServiceRequestStatus.completed)) {
             return Center(child: Text('This job is no longer active.', style: TextStyle(color: AppColors.textdark.withValues(alpha: 0.55))));
           }
-          final quote = _store.acceptedQuoteFor(widget.requestId);
+          final quote = _accepted;
+          final eta = quote == null ? '—' : formatEtaDuration(Duration(minutes: quote.etaMinutes));
 
           return SingleChildScrollView(
             child: Column(
@@ -271,7 +354,7 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(request.clientName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                                      Text(request.urgency, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
+                                      Text(request.urgency.label, style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
                                     ],
                                   ),
                                 ),
@@ -298,18 +381,22 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
                               child: request.isEmergency
                                   ? Row(
                                       children: [
-                                        _InfoColumn(label: 'ETA', value: quote?.eta ?? '—'),
+                                        _InfoColumn(label: 'ETA', value: eta),
                                         const _VerticalDivider(),
                                         _InfoColumn(label: 'Distance', value: _distanceLabel(request)),
                                       ],
                                     )
                                   : Row(
                                       children: [
-                                        _InfoColumn(label: 'ETA', value: quote?.eta ?? '—'),
+                                        _InfoColumn(label: 'ETA', value: eta),
                                         const _VerticalDivider(),
                                         _InfoColumn(label: 'Distance', value: _distanceLabel(request)),
                                         const _VerticalDivider(),
-                                        _InfoColumn(label: 'Quote', value: quote?.price ?? '—', valueColor: AppColors.success),
+                                        _InfoColumn(
+                                          label: 'Quote',
+                                          value: quote == null ? '—' : formatPesos(quote.price),
+                                          valueColor: AppColors.success,
+                                        ),
                                       ],
                                     ),
                             ),
@@ -355,9 +442,35 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
     );
   }
 
-  Widget _buildAction(HelpRequest request, MechanicQuote? quote) {
+  /// The one full-width button a step needs, greyed while its call is out.
+  Widget _stepButton({
+    required String label,
+    required Color color,
+    required VoidCallback? onPressed,
+    IconData? icon,
+  }) {
+    final style = ElevatedButton.styleFrom(
+      backgroundColor: color,
+      foregroundColor: AppColors.textlight,
+      minimumSize: const Size(double.infinity, 46),
+      shape: const StadiumBorder(),
+    );
+    return SizedBox(
+      width: double.infinity,
+      child: icon == null
+          ? ElevatedButton(onPressed: onPressed, style: style, child: Text(label))
+          : ElevatedButton.icon(
+              onPressed: onPressed,
+              icon: Icon(icon, size: 18, color: AppColors.textlight),
+              label: Text(label),
+              style: style,
+            ),
+    );
+  }
+
+  Widget _buildAction(ServiceRequest request, JobQuote? quote) {
     if (request.paymentCompleted) {
-      final amount = effectivePaymentAmount(request, quote) ?? 0;
+      final amount = settledPaymentAmountOf(request, quote) ?? 0;
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
@@ -381,6 +494,8 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
       );
     }
 
+    final mechanicName = request.mechanicName ?? quote?.mechanicName ?? QuoteNotificationStore.currentMechanicName;
+
     if (request.serviceCompleted) {
       // ── Emergency: negotiated price, must be set before any code exists ──
       if (request.isEmergency) {
@@ -399,26 +514,17 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () => _setEmergencyPaymentAmount(request),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textlight,
-                  minimumSize: const Size(double.infinity, 46),
-                  shape: const StadiumBorder(),
-                ),
-                child: const Text('Set Payment Amount'),
+              _stepButton(
+                label: 'Set Payment Amount',
+                color: AppColors.primary,
+                onPressed: _savingAmount ? null : () => _setEmergencyPaymentAmount(request),
               ),
             ],
           );
         }
 
         final amount = request.agreedPaymentAmount!;
-        final qrData = buildPaymentQrData(
-          requestId: request.id,
-          mechanicName: quote?.mechanicName ?? QuoteNotificationStore.currentMechanicName,
-          amount: amount,
-        );
+        final qrData = buildPaymentQrData(requestId: request.id, mechanicName: mechanicName, amount: amount);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -445,30 +551,16 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
             Text('Have the client scan this to pay ₱${amount.toStringAsFixed(0)}',
                 style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
             const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
-              child: SelectableText(
-                qrData,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontFamily: 'monospace'),
-              ),
-            ),
+            _PaymentCode(qrData: qrData),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            // Side by side where they fit; one under the other on a narrow
+            // phone or at a large text size, rather than running off the edge.
+            Wrap(
+              alignment: WrapAlignment.center,
               children: [
+                _CopyCodeButton(qrData: qrData),
                 TextButton.icon(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: qrData));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment code copied'), duration: AppDurations.snackBar));
-                  },
-                  icon: const Icon(Icons.copy, size: 16),
-                  label: const Text('Copy Code'),
-                ),
-                TextButton.icon(
-                  onPressed: () => _setEmergencyPaymentAmount(request),
+                  onPressed: _savingAmount ? null : () => _setEmergencyPaymentAmount(request),
                   icon: const Icon(Icons.edit_outlined, size: 16),
                   label: const Text('Edit Amount'),
                 ),
@@ -485,12 +577,8 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
       }
 
       // ── Normal/Urgent: fixed quote price, no negotiation, no set step ──
-      final amount = quote != null ? parsePesoAmount(quote.price) : 0.0;
-      final qrData = buildPaymentQrData(
-        requestId: request.id,
-        mechanicName: quote?.mechanicName ?? QuoteNotificationStore.currentMechanicName,
-        amount: amount,
-      );
+      final amount = quote?.price ?? 0.0;
+      final qrData = buildPaymentQrData(requestId: request.id, mechanicName: mechanicName, amount: amount);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -512,78 +600,44 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
             child: QrImageView(data: qrData, size: 200),
           ),
           const SizedBox(height: 10),
-          Text('Have the client scan this to pay ${quote?.price ?? ''}',
+          Text('Have the client scan this to pay ${quote == null ? '' : formatPesos(quote.price)}',
               style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
           const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
-            child: SelectableText(
-              qrData,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontFamily: 'monospace'),
-            ),
-          ),
+          _PaymentCode(qrData: qrData),
           const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: qrData));
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment code copied'), duration: AppDurations.snackBar));
-            },
-            icon: const Icon(Icons.copy, size: 16),
-            label: const Text('Copy Code'),
-          ),
+          _CopyCodeButton(qrData: qrData),
         ],
       );
     }
 
     if (request.workStarted) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () => _store.mechanicCompleteService(request.id),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.textlight,
-            minimumSize: const Size(double.infinity, 46),
-            shape: const StadiumBorder(),
-          ),
-          child: const Text('Service Complete'),
-        ),
+      return _stepButton(
+        label: 'Service Complete',
+        color: AppColors.primary,
+        onPressed: _sending.contains(JobProgressStep.completeService)
+            ? null
+            : () => _advance(JobProgressStep.completeService),
       );
     }
 
     if (request.arrived) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () => _store.mechanicStartWork(request.id),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.success,
-            foregroundColor: AppColors.textlight,
-            minimumSize: const Size(double.infinity, 46),
-            shape: const StadiumBorder(),
-          ),
-          child: const Text('Start Work'),
-        ),
+      return _stepButton(
+        label: 'Start Work',
+        color: AppColors.success,
+        onPressed: _sending.contains(JobProgressStep.startWork) ? null : () => _advance(JobProgressStep.startWork),
       );
     }
 
     if (request.navigating) {
-      if (!request.hasClientCoordinates) {
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _confirmArrivalManually(request),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-                foregroundColor: AppColors.textlight,
-              minimumSize: const Size(double.infinity, 46),
-              shape: const StadiumBorder(),
-            ),
-            child: const Text('Confirm Arrival'),
-          ),
+      // Without the client's coordinates, or without a working location fix,
+      // there is nothing to detect arrival from: the mechanic says so.
+      if (request.point == null || _trackingError != null) {
+        return _stepButton(
+          label: 'Confirm Arrival',
+          color: AppColors.success,
+          onPressed: _sending.contains(JobProgressStep.arrived) || _sending.contains(JobProgressStep.enRoute)
+              ? null
+              : () => _arrive(),
         );
       }
       return Container(
@@ -598,19 +652,80 @@ class _MechanicActiveJobScreenState extends State<MechanicActiveJobScreen> {
       );
     }
 
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () => _beginNavigating(request),
-        icon: Icon(Icons.navigation_outlined, size: 18, color: AppColors.textlight),
-        label: const Text('Navigate'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.success,
-          foregroundColor: AppColors.textlight,
-          minimumSize: const Size(double.infinity, 46),
-          shape: const StadiumBorder(),
-        ),
+    return _stepButton(
+      label: 'Navigate',
+      color: AppColors.success,
+      icon: Icons.navigation_outlined,
+      onPressed: _sending.contains(JobProgressStep.navigating) ? null : _beginNavigating,
+    );
+  }
+}
+
+/// The job could not be read. Says why, in the backend's words, and offers to
+/// try again.
+class _LoadFailed extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _LoadFailed({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.cloud_off, size: 48, color: AppColors.textdark.withValues(alpha: 0.55)),
+          const SizedBox(height: 12),
+          const Text("Couldn't load this job", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: AppColors.textdark.withValues(alpha: 0.55))),
+          const SizedBox(height: 12),
+          TextButton(onPressed: onRetry, child: const Text('Try again')),
+        ],
       ),
+    );
+  }
+}
+
+/// The payment code as text, for a client who pastes rather than scans.
+class _PaymentCode extends StatelessWidget {
+  final String qrData;
+
+  const _PaymentCode({required this.qrData});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
+      child: SelectableText(
+        qrData,
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 11, color: AppColors.textdark.withValues(alpha: 0.55), fontFamily: 'monospace'),
+      ),
+    );
+  }
+}
+
+class _CopyCodeButton extends StatelessWidget {
+  final String qrData;
+
+  const _CopyCodeButton({required this.qrData});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: () {
+        Clipboard.setData(ClipboardData(text: qrData));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment code copied'), duration: AppDurations.snackBar));
+      },
+      icon: const Icon(Icons.copy, size: 16),
+      label: const Text('Copy Code'),
     );
   }
 }

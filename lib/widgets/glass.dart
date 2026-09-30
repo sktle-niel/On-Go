@@ -44,10 +44,11 @@ class Glass {
     if (tint != null) {
       return [
         Color.alphaBlend(tint.withValues(alpha: 0.10), Colors.white),
-        Colors.white.withValues(alpha: 0.80),
+        Color.alphaBlend(tint.withValues(alpha: 0.04), Colors.white),
       ];
     }
-    return [Colors.white.withValues(alpha: 0.94), Colors.white.withValues(alpha: 0.76)];
+    // On a light page a card is plain white, lifted by its shadow.
+    return const [Colors.white, Colors.white];
   }
 
   /// A card's flat fill, for one drawn with a plain decoration: a pane of
@@ -56,11 +57,11 @@ class Glass {
 
   /// The hairline round a glass surface.
   static Color get edge =>
-      _dark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.07);
+      _dark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.05);
 
   /// A floating surface's own colour, under its blur.
   static Color get floating =>
-      _dark ? const Color(0xB3141416) : Colors.white.withValues(alpha: 0.80);
+      _dark ? const Color(0xB3141416) : Colors.white.withValues(alpha: 0.96);
 
   /// The soft shadow a light-theme glass surface needs to lift off the page.
   /// None on a dark theme, where a shadow cannot be seen.
@@ -84,8 +85,10 @@ class Glass {
   static Color get onContrast => _dark ? const Color(0xFF111114) : Colors.white;
 }
 
-/// The page glass is laid over: the palette's background, deepened towards
-/// the brand colour at the top, with two soft glows of it.
+/// The page glass is laid over. On a dark theme: the palette's background,
+/// deepened towards the brand colour at the top, with two soft glows of it.
+/// On a light one: the plain pale background, where white cards and their
+/// shadows carry the depth.
 class GlassBackdrop extends StatelessWidget {
   final Widget? child;
 
@@ -95,6 +98,7 @@ class GlassBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = AppColors.palette;
     final dark = AppColors.isDark;
+    if (!dark) return ColoredBox(color: c.background, child: SizedBox.expand(child: child));
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -635,8 +639,9 @@ class GlassNavItem {
   const GlassNavItem({required this.icon, required this.label, this.activeIcon});
 }
 
-/// The tab bar: a glass pill floating above the bottom edge, the chosen tab
-/// a glowing disc in the brand colour.
+/// The tab bar: a rounded bar floating above the bottom edge, the chosen tab
+/// a rounded square filled with the brand colour. Frosted glass on a dark
+/// theme; white with a soft shadow on a light one.
 ///
 /// Put it in `Scaffold.bottomNavigationBar` with `extendBody: true`, so the
 /// page runs on under the glass; a page then keeps its last row clear of it
@@ -649,6 +654,7 @@ class GlassNavBar extends StatelessWidget {
   const GlassNavBar({super.key, required this.currentIndex, required this.onTap, required this.items});
 
   static const double barHeight = 70;
+  static const double _radius = 26;
 
   @override
   Widget build(BuildContext context) {
@@ -662,31 +668,38 @@ class GlassNavBar extends StatelessWidget {
           heightFactor: 1,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(barHeight / 2),
-              child: BackdropFilter(
-                filter: Glass.blur,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Glass.floating,
-                    borderRadius: BorderRadius.circular(barHeight / 2),
-                    border: Border.all(color: Glass.edge),
-                  ),
-                  child: SizedBox(
-                    height: barHeight,
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: Row(
-                        children: [
-                          for (var i = 0; i < items.length; i++)
-                            Expanded(
-                              child: _GlassNavButton(
-                                item: items[i],
-                                selected: i == currentIndex,
-                                onTap: () => onTap(i),
+            // The shadow sits outside the clip, or the clip would cut it off.
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(_radius),
+                boxShadow: Glass.lift,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_radius),
+                child: BackdropFilter(
+                  filter: Glass.blur,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Glass.floating,
+                      borderRadius: BorderRadius.circular(_radius),
+                      border: Border.all(color: Glass.edge),
+                    ),
+                    child: SizedBox(
+                      height: barHeight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Row(
+                          children: [
+                            for (var i = 0; i < items.length; i++)
+                              Expanded(
+                                child: _GlassNavButton(
+                                  item: items[i],
+                                  selected: i == currentIndex,
+                                  onTap: () => onTap(i),
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -723,19 +736,27 @@ class _GlassNavButton extends StatelessWidget {
           child: AnimatedContainer(
             duration: AppMotion.normal,
             curve: AppMotion.enter,
-            width: 58,
-            height: 58,
+            width: 62,
+            height: 56,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(18),
               gradient: selected
                   ? LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Color.lerp(c.primary, Colors.white, 0.16)!, c.primarydark],
+                      colors: [Color.lerp(c.primary, Colors.white, 0.12)!, c.primary],
                     )
                   : null,
+              // A glow reads on a dark page; on a light one, a soft drop.
               boxShadow: selected
-                  ? [BoxShadow(color: c.primary.withValues(alpha: 0.55), blurRadius: 18, spreadRadius: -2)]
+                  ? [
+                      BoxShadow(
+                        color: c.primary.withValues(alpha: AppColors.isDark ? 0.55 : 0.28),
+                        blurRadius: AppColors.isDark ? 18 : 12,
+                        spreadRadius: -2,
+                        offset: AppColors.isDark ? Offset.zero : const Offset(0, 4),
+                      ),
+                    ]
                   : null,
             ),
             child: Column(

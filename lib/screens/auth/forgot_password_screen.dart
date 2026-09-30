@@ -274,7 +274,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       });
 
   ButtonStyle get _linkStyle => TextButton.styleFrom(
-        foregroundColor: AppColors.primary,
+        foregroundColor: AuthScheme.darkTheme.palette.primary,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         minimumSize: const Size(48, 44),
       );
@@ -313,11 +313,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 1),
-                child: Icon(Icons.error_outline, size: 16, color: AppColors.error),
+                child: Icon(Icons.error_outline, size: 16, color: AuthScheme.darkTheme.palette.error),
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(_error!, style: TextStyle(fontSize: 12, color: AppColors.error)),
+                child: Text(_error!, style: TextStyle(fontSize: 12, color: AuthScheme.darkTheme.palette.error)),
               ),
             ],
           ),
@@ -415,7 +415,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: AppColors.textdark.withValues(alpha: 0.55),
+                color: AuthScheme.darkTheme.palette.textdark.withValues(alpha: 0.55),
                 size: 20,
               ),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -437,7 +437,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: AppColors.textdark.withValues(alpha: 0.55),
+                color: AuthScheme.darkTheme.palette.textdark.withValues(alpha: 0.55),
                 size: 20,
               ),
               onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
@@ -462,15 +462,15 @@ class _InfoNote extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.info.withValues(alpha: 0.08),
+        color: AuthScheme.of(context).info.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline, size: 16, color: AppColors.info),
+          Icon(Icons.info_outline, size: 16, color: AuthScheme.of(context).info),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text, style: TextStyle(fontSize: 12, color: AppColors.info)),
+            child: Text(text, style: TextStyle(fontSize: 12, color: AuthScheme.of(context).info)),
           ),
         ],
       ),

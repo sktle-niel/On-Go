@@ -51,7 +51,8 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Bundled pictures: the photo behind the Sign In hero and the home's
-  # emergency card.
+  # Bundled pictures: the photo behind the Sign In hero, the home's emergency
+  # card, and the service icons (assets/images/services).
   assets:
     - assets/images/
+    - assets/images/services/

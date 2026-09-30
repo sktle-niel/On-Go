@@ -12,6 +12,7 @@ import 'data/point_transaction_store.dart';
 import 'data/problem_report_store.dart';
 import 'data/rank_policy_store.dart';
 import 'data/review_store.dart';
+import 'data/service_icon_credits.dart';
 import 'data/urgency_policy_store.dart';
 import 'services/api/mobile_api.dart';
 import 'services/location/location_service.dart';
@@ -27,10 +28,10 @@ import 'theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Restore the saved theme before the first frame so the app never flashes
-  // the Default palette on startup. The app is drawn in glass on a dark page
-  // (lib/widgets/glass.dart), so Dark Mode starts on; the switch in Settings
-  // still turns it off, and a saved choice wins.
-  await ThemeController.instance.load(darkByDefault: true);
+  // the Default palette on startup. The app starts light: white cards on a
+  // pale grey page, with the sign-in pages dark on their own (AuthPage). The
+  // switch in Settings still turns Dark Mode on, and a saved choice wins.
+  await ThemeController.instance.load();
   // The backend: the On Go API (staging unless ONGO_API_BASE_URL says
   // otherwise), or everything on the device with ONGO_BACKEND=local. Installed
   // before anything below reads from it. Only checks whether a session is
@@ -80,6 +81,8 @@ void main() async {
     directory: PsgcPlaceDirectory(),
     geocoder: PlatformReverseGeocoder(),
   );
+  // The credit Flaticon asks for, shown in Settings > Credits.
+  registerServiceIconCredits();
   runApp(MyApp(
     resumeRegistrationStep: RegistrationDraft.instance.pendingPickerStep,
     restoreSession: hasStoredSession,
